@@ -13,6 +13,7 @@
 - 依「最後負責時刻」（ADR-014）：開始某一天的工作前，先處理 `docs/adr.md` 中排在那一天之前的待決定題目。
 - 實作前先讀 `docs/adr.md` 的「已決定」，技術組合以那裡為準。
 - 每完成一天，更新 `docs/progress.md`。
+- 單人開發：直接在 main 上 commit 並推到 origin/main，不開分支、不開 PR（取代全域 Gate 3 的分支與 PR 規定）。推之前先在 `backend/` 跑完整檢查：`uv run pytest && uv run ruff check . && uv run mypy app`。
 - 不寫目前無法測試的程式。例如沒有 OpenAI 金鑰，就先不寫 OpenAI 轉接頭。
 - 不要要求使用者把 API 金鑰貼進對話；請使用者自己寫進 `backend/.env`。
 

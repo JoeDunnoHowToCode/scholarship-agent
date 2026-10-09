@@ -9,6 +9,8 @@
 - 第 1 天只建 scholarships 表，其他表在用到的那天加上（ADR-024）
 - 主鍵用整數自動遞增（ADR-025）
 - GitHub repo 用 private，名稱 `scholarship-agent`；第 1 天收尾時才建立
+- commit 身分：`Joe <38872920+JoeDunnoHowToCode@users.noreply.github.com>`，設成全域（執行時發現沒設定，使用者決定）
+- SQLAlchemy 鎖在 2.0 系列（`>=2.0,<2.1`）：`>=2` 會裝到 2.1，和 ADR-017 不符（執行時發現，使用者決定）
 
 ## 和原版不同的地方
 
@@ -197,7 +199,17 @@ GET /health -> {"status": "ok"}
 
 ### 2. 後端專案
 
-- [ ] backend 專案用 Python 3.13，裝好第 1 天的套件 -> verify: `uv run python -c "import sys, fastapi, sqlalchemy, alembic, psycopg, pydantic_settings, langchain_google_genai; print(sys.version.split()[0])"`
+- [x] backend 專案用 Python 3.13，裝好第 1 天的套件 -> verify: `uv run python -c "import sys, fastapi, sqlalchemy, alembic, psycopg, pydantic_settings, langchain_google_genai; print(sys.version.split()[0])"`
+
+  ```text
+  3.13.13
+  ```
+
+  補充檢查 `uv run python -c "import sqlalchemy; print('sqlalchemy', sqlalchemy.__version__)"`：
+
+  ```text
+  sqlalchemy 2.0.54
+  ```
 
 ### 3. Docker
 

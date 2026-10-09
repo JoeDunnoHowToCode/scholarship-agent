@@ -1,0 +1,32 @@
+[project]
+name = "backend"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.20.0",
+    "fastapi>=0.143.0",
+    "langchain-google-genai>=4.4.0",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy>=2.0,<2.1",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "ruff>=0.16.10",
+]
+
+[tool.ruff.lint]
+# 預設規則（E、F）再加 I：自動檢查 import 的排序
+extend-select = ["I"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+# 讓測試能 import app（app 資料夾在 backend/ 底下）
+pythonpath = ["."]

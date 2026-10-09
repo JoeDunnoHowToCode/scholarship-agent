@@ -333,7 +333,15 @@ GET /health -> {"status": "ok"}
   綠（有 fail 就回傳 20，否則 80）：
   1 passed, 1 deselected in 0.01s
   ```
-- [ ] B3 全部符合或沒有檢查項目時不變 -> verify: `uv run pytest tests/test_scoring.py -k all_pass_keeps_score -q`
+- [x] B3 全部符合或沒有檢查項目時不變 -> verify: `uv run pytest tests/test_scoring.py -k all_pass_keeps_score -q`
+
+  ```text
+  紅（commit 0ef2354）：
+  E       AssertionError: assert 80 == 95
+  2 failed, 2 deselected in 0.04s
+  綠（有 unclear 才回傳 80，否則回傳原分數）：
+  2 passed, 2 deselected in 0.01s
+  ```
 - [ ] B4 分數低於上限時不被拉高 -> verify: `uv run pytest tests/test_scoring.py -k never_raises_score -q`
 
 ### 7. Gemini 抽取（需要金鑰）

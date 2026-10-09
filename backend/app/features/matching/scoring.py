@@ -10,4 +10,6 @@ CheckResult = Literal["pass", "fail", "unclear"]
 def apply_caps(score: float, checks: Sequence[CheckResult]) -> float:
     if "fail" in checks:
         return 20
-    return 80
+    if "unclear" in checks:
+        return 80
+    return score

@@ -8,8 +8,9 @@ CheckResult = Literal["pass", "fail", "unclear"]
 
 
 def apply_caps(score: float, checks: Sequence[CheckResult]) -> float:
+    """依硬性條件的結果套用總分上限：任一不符合最多 20，任一待確認最多 80。"""
     if "fail" in checks:
-        return 20
+        return min(score, 20)
     if "unclear" in checks:
-        return 80
+        return min(score, 80)
     return score

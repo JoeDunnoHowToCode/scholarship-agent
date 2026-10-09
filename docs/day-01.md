@@ -342,7 +342,16 @@ GET /health -> {"status": "ok"}
   綠（有 unclear 才回傳 80，否則回傳原分數）：
   2 passed, 2 deselected in 0.01s
   ```
-- [ ] B4 分數低於上限時不被拉高 -> verify: `uv run pytest tests/test_scoring.py -k never_raises_score -q`
+- [x] B4 分數低於上限時不被拉高 -> verify: `uv run pytest tests/test_scoring.py -k never_raises_score -q`
+
+  ```text
+  紅（commit 51dc3b5）：
+  E       AssertionError: assert 80 == 50
+  E       AssertionError: assert 20 == 10
+  2 failed, 4 deselected in 0.04s
+  綠（上限改用 min(分數, 上限)）：
+  2 passed, 4 deselected in 0.01s
+  ```
 
 ### 7. Gemini 抽取（需要金鑰）
 

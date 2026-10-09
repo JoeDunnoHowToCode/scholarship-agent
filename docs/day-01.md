@@ -355,8 +355,39 @@ GET /health -> {"status": "ok"}
 
 ### 7. Gemini 抽取（需要金鑰）
 
-- [ ] 金鑰是空的時，extract 停下來並提示設定 GOOGLE_API_KEY -> verify: `GOOGLE_API_KEY= uv run python -m app.features.scholarships.extract tests/fixtures/sample_call.txt`
-- [ ] 範例簡章經 Gemini 3.5 Flash-Lite 抽成 ScholarshipDraft 並存進 scholarships（預期 taiwan_eligibility 是 yes、deadline 是 2027-01-15） -> verify: `uv run python -m app.features.scholarships.extract tests/fixtures/sample_call.txt && docker compose exec -T postgres psql -U scholar -d scholar -c "select id, name, countries, degrees, taiwan_eligibility, extracted->>'deadline' as deadline from scholarships order by id desc limit 1"`
+- [x] 金鑰是空的時，extract 停下來並提示設定 GOOGLE_API_KEY -> verify: `GOOGLE_API_KEY= uv run python -m app.features.scholarships.extract tests/fixtures/sample_call.txt`
+
+  ```text
+  沒有 Gemini 金鑰：請在 backend/.env 設定 GOOGLE_API_KEY=你的金鑰
+  exit code: 1
+  ```
+
+- [x] 範例簡章經 Gemini 3.5 Flash-Lite 抽成 ScholarshipDraft 並存進 scholarships（預期 taiwan_eligibility 是 yes、deadline 是 2027-01-15） -> verify: `uv run python -m app.features.scholarships.extract tests/fixtures/sample_call.txt && docker compose exec -T postgres psql -U scholar -d scholar -c "select id, name, countries, degrees, taiwan_eligibility, extracted->>'deadline' as deadline from scholarships order by id desc limit 1"`
+
+  ```text
+  已存進 scholarships，id=1
+  {
+    "name": "Example Foundation Master's Scholarship 2027/28",
+    "provider": "Example Foundation",
+    "countries": [
+      "United Kingdom",
+      "Sweden"
+    ],
+    "degrees": [
+      "master"
+    ],
+    "taiwan_eligibility": "yes",
+    "taiwan_evidence": "Applicants must hold citizenship of Taiwan, Japan or South Korea and a bachelor's degree with a minimum GPA of 3.3 out of 4.0.",
+    "deadline": "2027-01-15",
+    "deadline_evidence": "Applications must be submitted by 15 January 2027, 23:59 CET."
+  }
+   id |                      name                       |         countries         | degrees  | taiwan_eligibility |  deadline
+  ----+-------------------------------------------------+---------------------------+----------+--------------------+------------
+    1 | Example Foundation Master's Scholarship 2027/28 | {"United Kingdom",Sweden} | {master} | yes                | 2027-01-15
+  (1 row)
+  ```
+
+  執行前已確認：LangChain 對 `gemini-3.5-flash-lite` 不送 temperature（用 Google 預設值），結構化輸出預設是 `json_schema`（原生 schema）。
 
 ### 8. 收尾
 

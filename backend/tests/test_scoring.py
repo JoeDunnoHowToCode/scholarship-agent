@@ -19,3 +19,9 @@ def test_fail_caps_at_20_over_unclear() -> None:
 def test_all_pass_keeps_score(checks: list[scoring.CheckResult]) -> None:
     # 全部符合，或沒有任何檢查項目：分數不變
     assert scoring.apply_caps(95, checks) == 95
+
+
+@pytest.mark.parametrize(("score", "checks"), [(50, ["unclear"]), (10, ["fail"])])
+def test_caps_never_raises_score(score: float, checks: list[scoring.CheckResult]) -> None:
+    # 上限只會往下壓，不會把本來比上限低的分數拉高
+    assert scoring.apply_caps(score, checks) == score

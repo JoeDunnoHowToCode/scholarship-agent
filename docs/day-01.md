@@ -188,7 +188,12 @@ GET /health -> {"status": "ok"}
 
 ### 1. Git 起步
 
-- [ ] main 有一個只含現有文件（CLAUDE.md、docs/、.gitignore）的 commit，目前在 day-01 分支 -> verify（根目錄）: `git log --oneline main && git branch --show-current`
+- [x] main 有一個只含現有文件（CLAUDE.md、docs/、.gitignore）的 commit，目前在 day-01 分支 -> verify（根目錄）: `git log --oneline main && git branch --show-current`
+
+  ```text
+  e8b664e docs: import project docs before day 1
+  day-01
+  ```
 
 ### 2. 後端專案
 

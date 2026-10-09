@@ -315,7 +315,15 @@ GET /health -> {"status": "ok"}
 
 ### 6. 評分上限規則（紅綠循環）
 
-- [ ] B1 有待確認時上限 80 -> verify: `uv run pytest tests/test_scoring.py -k unclear_caps_at_80 -q`
+- [x] B1 有待確認時上限 80 -> verify: `uv run pytest tests/test_scoring.py -k unclear_caps_at_80 -q`
+
+  ```text
+  紅（commit e422487）：
+  E       AttributeError: module 'app.features.matching.scoring' has no attribute 'apply_caps'
+  1 failed in 0.04s
+  綠（最少的程式：直接回傳 80）：
+  1 passed in 0.01s
+  ```
 - [ ] B2 有不符合時上限 20，而且優先於待確認 -> verify: `uv run pytest tests/test_scoring.py -k fail_caps_at_20 -q`
 - [ ] B3 全部符合或沒有檢查項目時不變 -> verify: `uv run pytest tests/test_scoring.py -k all_pass_keeps_score -q`
 - [ ] B4 分數低於上限時不被拉高 -> verify: `uv run pytest tests/test_scoring.py -k never_raises_score -q`

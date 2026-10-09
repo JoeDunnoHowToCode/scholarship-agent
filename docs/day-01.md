@@ -416,7 +416,13 @@ GET /health -> {"status": "ok"}
 
   下一步：第 2 天開始前，先決定 #11 抓取工具、#15 來源設定的存放方式、#16 爬蟲禮儀與合規等級。
   ```
-- [ ] 建 private repo、推 main 與 day-01、開 PR -> verify（根目錄）: `gh pr view day-01 --json url,state,baseRefName,headRefName`
+- [x] 建 private repo、推 main 與 day-01、開 PR -> verify（根目錄）: `gh pr view day-01 --json url,state,baseRefName,headRefName`
+
+  ```text
+  {"baseRefName":"main","headRefName":"day-01","state":"OPEN","url":"https://github.com/JoeDunnoHowToCode/scholarship-agent/pull/1"}
+  ```
+
+  推送前檢查：所有 commit 裡沒有金鑰、沒有被追蹤的 `.env`；repo 可見度是 PRIVATE。
 
 ## 第 2 天開始前要決定
 

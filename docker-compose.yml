@@ -1,0 +1,25 @@
+# 本機開發用的 PostgreSQL 與 Redis（ADR-016、ADR-022：Docker 只跑這兩個，程式原生執行）
+# 連接埠只綁 127.0.0.1：只有這台電腦連得到，同一個網路的其他裝置連不進來
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: scholar
+      POSTGRES_PASSWORD: scholar
+      POSTGRES_DB: scholar
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    # 健康檢查：讓 `docker compose up -d --wait` 等到資料庫真的能連線才結束
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scholar -d scholar"]
+      interval: 2s
+      retries: 15
+  redis:
+    image: redis:7
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 15
+volumes:
+  pgdata:

@@ -324,7 +324,15 @@ GET /health -> {"status": "ok"}
   綠（最少的程式：直接回傳 80）：
   1 passed in 0.01s
   ```
-- [ ] B2 有不符合時上限 20，而且優先於待確認 -> verify: `uv run pytest tests/test_scoring.py -k fail_caps_at_20 -q`
+- [x] B2 有不符合時上限 20，而且優先於待確認 -> verify: `uv run pytest tests/test_scoring.py -k fail_caps_at_20 -q`
+
+  ```text
+  紅（commit b67264c）：
+  E       AssertionError: assert 80 == 20
+  1 failed, 1 deselected in 0.03s
+  綠（有 fail 就回傳 20，否則 80）：
+  1 passed, 1 deselected in 0.01s
+  ```
 - [ ] B3 全部符合或沒有檢查項目時不變 -> verify: `uv run pytest tests/test_scoring.py -k all_pass_keeps_score -q`
 - [ ] B4 分數低於上限時不被拉高 -> verify: `uv run pytest tests/test_scoring.py -k never_raises_score -q`
 

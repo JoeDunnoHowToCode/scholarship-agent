@@ -1,0 +1,20 @@
+# 秘密與本機設定
+.env
+backend/.env
+CLAUDE.local.md
+
+# 原始快照（ADR-019，定期另外備份）
+backend/data/snapshots/
+
+# Python
+__pycache__/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# 前端
+node_modules/
+
+# macOS
+.DS_Store

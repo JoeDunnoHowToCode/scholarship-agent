@@ -391,8 +391,31 @@ GET /health -> {"status": "ok"}
 
 ### 8. 收尾
 
-- [ ] 全部測試、ruff、mypy 通過 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
-- [ ] `docs/progress.md` 更新為第 1 天完成 -> verify: `cat ../docs/progress.md`
+- [x] 全部測試、ruff、mypy 通過 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
+
+  ```text
+  platform darwin -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0
+  configfile: pyproject.toml
+  collected 6 items
+
+  tests/test_scoring.py ......                                             [100%]
+
+  ============================== 6 passed in 0.02s ===============================
+  All checks passed!
+  Success: no issues found in 15 source files
+  ```
+
+- [x] `docs/progress.md` 更新為第 1 天完成 -> verify: `cat ../docs/progress.md`
+
+  ```text
+  # 目前進度
+
+  每完成一天，更新這一檔。各天的範圍見 `docs/spec.md` 的「開發排程」。
+
+  第 1 天完成（2026-10-09），PR 待使用者審查：專案骨架、scholarships 表與第一支遷移、Gemini 抽取指令、評分上限規則。
+
+  下一步：第 2 天開始前，先決定 #11 抓取工具、#15 來源設定的存放方式、#16 爬蟲禮儀與合規等級。
+  ```
 - [ ] 建 private repo、推 main 與 day-01、開 PR -> verify（根目錄）: `gh pr view day-01 --json url,state,baseRefName,headRefName`
 
 ## 第 2 天開始前要決定

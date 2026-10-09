@@ -213,7 +213,13 @@ GET /health -> {"status": "ok"}
 
 ### 3. Docker
 
-- [ ] PostgreSQL 與 Redis 都健康，連接埠只綁 127.0.0.1 -> verify（根目錄）: `docker compose up -d --wait && docker compose ps`
+- [x] PostgreSQL 與 Redis 都健康，連接埠只綁 127.0.0.1 -> verify（根目錄）: `docker compose up -d --wait && docker compose ps`
+
+  ```text
+  NAME                           IMAGE         COMMAND                  SERVICE    CREATED         STATUS                   PORTS
+  scholarship-agent-postgres-1   postgres:17   "docker-entrypoint.s…"   postgres   4 seconds ago   Up 2 seconds (healthy)   127.0.0.1:5432->5432/tcp
+  scholarship-agent-redis-1      redis:7       "docker-entrypoint.s…"   redis      4 seconds ago   Up 2 seconds (healthy)   127.0.0.1:6379->6379/tcp
+  ```
 
 ### 4. API 骨架
 

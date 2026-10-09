@@ -223,7 +223,11 @@ GET /health -> {"status": "ok"}
 
 ### 4. API 骨架
 
-- [ ] API 啟動，GET /health 回 {"status":"ok"} -> verify: `uv run uvicorn app.main:app --port 8000 & PID=$!; curl -s --retry 10 --retry-connrefused --retry-delay 1 localhost:8000/health; kill $PID`
+- [x] API 啟動，GET /health 回 {"status":"ok"} -> verify: `uv run uvicorn app.main:app --port 8000 & PID=$!; curl -s --retry 10 --retry-connrefused --retry-delay 1 localhost:8000/health; kill $PID`
+
+  ```text
+  {"status":"ok"}
+  ```
 
 ### 5. scholarships 表與第一個遷移
 

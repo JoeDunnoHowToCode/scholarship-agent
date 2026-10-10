@@ -18,6 +18,7 @@ SEEDS: list[dict[str, Any]] = [
         "country": "European Union",
         "fetch_method": FetchMethod.HTML,
         "follow_pagination": True,  # 約 220 個學程分在 11 頁
+        "page_zero_is_first": True,  # ?page=0 就是首頁本身（實測內容雜湊相同）
     },
     {
         "name": "Chevening Taiwan",

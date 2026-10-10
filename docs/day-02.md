@@ -464,7 +464,19 @@ fetch_min_interval_seconds: float = 5.0
   1 passed, 1 deselected in 0.09s
   ```
 
-- [ ] T13 打開「第 0 頁就是首頁」時 `?page=0` 換成首頁網址 -> verify: `uv run pytest tests/test_pagination.py -k page_zero -q`
+- [x] T13 打開「第 0 頁就是首頁」時 `?page=0` 換成首頁網址 -> verify: `uv run pytest tests/test_pagination.py -k page_zero -q`
+
+  ```text
+  紅（commit 79b385c；先用 commit 691b3a7 加上沒有作用的參數，讓紅燈是斷言失敗）：
+  E         At index 0 diff: 'https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=0' != 'https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en'
+  FAILED tests/test_pagination.py::test_pagination_urls_page_zero_setting[setting_on]
+  PASSED tests/test_pagination.py::test_pagination_urls_page_zero_setting[setting_off]
+  1 failed, 1 passed, 2 deselected in 0.15s
+  綠（設定打開時拿掉 page=0 參數）：
+  2 passed, 2 deselected in 0.08s
+  ```
+
+  整套測試：`uv run pytest -q` → 23 passed。
 
 ### 4. 種子
 
@@ -481,7 +493,17 @@ fetch_min_interval_seconds: float = 5.0
   (3 rows)
   ```
 
-- [ ] 重跑 seed 後只有 EACEA 打開「第 0 頁就是首頁」 -> verify: `uv run python -m app.features.sources.seed && docker compose exec -T postgres psql -U scholar -d scholar -c "select id, name, page_zero_is_first from sources order by id"`
+- [x] 重跑 seed 後只有 EACEA 打開「第 0 頁就是首頁」 -> verify: `uv run python -m app.features.sources.seed && docker compose exec -T postgres psql -U scholar -d scholar -c "select id, name, page_zero_is_first from sources order by id"`
+
+  ```text
+  已寫入或更新 3 個種子來源
+   id |            name             | page_zero_is_first
+  ----+-----------------------------+--------------------
+    1 | Erasmus Mundus Catalogue    | t
+    2 | Chevening Taiwan            | f
+    3 | 教育部 115 年留學獎學金簡章 | f
+  (3 rows)
+  ```
 
 ### 5. 抓取
 

@@ -341,14 +341,91 @@ fetch_min_interval_seconds: float = 5.0
   綠（空白縮成一個空格後算 SHA-256）：
   1 passed, 3 deselected in 0.08s
   ```
-- [ ] T5 一般回應不算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k normal_response -q`
-- [ ] T6 403 算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k status_403 -q`
-- [ ] T7 429 算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k status_429 -q`
-- [ ] T8 驗證碼頁算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k captcha -q`
-- [ ] T9 robots.txt 4xx 視為允許 -> verify: `uv run pytest tests/test_etiquette.py -k robots_4xx -q`
-- [ ] T10 robots.txt 5xx 視為禁止 -> verify: `uv run pytest tests/test_etiquette.py -k robots_5xx -q`
-- [ ] T11 robots.txt 規則禁止（含萬用字元） -> verify: `uv run pytest tests/test_etiquette.py -k robots_rule -q`
-- [ ] T12 翻頁連結 -> verify: `uv run pytest tests/test_pagination.py -q`
+- [x] T5 一般回應不算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k normal_response -q`
+
+  ```text
+  紅（commit c7b5aef）：
+  E       AttributeError: module 'app.core.fetch.etiquette' has no attribute 'detect_block'
+  2 failed in 0.04s
+  綠（回傳 None）：
+  2 passed in 0.01s
+  ```
+
+- [x] T6 403 算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k status_403 -q`
+
+  ```text
+  紅（commit 0c58c70）：
+  E       AssertionError: assert None == '403'
+  1 failed, 2 deselected in 0.04s
+  綠（狀態 403 回傳「403」）：
+  1 passed, 2 deselected in 0.01s
+  ```
+
+- [x] T7 429 算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k status_429 -q`
+
+  ```text
+  紅（commit 261eff1）：
+  E       AssertionError: assert None == '429'
+  1 failed, 3 deselected in 0.04s
+  綠（狀態 403、429 都回傳狀態碼）：
+  1 passed, 3 deselected in 0.01s
+  ```
+
+- [x] T8 驗證碼頁算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k captcha -q`
+
+  ```text
+  紅（commit 099870c）：
+  E       assert None == 'captcha'
+  1 failed, 1 passed, 3 deselected in 0.04s
+  綠（只認整頁攔截頁的特徵）：
+  2 passed, 3 deselected in 0.01s
+  ```
+
+  `-k captcha` 也會選到 T5 的「表單內嵌驗證碼元件」案例，紅綠兩次都通過，代表新規則沒有誤判內嵌元件。
+
+- [x] T9 robots.txt 4xx 視為允許 -> verify: `uv run pytest tests/test_etiquette.py -k robots_4xx -q`
+
+  ```text
+  紅（commit 3cbb32a）：
+  E       AttributeError: module 'app.core.fetch.etiquette' has no attribute 'robots_allows'
+  1 failed, 5 deselected in 0.11s
+  綠（回傳 True）：
+  1 passed, 5 deselected in 0.01s
+  ```
+
+- [x] T10 robots.txt 5xx 視為禁止 -> verify: `uv run pytest tests/test_etiquette.py -k robots_5xx -q`
+
+  ```text
+  紅（commit 7e0f6f7）：
+  E       AssertionError: assert True is False
+  1 failed, 6 deselected in 0.04s
+  綠（狀態 500 以上回傳 False）：
+  1 passed, 6 deselected in 0.01s
+  ```
+
+- [x] T11 robots.txt 規則禁止（含萬用字元） -> verify: `uv run pytest tests/test_etiquette.py -k robots_rule -q`
+
+  ```text
+  紅（commit f854157）：
+  E       AssertionError: assert True is False
+  FAILED tests/test_etiquette.py::test_robots_rule_decides_when_robots_txt_exists[wildcard_disallow]
+  PASSED tests/test_etiquette.py::test_robots_rule_decides_when_robots_txt_exists[allowed_path]
+  1 failed, 1 passed, 7 deselected in 0.04s
+  綠（200 時交給 Protego 判斷）：
+  2 passed, 7 deselected in 0.03s
+  ```
+
+- [x] T12 翻頁連結 -> verify: `uv run pytest tests/test_pagination.py -q`
+
+  ```text
+  紅（commit 5d37bcd）：
+  E       AttributeError: module 'app.features.sources.pagination' has no attribute 'pagination_urls'
+  1 failed in 0.04s
+  綠（同網站、同路徑、page 是數字才保留）：
+  1 passed in 0.08s
+  ```
+
+  整套測試：`uv run pytest -q` → 20 passed。
 
 ### 4. 種子
 

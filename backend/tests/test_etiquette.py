@@ -23,3 +23,13 @@ def test_detect_block_status_403() -> None:
 def test_detect_block_status_429() -> None:
     # 429 Too Many Requests：網站嫌我們太頻繁
     assert etiquette.detect_block(429, "Too Many Requests") == "429"
+
+
+def test_detect_block_captcha_page() -> None:
+    # 整頁都是「先證明你是人」的攔截頁，即使狀態是 200 也算被擋
+    body = (
+        "<html><title>Just a moment...</title>"
+        "<script src='/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1'></script>"
+        "</html>"
+    )
+    assert etiquette.detect_block(200, body) == "captcha"

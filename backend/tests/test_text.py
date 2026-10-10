@@ -12,3 +12,9 @@ def test_html_to_text_excludes_script_and_style() -> None:
 def test_html_to_text_puts_block_elements_on_separate_lines() -> None:
     # 兩個段落不能黏成「AB」
     assert text.html_to_text("<p>A</p><p>B</p>") == "A\nB"
+
+
+def test_html_to_text_joins_inline_split_words() -> None:
+    # Chevening 的原始碼把年份拆成 <span>202</span><span>7</span>，要接回 2027
+    html = "<p>Applications for <span>202</span><span>7</span>-<span>202</span><span>8</span></p>"
+    assert text.html_to_text(html) == "Applications for 2027-2028"

@@ -698,7 +698,13 @@ fetch_min_interval_seconds: float = 5.0
 
   下一步：第 3 天開始前，先決定 #12 長文件處理策略、#13 抽取策略（含學程網站第 2、3 層怎麼找，ADR-029）、#23 是否需要向量檢索。
   ```
-- [ ] 推到 main -> verify（根目錄）: `git fetch -q && git status -sb | head -1`
+- [x] 推到 main -> verify（根目錄）: `git fetch -q && git status -sb | head -1`
+
+  ```text
+  ## main...origin/main
+  ```
+
+  推之前檢查：要推的 53 個 commit 裡沒有金鑰，也沒有被追蹤的 `.env`。沒有 `[ahead N]` 代表本機和 GitHub 一致。
 
 ## 第 3 天開始前要決定
 

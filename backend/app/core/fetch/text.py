@@ -1,5 +1,7 @@
 """把網頁和 PDF 轉成文字，並算出內容雜湊（ADR-027）。"""
 
+import hashlib
+
 from bs4 import BeautifulSoup
 
 # 區塊元素：前後換行。其他（span、a、strong…）是行內元素，文字直接接起來，
@@ -23,3 +25,9 @@ def html_to_text(html: str) -> str:
     # 每一行的空白縮成一個，去掉空行
     lines = (" ".join(line.split()) for line in soup.get_text().splitlines())
     return "\n".join(line for line in lines if line)
+
+
+def content_hash(text: str) -> str:
+    """把所有空白（含換行）縮成一個空格後算 SHA-256；只差空白的文字雜湊相同。"""
+    normalized = " ".join(text.split())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()

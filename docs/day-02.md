@@ -197,7 +197,13 @@ fetch_min_interval_seconds: float = 5.0
 
 ### 1. 套件
 
-- [ ] 加入 httpx、beautifulsoup4、pdfplumber、protego -> verify: `uv run python -c "import httpx, bs4, pdfplumber, protego; print('ok')"`
+- [x] 加入 httpx、beautifulsoup4、pdfplumber、protego -> verify: `uv run python -c "import httpx, bs4, pdfplumber, protego; print('ok')"`
+
+  ```text
+  ok
+  ```
+
+  httpx 原本就因為 langchain-google-genai 間接裝了，這次改成直接依賴。
 
 ### 2. 資料表
 

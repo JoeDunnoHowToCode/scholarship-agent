@@ -2,4 +2,6 @@
 
 
 def detect_block(status: int, body: str) -> str | None:
+    if status == 403:
+        return "403"
     return None

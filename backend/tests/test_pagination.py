@@ -20,3 +20,10 @@ def test_pagination_urls_keeps_same_path_page_links() -> None:
         f"{PAGE_URL}?page=1",
         f"{PAGE_URL}?page=2",
     ]
+
+
+def test_pagination_urls_drops_fragments() -> None:
+    # 實際抓 EACEA 時發現翻頁連結帶 #main-content；
+    # # 後面的錨點只在瀏覽器裡跳位置，伺服器收到的是同一頁，不能當成另一個網址
+    html = '<a href="?page=1">2</a><a href="?page=1#main-content">2</a>'
+    assert pagination.pagination_urls(html, PAGE_URL) == [f"{PAGE_URL}?page=1"]

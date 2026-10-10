@@ -562,10 +562,73 @@ fetch_min_interval_seconds: float = 5.0
 
 ### 5. 抓取
 
-- [ ] 第一次抓：3 個來源都有快照（EACEA 11 頁、Chevening 1 頁、PDF 1 份），原始檔在 data/snapshots/，EACEA 的上次頁數是 11 -> verify: `uv run python -m app.features.sources.fetch && docker compose exec -T postgres psql -U scholar -d scholar -c "select source_id, count(*) from snapshots group by source_id order by source_id" -c "select id, last_page_count from sources order by id" && find data/snapshots -type f | wc -l`
-- [ ] 第二次抓：全部沒變，快照數不增加；同一網站的請求間隔至少 5 秒（看輸出的時間欄） -> verify: `uv run python -m app.features.sources.fetch && docker compose exec -T postgres psql -U scholar -d scholar -c "select count(*) from snapshots"`
-- [ ] Chevening 的文字有「2027-2028」和「Closed for applications」 -> verify: `uv run python -c "from pathlib import Path; from app.core.fetch.text import html_to_text; f = sorted(Path('data/snapshots/2').glob('*.html'))[-1]; t = html_to_text(f.read_text()); print('2027-2028' in t, 'Closed for applications' in t)"`
-- [ ] 被擋的來源標記需人工；翻頁來源從 5 頁掉到 1 頁會警示，且上次頁數更新成 1（本機假伺服器：`/blocked` 回 403、`/list` 回只有一頁的 HTML，測完刪除） -> verify:
+- [x] 第一次抓：3 個來源都有快照（EACEA 11 頁、Chevening 1 頁、PDF 1 份），原始檔在 data/snapshots/，EACEA 的上次頁數是 11 -> verify: `uv run python -m app.features.sources.fetch && docker compose exec -T postgres psql -U scholar -d scholar -c "select source_id, count(*) from snapshots group by source_id order by source_id" -c "select id, last_page_count from sources order by id" && find data/snapshots -type f | wc -l`
+
+  ```text
+  == 1 Erasmus Mundus Catalogue
+  08:46:40  new        5f23889b2b41    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en
+  08:46:45  new        45acfb2318ee    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=1
+  08:46:51  new        f7f4cc18604c    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=2
+  08:46:57  new        3dbb6af7f6db    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=10
+  08:47:02  new        0850b5922c9e    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=3
+  08:47:08  new        c0798a95250b    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=4
+  08:47:14  new        cd5e9b842eb3    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=9
+  08:47:19  new        101c2f353a6d    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=8
+  08:47:25  new        c0d347faca25    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=5
+  08:47:31  new        249508a5dd3c    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=6
+  08:47:36  new        7422bcf81983    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=7
+  == 2 Chevening Taiwan
+  08:47:48  new        89e8dd7e7f9a    https://www.chevening.org/scholarship/taiwan/
+  == 3 教育部 115 年留學獎學金簡章
+  08:47:57  new        093808c1e5b1    https://ws.moe.edu.tw/001/Upload/7/relfile/9909/103401/7332fb46-00f7-4ed4-9af7-6fc63a301b13.pdf
+   source_id | count
+  -----------+-------
+           1 |    11
+           2 |     1
+           3 |     1
+   id | last_page_count
+  ----+-----------------
+    1 |              11
+    2 |
+    3 |
+        13
+  ```
+
+  這是修好錨點、`?page=0` 和憑證之後，清空資料庫重跑的結果；第一次實跑的問題記在上方「執行時發現、由使用者決定」。
+
+- [x] 第二次抓：全部沒變，快照數不增加；同一網站的請求間隔至少 5 秒（看輸出的時間欄） -> verify: `uv run python -m app.features.sources.fetch && docker compose exec -T postgres psql -U scholar -d scholar -c "select count(*) from snapshots"`
+
+  ```text
+  == 1 Erasmus Mundus Catalogue
+  08:48:14  unchanged  5f23889b2b41    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en
+  08:48:20  unchanged  0850b5922c9e    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=3
+  08:48:26  unchanged  45acfb2318ee    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=1
+  08:48:31  unchanged  cd5e9b842eb3    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=9
+  08:48:37  unchanged  c0d347faca25    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=5
+  08:48:42  unchanged  f7f4cc18604c    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=2
+  08:48:48  unchanged  3dbb6af7f6db    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=10
+  08:48:54  unchanged  101c2f353a6d    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=8
+  08:48:59  unchanged  c0798a95250b    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=4
+  08:49:05  unchanged  7422bcf81983    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=7
+  08:49:11  unchanged  249508a5dd3c    https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=6
+  == 2 Chevening Taiwan
+  08:49:21  unchanged  89e8dd7e7f9a    https://www.chevening.org/scholarship/taiwan/
+  == 3 教育部 115 年留學獎學金簡章
+  08:49:27  unchanged  304             https://ws.moe.edu.tw/001/Upload/7/relfile/9909/103401/7332fb46-00f7-4ed4-9af7-6fc63a301b13.pdf
+   count
+  -------
+      13
+  ```
+
+  EACEA 每次請求間隔 5–6 秒；教育部回 304（伺服器說沒更新，沒有重新下載）；每頁雜湊和第一次相同，頁面沒有每次都會變的內容。
+
+- [x] Chevening 的文字有「2027-2028」和「Closed for applications」 -> verify: `uv run python -c "from pathlib import Path; from app.core.fetch.text import html_to_text; f = sorted(Path('data/snapshots/2').glob('*.html'))[-1]; t = html_to_text(f.read_text()); print('2027-2028' in t, 'Closed for applications' in t)"`
+
+  ```text
+  True True
+  ```
+
+- [x] 被擋的來源標記需人工；翻頁來源從 5 頁掉到 1 頁會警示，且上次頁數更新成 1（本機假伺服器：`/blocked` 回 403、`/list` 回只有一頁的 HTML，測完刪除） -> verify:
 
   ```bash
   uv run python -c "
@@ -587,6 +650,22 @@ fetch_min_interval_seconds: float = 5.0
   for id in $(docker compose exec -T postgres psql -U scholar -d scholar -t -A -c "select id from sources where url like 'http://127.0.0.1:8765/%'"); do rm -rf "data/snapshots/$id"; done
   docker compose exec -T postgres psql -U scholar -d scholar -c "delete from snapshots where source_id in (select id from sources where url like 'http://127.0.0.1:8765/%')" -c "delete from sources where url like 'http://127.0.0.1:8765/%'"; kill $SERVER
   ```
+
+  ```text
+  == 10 403 測試
+  08:51:15  blocked    403             http://127.0.0.1:8765/blocked
+  == 11 漏抓測試
+  08:51:20  new        14f102440849    http://127.0.0.1:8765/list
+  08:51:20  warning    漏抓警示            只抓到 1 頁（上次 5 頁），翻頁可能失效
+     name   | manual_reason | last_page_count
+  ----------+---------------+-----------------
+   403 測試 | 403           |
+   漏抓測試 |               |               1
+  DELETE 1
+  DELETE 2
+  ```
+
+  清除後檢查：sources 3 筆、snapshots 13 筆、檔案 13 個，回到測試前的狀態。（同一次執行裡 3 個真實來源都是 unchanged，輸出省略。）
 
 ### 6. 收尾
 

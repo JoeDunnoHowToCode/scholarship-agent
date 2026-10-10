@@ -13,3 +13,8 @@ from app.core.fetch import etiquette
 def test_detect_block_normal_response_is_not_blocked(body: str) -> None:
     # 一般頁面就算表單裡內嵌驗證碼元件，也不算被擋
     assert etiquette.detect_block(200, body) is None
+
+
+def test_detect_block_status_403() -> None:
+    # 403 Forbidden：網站拒絕我們
+    assert etiquette.detect_block(403, "Forbidden") == "403"

@@ -11,7 +11,7 @@ CHALLENGE_MARKERS = (
 
 
 def robots_allows(status: int, robots_txt: str, url: str, user_agent: str) -> bool:
-    return True
+    return status < 500
 
 
 def detect_block(status: int, body: str) -> str | None:

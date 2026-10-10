@@ -501,9 +501,37 @@ fetch_min_interval_seconds: float = 5.0
 
   整套測試：`uv run pytest -q` → 23 passed。
 
-- [ ] T14 第一次抓不警示 -> verify: `uv run pytest tests/test_pagination.py -k first_run -q`
-- [ ] T15 多頁掉到 1 頁要警示 -> verify: `uv run pytest tests/test_pagination.py -k drop_to_one -q`
-- [ ] T16 其他情況不警示 -> verify: `uv run pytest tests/test_pagination.py -k no_warning -q`
+- [x] T14 第一次抓不警示 -> verify: `uv run pytest tests/test_pagination.py -k first_run -q`
+
+  ```text
+  紅（commit a106233）：
+  E       AttributeError: module 'app.features.sources.pagination' has no attribute 'missing_pages_warning'
+  1 failed, 4 deselected in 0.12s
+  綠（回傳 None）：
+  1 passed, 4 deselected in 0.09s
+  ```
+
+- [x] T15 多頁掉到 1 頁要警示 -> verify: `uv run pytest tests/test_pagination.py -k drop_to_one -q`
+
+  ```text
+  紅（commit bcbda56；commit 時選取字打錯沒選到測試，修正選取字後補驗）：
+  E       AssertionError: assert None == '只抓到 1 頁（上次 11 頁），翻頁可能失效'
+  綠（有上次頁數就警示）：
+  1 passed, 5 deselected in 0.08s
+  ```
+
+- [x] T16 其他情況不警示 -> verify: `uv run pytest tests/test_pagination.py -k no_warning -q`
+
+  ```text
+  紅（commit d5aeb79）：
+  E       AssertionError: assert '只抓到 1 頁（上次 1 頁），翻頁可能失效' is None
+  E       AssertionError: assert '只抓到 6 頁（上次 11 頁），翻頁可能失效' is None
+  2 failed, 6 deselected in 0.12s
+  綠（上次大於 1 頁、這次 1 頁以下才警示）：
+  2 passed, 6 deselected in 0.08s
+  ```
+
+  整套測試：`uv run pytest -q` → 27 passed。
 
 ### 4. 種子
 

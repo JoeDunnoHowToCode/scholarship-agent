@@ -38,6 +38,7 @@ def pagination_urls(html: str, page_url: str, *, page_zero_is_first: bool = Fals
 
 
 def missing_pages_warning(previous: int | None, current: int) -> str | None:
-    if previous is not None:
+    """漏抓警示（門檻 C）：上次抓到多頁、這次只剩 1 頁以下，翻頁可能失效。"""
+    if previous is not None and previous > 1 and current <= 1:
         return f"只抓到 {current} 頁（上次 {previous} 頁），翻頁可能失效"
     return None

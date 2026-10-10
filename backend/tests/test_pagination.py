@@ -1,5 +1,7 @@
 """翻頁連結的單元測試（ADR-029：EACEA 目錄含翻頁）。"""
 
+import pytest
+
 from app.features.sources import pagination
 
 PAGE_URL = "https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en"
@@ -27,3 +29,20 @@ def test_pagination_urls_drops_fragments() -> None:
     # # 後面的錨點只在瀏覽器裡跳位置，伺服器收到的是同一頁，不能當成另一個網址
     html = '<a href="?page=1">2</a><a href="?page=1#main-content">2</a>'
     assert pagination.pagination_urls(html, PAGE_URL) == [f"{PAGE_URL}?page=1"]
+
+
+@pytest.mark.parametrize(
+    ("page_zero_is_first", "expected"),
+    [
+        (True, [PAGE_URL, f"{PAGE_URL}?page=1"]),
+        (False, [f"{PAGE_URL}?page=0", f"{PAGE_URL}?page=1"]),
+    ],
+    ids=["setting_on", "setting_off"],
+)
+def test_pagination_urls_page_zero_setting(
+    page_zero_is_first: bool, expected: list[str]
+) -> None:
+    # EACEA 的 ?page=0 就是首頁本身（實測內容雜湊相同）；只有打開設定的來源才這樣換
+    html = '<a href="?page=0">1</a><a href="?page=1">2</a>'
+    urls = pagination.pagination_urls(html, PAGE_URL, page_zero_is_first=page_zero_is_first)
+    assert urls == expected

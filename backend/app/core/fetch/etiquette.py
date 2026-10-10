@@ -10,6 +10,10 @@ CHALLENGE_MARKERS = (
 )
 
 
+def robots_allows(status: int, robots_txt: str, url: str, user_agent: str) -> bool:
+    return True
+
+
 def detect_block(status: int, body: str) -> str | None:
     """被擋就回傳原因（「403」「429」「captcha」），沒被擋回傳 None。"""
     if status in (403, 429):

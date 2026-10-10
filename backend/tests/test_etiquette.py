@@ -39,3 +39,9 @@ def test_robots_4xx_means_allowed() -> None:
     # RFC 9309：robots.txt 不存在（例如教育部回 404）就視為允許
     url = "https://ws.moe.edu.tw/001/x.pdf"
     assert etiquette.robots_allows(404, "", url, "python-httpx/0.28.1") is True
+
+
+def test_robots_5xx_means_disallowed() -> None:
+    # RFC 9309：robots.txt 因伺服器錯誤讀不到，要當作全部禁止
+    url = "https://www.example.org/scholarships"
+    assert etiquette.robots_allows(503, "", url, "python-httpx/0.28.1") is False

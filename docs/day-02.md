@@ -502,7 +502,7 @@ fetch_min_interval_seconds: float = 5.0
   整套測試：`uv run pytest -q` → 23 passed。
 
 - [ ] T14 第一次抓不警示 -> verify: `uv run pytest tests/test_pagination.py -k first_run -q`
-- [ ] T15 多頁掉到 1 頁要警示 -> verify: `uv run pytest tests/test_pagination.py -k drops_to_one -q`
+- [ ] T15 多頁掉到 1 頁要警示 -> verify: `uv run pytest tests/test_pagination.py -k drop_to_one -q`
 - [ ] T16 其他情況不警示 -> verify: `uv run pytest tests/test_pagination.py -k no_warning -q`
 
 ### 4. 種子

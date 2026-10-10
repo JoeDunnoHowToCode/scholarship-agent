@@ -7,4 +7,4 @@ def html_to_text(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style"]):
         tag.decompose()
-    return soup.get_text()
+    return soup.get_text("\n")

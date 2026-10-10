@@ -46,3 +46,8 @@ def test_pagination_urls_page_zero_setting(
     html = '<a href="?page=0">1</a><a href="?page=1">2</a>'
     urls = pagination.pagination_urls(html, PAGE_URL, page_zero_is_first=page_zero_is_first)
     assert urls == expected
+
+
+def test_missing_pages_warning_first_run_is_silent() -> None:
+    # 第一次抓沒有「上次頁數」可以比，不警示
+    assert pagination.missing_pages_warning(None, 1) is None

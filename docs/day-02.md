@@ -669,8 +669,35 @@ fetch_min_interval_seconds: float = 5.0
 
 ### 6. 收尾
 
-- [ ] 全部測試、ruff、mypy 通過 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
-- [ ] `docs/progress.md` 更新為第 2 天完成 -> verify: `cat ../docs/progress.md`
+- [x] 全部測試、ruff、mypy 通過 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
+
+  ```text
+  platform darwin -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0
+  configfile: pyproject.toml
+  collected 27 items
+
+  tests/test_etiquette.py .........                                        [ 33%]
+  tests/test_pagination.py ........                                        [ 62%]
+  tests/test_scoring.py ......                                             [ 85%]
+  tests/test_text.py ....                                                  [100%]
+
+  ============================== 27 passed in 0.31s ==============================
+  All checks passed!
+  Success: no issues found in 25 source files
+  ```
+
+- [x] `docs/progress.md` 更新為第 2 天完成 -> verify: `cat ../docs/progress.md`
+
+  ```text
+  # 目前進度
+
+  每完成一天，更新這一檔。各天的範圍見 `docs/spec.md` 的「開發排程」。
+
+  - 第 1 天完成（2026-10-09），已合併進 main：專案骨架、scholarships 表與第一支遷移、Gemini 抽取指令、評分上限規則
+  - 第 2 天完成（2026-10-10），已推上 main：sources、snapshots 表，種子指令，抓取指令（遵守 robots.txt、限速、條件式請求、被擋就標記需人工、漏抓警示），3 個種子都抓得到
+
+  下一步：第 3 天開始前，先決定 #12 長文件處理策略、#13 抽取策略（含學程網站第 2、3 層怎麼找，ADR-029）、#23 是否需要向量檢索。
+  ```
 - [ ] 推到 main -> verify（根目錄）: `git fetch -q && git status -sb | head -1`
 
 ## 第 3 天開始前要決定

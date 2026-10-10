@@ -18,3 +18,8 @@ def test_detect_block_normal_response_is_not_blocked(body: str) -> None:
 def test_detect_block_status_403() -> None:
     # 403 Forbidden：網站拒絕我們
     assert etiquette.detect_block(403, "Forbidden") == "403"
+
+
+def test_detect_block_status_429() -> None:
+    # 429 Too Many Requests：網站嫌我們太頻繁
+    assert etiquette.detect_block(429, "Too Many Requests") == "429"

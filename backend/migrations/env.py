@@ -4,7 +4,8 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 # 載入資料表類別，Base.metadata 才認得它們
-from app.features.scholarships import models  # noqa: F401
+from app.features.scholarships import models as scholarship_models  # noqa: F401
+from app.features.sources import models as source_models  # noqa: F401
 from app.shared.db import Base
 from app.shared.settings import settings
 

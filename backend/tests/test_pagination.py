@@ -51,3 +51,11 @@ def test_pagination_urls_page_zero_setting(
 def test_missing_pages_warning_first_run_is_silent() -> None:
     # 第一次抓沒有「上次頁數」可以比，不警示
     assert pagination.missing_pages_warning(None, 1) is None
+
+
+def test_missing_pages_warning_when_pages_drop_to_one() -> None:
+    # 上次 11 頁、這次只剩 1 頁：翻頁很可能失效了（門檻 C）
+    assert (
+        pagination.missing_pages_warning(11, 1)
+        == "只抓到 1 頁（上次 11 頁），翻頁可能失效"
+    )

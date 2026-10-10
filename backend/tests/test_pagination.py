@@ -59,3 +59,15 @@ def test_missing_pages_warning_when_pages_drop_to_one() -> None:
         pagination.missing_pages_warning(11, 1)
         == "只抓到 1 頁（上次 11 頁），翻頁可能失效"
     )
+
+
+@pytest.mark.parametrize(
+    ("previous", "current"),
+    [(11, 6), (1, 1)],
+    ids=["fewer_but_not_one", "always_one_page"],
+)
+def test_missing_pages_no_warning_unless_many_pages_drop_to_one(
+    previous: int, current: int
+) -> None:
+    # 門檻 C：頁數減少但不是只剩 1 頁、或本來就只有 1 頁，都不警示
+    assert pagination.missing_pages_warning(previous, current) is None

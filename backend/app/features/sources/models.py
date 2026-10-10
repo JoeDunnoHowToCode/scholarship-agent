@@ -66,6 +66,8 @@ class Source(Base):
         _text_enum(FetchMethod), server_default=FetchMethod.HTML.value
     )
     follow_pagination: Mapped[bool] = mapped_column(server_default=text("false"))
+    # 第 0 頁就是首頁：打開時 ?page=0 換成首頁網址，避免同一頁抓兩次（目前只有 EACEA）
+    page_zero_is_first: Mapped[bool] = mapped_column(server_default=text("false"))
     check_interval_hours: Mapped[int] = mapped_column(server_default=text("24"))  # 第 6 天排程用
     enabled: Mapped[bool] = mapped_column(server_default=text("true"))
     discovery: Mapped[Discovery] = mapped_column(

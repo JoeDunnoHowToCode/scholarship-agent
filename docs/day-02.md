@@ -429,7 +429,18 @@ fetch_min_interval_seconds: float = 5.0
 
 ### 4. 種子
 
-- [ ] seed 寫入 3 個來源，重跑不重複 -> verify: `uv run python -m app.features.sources.seed && uv run python -m app.features.sources.seed && docker compose exec -T postgres psql -U scholar -d scholar -c "select id, name, kind, fetch_method, follow_pagination from sources order by id"`
+- [x] seed 寫入 3 個來源，重跑不重複 -> verify: `uv run python -m app.features.sources.seed && uv run python -m app.features.sources.seed && docker compose exec -T postgres psql -U scholar -d scholar -c "select id, name, kind, fetch_method, follow_pagination from sources order by id"`
+
+  ```text
+  已寫入或更新 3 個種子來源
+  已寫入或更新 3 個種子來源
+   id |            name             |    kind    | fetch_method | follow_pagination
+  ----+-----------------------------+------------+--------------+-------------------
+    1 | Erasmus Mundus Catalogue    | government | html         | t
+    2 | Chevening Taiwan            | government | html         | f
+    3 | 教育部 115 年留學獎學金簡章 | government | pdf          | f
+  (3 rows)
+  ```
 
 ### 5. 抓取
 

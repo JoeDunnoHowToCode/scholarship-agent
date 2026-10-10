@@ -28,7 +28,8 @@
 
 - 憑證：教育部的根憑證缺少一個格式欄位，Python 3.13 的嚴格檢查會拒絕連線；改成關掉嚴格檢查、基本驗證照做（ADR-030）
 - 翻頁連結帶 `#main-content` 錨點，同一頁被抓兩次：屬於 bug，已修（pagination_urls 去掉錨點，T12b）
-- `?page=0` 和目錄首頁是同一頁：方式 1，來源加「第 0 頁就是首頁」設定，只有 EACEA 打開（T13）；方式 3，加「漏抓警示」，門檻和存放方式待使用者決定
+- `?page=0` 和目錄首頁是同一頁：方式 1，來源加「第 0 頁就是首頁」設定，只有 EACEA 打開（T13）；方式 3，加「漏抓警示」
+- 漏抓警示：上次抓到多頁、這次只剩 1 頁以下才警示（門檻 C）；上次頁數記在 sources 新欄位 last_page_count（存放 A）。只算翻頁來源；中途出錯的那次不比較、不更新；警示先印在 fetch 輸出，第 7 天再接 Telegram。翻頁壞掉後一直是 1 頁時，要只警示一次還是每次都警示：待使用者決定
 
 ## 使用者要做的事
 
@@ -70,6 +71,7 @@ backend/
 | fetch_method | varchar，必填，預設 html | html／pdf；之後加 browser（ADR-027） |
 | follow_pagination | boolean，必填，預設 false | 是否跟隨翻頁 |
 | page_zero_is_first | boolean，必填，預設 false | 第 0 頁就是首頁：打開時 `?page=0` 換成首頁網址（只有 EACEA 打開） |
+| last_page_count | integer | 上次完整抓取時成功檢查到的頁數；只記翻頁來源，漏抓警示用 |
 | check_interval_hours | integer，必填，預設 24 | 檢查頻率；第 6 天排程時才用到 |
 | enabled | boolean，必填，預設 true | 是否啟用 |
 | discovery | varchar，必填，預設 seed | seed／search（種子或搜尋） |
@@ -142,6 +144,8 @@ def content_hash(text: str) -> str:   # 空白正規化後的 SHA-256
 # features/sources/pagination.py（純函式）
 def pagination_urls(html: str, page_url: str, *, page_zero_is_first: bool = False) -> list[str]:
     # 同一路徑的 ?page=N 連結，完整網址、去掉錨點、去重；page_zero_is_first 時 ?page=0 換成首頁網址
+def missing_pages_warning(previous: int | None, current: int) -> str | None:
+    # 上次多頁、這次只剩 1 頁以下就回傳警示文字（漏抓警示，門檻 C）
 
 # shared/settings.py 新增
 fetch_min_interval_seconds: float = 5.0
@@ -197,6 +201,9 @@ fetch_min_interval_seconds: float = 5.0
 | T12 翻頁只取同一路徑的 `?page=N`，轉成完整網址並去重 | `tests/test_pagination.py` | `pagination_urls` |
 | T12b 翻頁連結去掉 `#` 錨點（實跑發現的 bug） | 同上 | 同上 |
 | T13 打開「第 0 頁就是首頁」時，`?page=0` 換成首頁網址；沒打開時照舊 | 同上 | 同上 |
+| T14 第一次抓（沒有上次頁數）不警示 | 同上 | `missing_pages_warning` |
+| T15 上次多頁、這次只剩 1 頁，警示並寫出兩次的頁數 | 同上 | 同上 |
+| T16 不是「從多頁掉到 1 頁」就不警示（例如 11 → 6、1 → 1） | 同上 | 同上 |
 
 - 每個測試檔先建空的對象模組，測試用「模組.函式」呼叫，紅燈是「找不到函式」，不是匯入錯誤
 - 每個行為：先寫測試、跑出紅燈、commit `test: ... (red)`；再寫最少的程式、跑出綠燈、commit
@@ -325,6 +332,8 @@ fetch_min_interval_seconds: float = 5.0
   ```
 
   讀過：只有新增一個欄位，既有的 3 筆預設 false。
+
+- [ ] 第三支遷移：sources 加 last_page_count（讀過再套用，能退回再重做） -> verify: `sed -n '/def upgrade/,/def downgrade/p' migrations/versions/*last_page_count*.py && uv run alembic upgrade head && uv run alembic downgrade -1 && uv run alembic upgrade head && uv run alembic current`
 
 ### 3. 純函式（紅綠循環）
 
@@ -477,6 +486,10 @@ fetch_min_interval_seconds: float = 5.0
   ```
 
   整套測試：`uv run pytest -q` → 23 passed。
+
+- [ ] T14 第一次抓不警示 -> verify: `uv run pytest tests/test_pagination.py -k first_run -q`
+- [ ] T15 多頁掉到 1 頁要警示 -> verify: `uv run pytest tests/test_pagination.py -k drops_to_one -q`
+- [ ] T16 其他情況不警示 -> verify: `uv run pytest tests/test_pagination.py -k no_warning -q`
 
 ### 4. 種子
 

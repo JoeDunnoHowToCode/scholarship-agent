@@ -45,3 +45,17 @@ def test_robots_5xx_means_disallowed() -> None:
     # RFC 9309：robots.txt 因伺服器錯誤讀不到，要當作全部禁止
     url = "https://www.example.org/scholarships"
     assert etiquette.robots_allows(503, "", url, "python-httpx/0.28.1") is False
+
+
+@pytest.mark.parametrize(
+    ("url", "allowed"),
+    [
+        ("https://www.multidiverse.eu/applications", True),
+        ("https://www.multidiverse.eu/gallery?lightbox=3", False),
+    ],
+    ids=["allowed_path", "wildcard_disallow"],
+)
+def test_robots_rule_decides_when_robots_txt_exists(url: str, allowed: bool) -> None:
+    # multidiverse.eu 真實的規則；Python 3.13 內建的解析器看不懂開頭的 *
+    robots_txt = "User-agent: *\nAllow: /\nDisallow: *?lightbox=\n"
+    assert etiquette.robots_allows(200, robots_txt, url, "python-httpx/0.28.1") is allowed

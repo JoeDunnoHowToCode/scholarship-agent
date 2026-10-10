@@ -27,6 +27,8 @@
 ## 執行時發現、由使用者決定
 
 - 憑證：教育部的根憑證缺少一個格式欄位，Python 3.13 的嚴格檢查會拒絕連線；改成關掉嚴格檢查、基本驗證照做（ADR-030）
+- 翻頁連結帶 `#main-content` 錨點，同一頁被抓兩次：屬於 bug，已修（pagination_urls 去掉錨點，T12b）
+- `?page=0` 和目錄首頁是同一頁：方式 1，來源加「第 0 頁就是首頁」設定，只有 EACEA 打開（T13）；方式 3，加「漏抓警示」，門檻和存放方式待使用者決定
 
 ## 使用者要做的事
 
@@ -67,6 +69,7 @@ backend/
 | country | text | 提供單位的國家或地區，用英文名稱（和 scholarships.countries 一致） |
 | fetch_method | varchar，必填，預設 html | html／pdf；之後加 browser（ADR-027） |
 | follow_pagination | boolean，必填，預設 false | 是否跟隨翻頁 |
+| page_zero_is_first | boolean，必填，預設 false | 第 0 頁就是首頁：打開時 `?page=0` 換成首頁網址（只有 EACEA 打開） |
 | check_interval_hours | integer，必填，預設 24 | 檢查頻率；第 6 天排程時才用到 |
 | enabled | boolean，必填，預設 true | 是否啟用 |
 | discovery | varchar，必填，預設 seed | seed／search（種子或搜尋） |
@@ -137,7 +140,8 @@ def pdf_to_text(data: bytes) -> str:  # pdfplumber，逐頁接起來
 def content_hash(text: str) -> str:   # 空白正規化後的 SHA-256
 
 # features/sources/pagination.py（純函式）
-def pagination_urls(html: str, page_url: str) -> list[str]:  # 同一路徑的 ?page=N 連結，完整網址、去重
+def pagination_urls(html: str, page_url: str, *, page_zero_is_first: bool = False) -> list[str]:
+    # 同一路徑的 ?page=N 連結，完整網址、去掉錨點、去重；page_zero_is_first 時 ?page=0 換成首頁網址
 
 # shared/settings.py 新增
 fetch_min_interval_seconds: float = 5.0
@@ -191,6 +195,8 @@ fetch_min_interval_seconds: float = 5.0
 | T10 robots.txt 回 5xx 視為禁止 | 同上 | 同上 |
 | T11 robots.txt 規則禁止的網址（含萬用字元）視為禁止 | 同上 | 同上 |
 | T12 翻頁只取同一路徑的 `?page=N`，轉成完整網址並去重 | `tests/test_pagination.py` | `pagination_urls` |
+| T12b 翻頁連結去掉 `#` 錨點（實跑發現的 bug） | 同上 | 同上 |
+| T13 打開「第 0 頁就是首頁」時，`?page=0` 換成首頁網址；沒打開時照舊 | 同上 | 同上 |
 
 - 每個測試檔先建空的對象模組，測試用「模組.函式」呼叫，紅燈是「找不到函式」，不是匯入錯誤
 - 每個行為：先寫測試、跑出紅燈、commit `test: ... (red)`；再寫最少的程式、跑出綠燈、commit
@@ -303,6 +309,8 @@ fetch_min_interval_seconds: float = 5.0
   INFO  [alembic.runtime.migration] Running upgrade 789d912f3a63 -> e6fb5992530b, create sources and snapshots
   e6fb5992530b (head)
   ```
+
+- [ ] 第二支遷移：sources 加 page_zero_is_first（讀過再套用，能退回再重做） -> verify: `sed -n '/def upgrade/,/def downgrade/p' migrations/versions/*page_zero*.py && uv run alembic upgrade head && uv run alembic downgrade -1 && uv run alembic upgrade head && uv run alembic current`
 
 ### 3. 純函式（紅綠循環）
 
@@ -431,6 +439,19 @@ fetch_min_interval_seconds: float = 5.0
 
   整套測試：`uv run pytest -q` → 20 passed。
 
+- [x] T12b 翻頁連結去掉 `#` 錨點（實跑發現的 bug） -> verify: `uv run pytest tests/test_pagination.py -k drops_fragments -q`
+
+  ```text
+  紅（commit 5b9c503）：
+  E       AssertionError: assert ['https://www...main-content'] == ['https://www...ue_en?page=1']
+  E         Left contains one more item: 'https://www.eacea.ec.europa.eu/scholarships/erasmus-mundus-catalogue_en?page=1#main-content'
+  1 failed, 1 deselected in 0.11s
+  綠（urldefrag 去掉錨點）：
+  1 passed, 1 deselected in 0.09s
+  ```
+
+- [ ] T13 打開「第 0 頁就是首頁」時 `?page=0` 換成首頁網址 -> verify: `uv run pytest tests/test_pagination.py -k page_zero -q`
+
 ### 4. 種子
 
 - [x] seed 寫入 3 個來源，重跑不重複 -> verify: `uv run python -m app.features.sources.seed && uv run python -m app.features.sources.seed && docker compose exec -T postgres psql -U scholar -d scholar -c "select id, name, kind, fetch_method, follow_pagination from sources order by id"`
@@ -445,6 +466,8 @@ fetch_min_interval_seconds: float = 5.0
     3 | 教育部 115 年留學獎學金簡章 | government | pdf          | f
   (3 rows)
   ```
+
+- [ ] 重跑 seed 後只有 EACEA 打開「第 0 頁就是首頁」 -> verify: `uv run python -m app.features.sources.seed && docker compose exec -T postgres psql -U scholar -d scholar -c "select id, name, page_zero_is_first from sources order by id"`
 
 ### 5. 抓取
 

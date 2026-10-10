@@ -68,6 +68,8 @@ class Source(Base):
     follow_pagination: Mapped[bool] = mapped_column(server_default=text("false"))
     # 第 0 頁就是首頁：打開時 ?page=0 換成首頁網址，避免同一頁抓兩次（目前只有 EACEA）
     page_zero_is_first: Mapped[bool] = mapped_column(server_default=text("false"))
+    # 上次完整抓取時成功檢查到的頁數；只記翻頁來源，用來發現翻頁失效（漏抓警示）
+    last_page_count: Mapped[int | None]
     check_interval_hours: Mapped[int] = mapped_column(server_default=text("24"))  # 第 6 天排程用
     enabled: Mapped[bool] = mapped_column(server_default=text("true"))
     discovery: Mapped[Discovery] = mapped_column(

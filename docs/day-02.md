@@ -29,7 +29,7 @@
 - 憑證：教育部的根憑證缺少一個格式欄位，Python 3.13 的嚴格檢查會拒絕連線；改成關掉嚴格檢查、基本驗證照做（ADR-030）
 - 翻頁連結帶 `#main-content` 錨點，同一頁被抓兩次：屬於 bug，已修（pagination_urls 去掉錨點，T12b）
 - `?page=0` 和目錄首頁是同一頁：方式 1，來源加「第 0 頁就是首頁」設定，只有 EACEA 打開（T13）；方式 3，加「漏抓警示」
-- 漏抓警示：上次抓到多頁、這次只剩 1 頁以下才警示（門檻 C）；上次頁數記在 sources 新欄位 last_page_count（存放 A）。只算翻頁來源；中途出錯的那次不比較、不更新；警示先印在 fetch 輸出，第 7 天再接 Telegram。翻頁壞掉後一直是 1 頁時，要只警示一次還是每次都警示：待使用者決定
+- 漏抓警示：上次抓到多頁、這次只剩 1 頁以下才警示（門檻 C）；上次頁數記在 sources 新欄位 last_page_count（存放 A）。只算翻頁來源；中途出錯的那次不比較、不更新；警示先印在 fetch 輸出，第 7 天再接 Telegram。翻頁壞掉後一直是 1 頁時只警示一次（甲）：警示後照常把上次頁數更新成這次的頁數
 
 ## 使用者要做的事
 
@@ -562,17 +562,30 @@ fetch_min_interval_seconds: float = 5.0
 
 ### 5. 抓取
 
-- [ ] 第一次抓：3 個來源都有快照（EACEA 11 頁、Chevening 1 頁、PDF 1 份），原始檔在 data/snapshots/ -> verify: `uv run python -m app.features.sources.fetch && docker compose exec -T postgres psql -U scholar -d scholar -c "select source_id, count(*) from snapshots group by source_id order by source_id" && find data/snapshots -type f | wc -l`
+- [ ] 第一次抓：3 個來源都有快照（EACEA 11 頁、Chevening 1 頁、PDF 1 份），原始檔在 data/snapshots/，EACEA 的上次頁數是 11 -> verify: `uv run python -m app.features.sources.fetch && docker compose exec -T postgres psql -U scholar -d scholar -c "select source_id, count(*) from snapshots group by source_id order by source_id" -c "select id, last_page_count from sources order by id" && find data/snapshots -type f | wc -l`
 - [ ] 第二次抓：全部沒變，快照數不增加；同一網站的請求間隔至少 5 秒（看輸出的時間欄） -> verify: `uv run python -m app.features.sources.fetch && docker compose exec -T postgres psql -U scholar -d scholar -c "select count(*) from snapshots"`
 - [ ] Chevening 的文字有「2027-2028」和「Closed for applications」 -> verify: `uv run python -c "from pathlib import Path; from app.core.fetch.text import html_to_text; f = sorted(Path('data/snapshots/2').glob('*.html'))[-1]; t = html_to_text(f.read_text()); print('2027-2028' in t, 'Closed for applications' in t)"`
-- [ ] 被擋的來源會標記需人工（本機假伺服器回 403，測完刪除） -> verify:
+- [ ] 被擋的來源標記需人工；翻頁來源從 5 頁掉到 1 頁會警示，且上次頁數更新成 1（本機假伺服器：`/blocked` 回 403、`/list` 回只有一頁的 HTML，測完刪除） -> verify:
 
   ```bash
-  uv run python -c "import http.server as h; h.HTTPServer(('127.0.0.1', 8765), type('H', (h.BaseHTTPRequestHandler,), {'do_GET': lambda s: (s.send_response(403), s.end_headers())})).serve_forever()" & SERVER=$!
-  docker compose exec -T postgres psql -U scholar -d scholar -c "insert into sources (name, url, kind) values ('403 測試', 'http://127.0.0.1:8765/', 'institution')"
+  uv run python -c "
+  import http.server as h
+  class H(h.BaseHTTPRequestHandler):
+      def do_GET(s):
+          if s.path == '/blocked':
+              s.send_response(403); s.end_headers()
+          elif s.path == '/list':
+              s.send_response(200); s.send_header('Content-Type', 'text/html'); s.end_headers(); s.wfile.write(b'<p>only one page</p>')
+          else:
+              s.send_response(404); s.end_headers()
+      def log_message(s, *a): pass
+  h.HTTPServer(('127.0.0.1', 8765), H).serve_forever()
+  " & SERVER=$!
+  docker compose exec -T postgres psql -U scholar -d scholar -c "insert into sources (name, url, kind) values ('403 測試', 'http://127.0.0.1:8765/blocked', 'institution')" -c "insert into sources (name, url, kind, follow_pagination, last_page_count) values ('漏抓測試', 'http://127.0.0.1:8765/list', 'institution', true, 5)"
   uv run python -m app.features.sources.fetch
-  docker compose exec -T postgres psql -U scholar -d scholar -c "select name, manual_reason from sources where url = 'http://127.0.0.1:8765/'"
-  docker compose exec -T postgres psql -U scholar -d scholar -c "delete from sources where url = 'http://127.0.0.1:8765/'"; kill $SERVER
+  docker compose exec -T postgres psql -U scholar -d scholar -c "select name, manual_reason, last_page_count from sources where url like 'http://127.0.0.1:8765/%' order by id"
+  for id in $(docker compose exec -T postgres psql -U scholar -d scholar -t -A -c "select id from sources where url like 'http://127.0.0.1:8765/%'"); do rm -rf "data/snapshots/$id"; done
+  docker compose exec -T postgres psql -U scholar -d scholar -c "delete from snapshots where source_id in (select id from sources where url like 'http://127.0.0.1:8765/%')" -c "delete from sources where url like 'http://127.0.0.1:8765/%'"; kill $SERVER
   ```
 
 ### 6. 收尾

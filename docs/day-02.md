@@ -302,10 +302,45 @@ fetch_min_interval_seconds: float = 5.0
 
 ### 3. 純函式（紅綠循環）
 
-- [ ] T1 html_to_text 不含 script、style -> verify: `uv run pytest tests/test_text.py -k excludes_script -q`
-- [ ] T2 區塊元素之間換行 -> verify: `uv run pytest tests/test_text.py -k block_elements -q`
-- [ ] T3 行內標籤切開的字接回來 -> verify: `uv run pytest tests/test_text.py -k inline_split -q`
-- [ ] T4 只差空白的文字雜湊相同 -> verify: `uv run pytest tests/test_text.py -k hash_ignores_whitespace -q`
+- [x] T1 html_to_text 不含 script、style -> verify: `uv run pytest tests/test_text.py -k excludes_script -q`
+
+  ```text
+  紅（commit cf3452f）：
+  E       AttributeError: module 'app.core.fetch.text' has no attribute 'html_to_text'
+  1 failed in 0.04s
+  綠（BeautifulSoup 去掉 script、style 後取文字）：
+  1 passed in 0.09s
+  ```
+
+- [x] T2 區塊元素之間換行 -> verify: `uv run pytest tests/test_text.py -k block_elements -q`
+
+  ```text
+  紅（commit 14bcc26）：
+  E       AssertionError: assert 'AB' == 'A\nB'
+  1 failed, 1 deselected in 0.12s
+  綠（每段文字之間用換行接起來）：
+  1 passed, 1 deselected in 0.08s
+  ```
+
+- [x] T3 行內標籤切開的字接回來 -> verify: `uv run pytest tests/test_text.py -k inline_split -q`
+
+  ```text
+  紅（commit 231d227）：
+  E       AssertionError: assert 'Applications...n7\n-\n202\n8' == 'Applications for 2027-2028'
+  1 failed, 2 deselected in 0.11s
+  綠（只在區塊元素前後換行，行內文字直接接起來）：
+  1 passed, 2 deselected in 0.08s
+  ```
+
+- [x] T4 只差空白的文字雜湊相同 -> verify: `uv run pytest tests/test_text.py -k hash_ignores_whitespace -q`
+
+  ```text
+  紅（commit 6174407）：
+  E       AttributeError: module 'app.core.fetch.text' has no attribute 'content_hash'
+  1 failed, 3 deselected in 0.12s
+  綠（空白縮成一個空格後算 SHA-256）：
+  1 passed, 3 deselected in 0.08s
+  ```
 - [ ] T5 一般回應不算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k normal_response -q`
 - [ ] T6 403 算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k status_403 -q`
 - [ ] T7 429 算被擋 -> verify: `uv run pytest tests/test_etiquette.py -k status_429 -q`

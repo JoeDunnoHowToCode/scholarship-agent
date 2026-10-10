@@ -35,3 +35,7 @@ def pagination_urls(html: str, page_url: str, *, page_zero_is_first: bool = Fals
         if url not in found:
             found.append(url)
     return found
+
+
+def missing_pages_warning(previous: int | None, current: int) -> str | None:
+    return None

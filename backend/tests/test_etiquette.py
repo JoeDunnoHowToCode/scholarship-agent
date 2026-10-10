@@ -33,3 +33,9 @@ def test_detect_block_captcha_page() -> None:
         "</html>"
     )
     assert etiquette.detect_block(200, body) == "captcha"
+
+
+def test_robots_4xx_means_allowed() -> None:
+    # RFC 9309：robots.txt 不存在（例如教育部回 404）就視為允許
+    url = "https://ws.moe.edu.tw/001/x.pdf"
+    assert etiquette.robots_allows(404, "", url, "python-httpx/0.28.1") is True

@@ -33,6 +33,14 @@
 14. 使用量：GeminiLLM 累計每次呼叫的輸入與輸出 tokens，指令結束時印出總量與估計費用（完整成本表是第 10 天）
 15. 「documents」新功能資料夾放切段、原文核對、PDF 轉錄：抽取（第 3 天）和 RAG（第 5 天）都會用，放在一個功能裡，兩邊都只用它公開的函式
 16. 第 1 天測試用的那筆獎學金（id=1，範例文字抽出來的）保留不刪，它沒有 source_id；要刪再告訴我
+17. （執行時）Chevening 這類不翻頁的網頁來源也請 AI 挑連結：Chevening 台灣頁只有 5,300 字的摘要，資格與時程在別頁；fetch 加 `--repick`，首頁沒變也能重挑
+18. （執行時）內容雜湊相同的頁面只抽一份：mipdal.eu 的三個 `?open=` 分頁其實是同一頁
+19. （執行時）文件清單同一類型、同一類別只留一筆，保留寫得最詳細的；other 要連要求文字都一樣才算重複（教育部簡章在正文、檢核表、報名流程重複列文件，原本 27 筆，改完 12 筆）
+20. （執行時）表格引用核對：Gemini 把表格轉成連續的一句，pdfplumber 原文卻是左右兩欄交錯；允許引用切成幾截，每截至少 6 個字、依序出現、下一截在 300 字內。測試確認改過的日期不會通過
+21. （執行時）第一輪大綱讀全文時，順便列出每個類別的名額、學位、國家；合併優先順序：明確點名的規則 > 大綱 > 「全部」的規則 > 整個獎學金的值
+22. （執行時）提示詞加上：學位是拿獎學金去讀的學位、不是申請人的學歷；台灣籍的引用必須明確寫出台灣人能或不能申請，只出現「Taiwan」不算（extract-5、outline-3、section-4、verify-2）
+23. （執行時）fetch 加 `--shard K/N`，依網站分成 N 份平行抓：一個程序平均 55 秒一個網站，218 個要 3 小時以上；同一個網站一定在同一份，限速規則不變
+24. （執行時）Google 與 LangChain 的各種錯誤在轉接頭統一成 LLMError，功能程式只接這一種
 
 ## 待使用者決策（不擋今天的其他工作，先用保守做法）
 
@@ -204,44 +212,259 @@ class StructuredLLM(Protocol):
 
 ### 1. 套件
 
-- [ ] 加入 pypdf -> verify: `uv pip show pypdf | head -2`
+- [x] 加入 pypdf -> verify: `uv pip show pypdf | head -2`
+
+  ```text
+  Name: pypdf
+  Version: 6.20.0
+  ```
 
 ### 2. 純函式（紅綠循環）
 
-- [ ] T1 目錄卡片的標題連結 -> verify: `uv run pytest tests/test_catalogue.py -k title_link`
-- [ ] T2 沒有標題連結時用說明裡的連結 -> verify: `uv run pytest tests/test_catalogue.py -k description_link`
-- [ ] T3 略過 erasmus-plus 專案頁連結 -> verify: `uv run pytest tests/test_catalogue.py -k project_page`
-- [ ] T4 讀出 Projects(N) -> verify: `uv run pytest tests/test_catalogue.py -k total`
-- [ ] T5 相對網址變絕對、只留同網站 -> verify: `uv run pytest tests/test_links.py -k same_site`
-- [ ] T6 去掉錨點與重複、排除自己 -> verify: `uv run pytest tests/test_links.py -k duplicates`
-- [ ] T7 排除檔案連結與 mailto -> verify: `uv run pytest tests/test_links.py -k files`
-- [ ] T8 轉錄稿依編號切段 -> verify: `uv run pytest tests/test_chunking.py -k numbering`
-- [ ] T9 轉錄稿依 Markdown 標題切段 -> verify: `uv run pytest tests/test_chunking.py -k markdown_heading`
-- [ ] T10 表格自成一段 -> verify: `uv run pytest tests/test_chunking.py -k transcript_table`
-- [ ] T11 太長的段細切 -> verify: `uv run pytest tests/test_chunking.py -k too_long`
-- [ ] T12 太短的段併入前一段 -> verify: `uv run pytest tests/test_chunking.py -k too_short`
-- [ ] T13 網頁依 h1–h4 切段 -> verify: `uv run pytest tests/test_chunking.py -k html_heading`
-- [ ] T14 網頁表格轉成 Markdown 表格並自成一段 -> verify: `uv run pytest tests/test_chunking.py -k html_table`
-- [ ] T15 同一章合併成一節、超過上限分開 -> verify: `uv run pytest tests/test_chunking.py -k sections`
-- [ ] T16 引用忽略空白與全形半形 -> verify: `uv run pytest tests/test_checks.py -k quote`
-- [ ] T17 轉錄稿多出的數字被找出 -> verify: `uv run pytest tests/test_checks.py -k numbers`
-- [ ] T18 單一欄位取第一個，不同值記衝突 -> verify: `uv run pytest tests/test_merge.py -k conflict`
-- [ ] T19 清單欄位聯集 -> verify: `uv run pytest tests/test_merge.py -k union`
-- [ ] T20 台灣籍優先順序 -> verify: `uv run pytest tests/test_merge.py -k taiwan`
-- [ ] T21 類別先用明確規則，沒有才用「全部」 -> verify: `uv run pytest tests/test_merge.py -k category_rules`
-- [ ] T22 未知類別名稱被丟掉並記警告 -> verify: `uv run pytest tests/test_merge.py -k unknown_category`
-- [ ] T23 文件要求聯集並去重 -> verify: `uv run pytest tests/test_merge.py -k requirements`
+T1–T7 由 sub agent A、T8–T17 由 sub agent B 各自在獨立的 worktree 做紅綠循環，再搬到 main（commit 編號是 main 上的）。
+
+- [x] T1 目錄卡片的標題連結 -> verify: `uv run pytest tests/test_catalogue.py -k title_link`
+
+  ```text
+  紅（6dedfa1）：AttributeError: module 'app.features.sources.catalogue' has no attribute 'parse_catalogue'
+  綠（e276f07）：1 passed, 5 deselected
+  ```
+
+- [x] T2 沒有標題連結時用說明裡的連結 -> verify: `uv run pytest tests/test_catalogue.py -k description_link`
+
+  ```text
+  紅（4ed9221）：AssertionError: assert [] == [CatalogueEnt...africa.com/')]
+  綠（00285f4）：1 passed, 5 deselected
+  ```
+
+- [x] T3 略過 erasmus-plus 專案頁連結 -> verify: `uv run pytest tests/test_catalogue.py -k project_page`
+
+  ```text
+  紅（e51c01d）：AssertionError: url='https://erasmus-plus.ec.europa.eu/projects/search/details/101000001' != url='https://example-master.eu/'
+  綠（370ff42）：1 passed, 5 deselected
+  ```
+
+- [x] T4 讀出 Projects(N) -> verify: `uv run pytest tests/test_catalogue.py -k total`
+
+  ```text
+  紅（95933d0）：AttributeError: ... has no attribute 'catalogue_total'（3 個測試）
+  綠（e0c6cb3）：3 passed, 3 deselected
+  ```
+
+- [x] T5 相對網址變絕對、只留同網站 -> verify: `uv run pytest tests/test_links.py -k same_site`
+
+  ```text
+  紅（f7ef985）：AttributeError: module 'app.features.sources.links' has no attribute 'candidate_links'
+  綠（06f0cf5）：1 passed, 2 deselected
+  ```
+
+- [x] T6 去掉錨點與重複、排除自己 -> verify: `uv run pytest tests/test_links.py -k duplicates`
+
+  ```text
+  紅（dc13d84）：AssertionError: Link(url='.../programme/apply#deadlines', text='') != Link(url='.../programme/apply', text='Apply now')
+  綠（0cf6bbc）：1 passed, 2 deselected
+  ```
+
+- [x] T7 排除檔案連結與 mailto -> verify: `uv run pytest tests/test_links.py -k files`
+
+  ```text
+  紅（8b5f9f7）：AssertionError: Link(url='.../programme/brochure.PDF', ...) != Link(url='.../admission.html', ...)
+  綠（87c74c1）：1 passed, 2 deselected
+  ```
+
+- [x] T8 轉錄稿依編號切段 -> verify: `uv run pytest tests/test_chunking.py -k numbering`
+
+  ```text
+  紅（d95df2f）：AttributeError: module 'app.features.documents.chunking' has no attribute 'chunk_transcript'
+  綠（7653df1）：1 passed, 7 deselected
+  ```
+
+- [x] T9 轉錄稿依 Markdown 標題切段 -> verify: `uv run pytest tests/test_chunking.py -k markdown_heading`
+
+  ```text
+  紅（0c9dab1）：AssertionError（第 0 段是沒有標題路徑的 '# Scholarship Guide…'）
+  綠（c3a9a9b）：1 passed, 7 deselected
+  ```
+
+- [x] T10 表格自成一段 -> verify: `uv run pytest tests/test_chunking.py -k transcript_table`
+
+  ```text
+  紅（bab4619）：AssertionError（全部留在同一段文字，少了 2 段）
+  綠（ce50bc4）：1 passed, 7 deselected
+  ```
+
+- [x] T11 太長的段細切 -> verify: `uv run pytest tests/test_chunking.py -k too_long`
+
+  ```text
+  紅（fe48a94）：AssertionError: assert 1 == 2
+  綠（214ba34）：1 passed, 7 deselected
+  ```
+
+- [x] T12 太短的段併入前一段 -> verify: `uv run pytest tests/test_chunking.py -k too_short`
+
+  ```text
+  紅（fe21b5c）：AssertionError（第 1 段太短卻沒有併入）
+  綠（38d0f3e）：1 passed, 7 deselected
+  ```
+
+- [x] T13 網頁依 h1–h4 切段 -> verify: `uv run pytest tests/test_chunking.py -k html_heading`
+
+  ```text
+  紅（8caf92e）：AttributeError: ... has no attribute 'chunk_html'
+  綠（b04b82a）：1 passed, 7 deselected
+  ```
+
+- [x] T14 網頁表格轉成 Markdown 表格並自成一段 -> verify: `uv run pytest tests/test_chunking.py -k html_table`
+
+  ```text
+  紅（2169b05）：AssertionError（表格變成一般文字；少一段 kind='table'）
+  綠（5d63d12）：1 passed, 7 deselected
+  ```
+
+- [x] T15 同一章合併成一節、超過上限分開 -> verify: `uv run pytest tests/test_chunking.py -k sections`
+
+  ```text
+  紅（2cd8e79）：AttributeError: ... has no attribute 'group_sections'
+  綠（849cc39）：1 passed, 7 deselected
+  ```
+
+- [x] T16 引用忽略空白與全形半形 -> verify: `uv run pytest tests/test_checks.py -k quote`
+
+  ```text
+  紅（a814264）：AttributeError: module 'app.features.documents.checks' has no attribute 'quote_in_source'
+  綠（41b5c97）：3 passed, 1 deselected（-k quote 也選到 T16b 的兩個測試）
+  ```
+
+- [x] T17 轉錄稿多出的數字被找出 -> verify: `uv run pytest tests/test_checks.py -k numbers`
+
+  ```text
+  紅（e7ec3f8）：AttributeError: ... has no attribute 'unverified_numbers'
+  綠（54b0fb3）：1 passed, 3 deselected
+  ```
+
+- [x] T16b（執行時新增）表格引用：允許切成幾截、依序就近出現；改過的日期不通過 -> verify: `uv run pytest tests/test_checks.py -k table_text`
+
+  ```text
+  紅（4d0a91c）：AttributeError: module 'app.features.documents.checks' has no attribute 'quote_in_table_text'（2 failed）
+  綠（9ca0ce8）：2 passed, 2 deselected
+  ```
+
+- [x] T18 單一欄位取第一個，不同值記衝突 -> verify: `uv run pytest tests/test_merge.py -k conflict`
+
+  ```text
+  紅（2b89d70）：AttributeError: module 'app.features.scholarships.merge' has no attribute 'merge_sections'
+  綠（556a1de）：1 passed
+  ```
+
+- [x] T19 清單欄位聯集、文字欄位串接 -> verify: `uv run pytest tests/test_merge.py -k union`
+
+  ```text
+  紅（dda6594）：AssertionError: assert [] == ['Denmark', '...en', 'Norway']
+  綠（0b13fe8）：2 passed（-k union 也選到 T23）
+  ```
+
+- [x] T20 台灣籍優先順序（國籍描述同理） -> verify: `uv run pytest tests/test_merge.py -k taiwan`
+
+  ```text
+  紅（4a081f3）：AssertionError: assert 'unclear' == 'no'
+  綠（748ce15）：1 passed
+  ```
+
+- [x] T20b 學位的引用取第一個有學位的那一節 -> verify: `uv run pytest tests/test_merge.py -k degrees_evidence`
+
+  ```text
+  紅（162cd46）：AssertionError: assert None == '一律以攻讀博士學位為限'
+  綠（a1e26b0）：1 passed
+  ```
+
+- [x] T21 類別先用明確規則，沒有才用「全部」 -> verify: `uv run pytest tests/test_merge.py -k category_rules`
+
+  ```text
+  紅（329c228）：ValueError: not enough values to unpack (expected 3, got 0)（類別是空的）
+  綠（86f3d01）：1 passed
+  ```
+
+- [x] T21b 大綱沒有類別時，用獎學金名稱建一個類別 -> verify: `uv run pytest tests/test_merge.py -k without_category`
+
+  ```text
+  紅（25b9f16）：ValueError: not enough values to unpack (expected 1, got 0)
+  綠（3cc840a）：1 passed
+  ```
+
+- [x] T21c（執行時新增）第一輪讀全文的類別資料排在明確規則之後、「全部」之前 -> verify: `uv run pytest tests/test_merge.py -k outline_details`
+
+  ```text
+  紅（98d6183）：AssertionError: assert (None, ['master', 'phd'], []) == (10, ['phd'], ['Sweden'])
+  綠（1f2ed4e）：1 passed
+  ```
+
+- [x] T22 未知類別名稱被丟掉並記警告 -> verify: `uv run pytest tests/test_merge.py -k unknown_category`
+
+  ```text
+  紅（ec71e83）：AssertionError: assert [] == ['未知類別：北歐']
+  綠（9d45954）：1 passed
+  ```
+
+- [x] T23 文件要求聯集並去重 -> verify: `uv run pytest tests/test_merge.py -k requirements`
+
+  ```text
+  紅（b2c1774）：AssertionError: assert [] == [('cv', None)...cript', None)]
+  綠（e06ccd8）：1 passed
+  ```
+
+- [x] T23b（執行時新增）同一類型、同一類別只留一筆，保留最詳細的要求 -> verify: `uv run pytest tests/test_merge.py -k longest_details`
+
+  ```text
+  紅（7df8f26）：AssertionError: assert [('cv', '履歷表'..., None, None)] == [('cv', '包括自我..., None, None)]
+  綠（8229a2f）：1 passed
+  ```
 
 ### 3. 資料表
 
-- [ ] 產生遷移並讀過 -> verify: `uv run alembic revision --autogenerate -m "add categories requirements parent and source ids"`，貼出遷移內容
-- [ ] 套用遷移 -> verify: `uv run alembic upgrade head && docker compose exec -T postgres psql -U scholar -c '\d scholarship_categories' -c '\d requirements'`
+- [x] 產生遷移並讀過 -> verify: `uv run alembic revision --autogenerate -m "add categories requirements parent and source ids"`，貼出遷移內容
+
+  ```text
+  837b61df1d63：create_table scholarship_categories（scholarship_id 外鍵 ON DELETE CASCADE）、
+  create_table requirements（scholarship_id、category_id 外鍵 ON DELETE CASCADE）、
+  scholarships 加 source_id（唯一＋外鍵）、sources 加 parent_id（外鍵）。
+  讀過後修改：自動產生的限制名稱是 None，downgrade 會失敗，所以 upgrade 給明確名稱，
+  downgrade 改成直接刪欄位（PostgreSQL 會一起刪掉欄位上的限制）
+  ```
+
+- [x] 套用遷移 -> verify: `uv run alembic upgrade head && docker compose exec -T postgres psql -U scholar -c '\d scholarship_categories' -c '\d requirements'`
+
+  ```text
+  Running upgrade ced471d15d28 -> 837b61df1d63（另外試過 downgrade -1 再 upgrade，兩個方向都成功）
+  scholarship_categories：id, scholarship_id, name, quota, degrees text[], countries text[], amount, eligibility
+  requirements：id, scholarship_id, category_id, doc_type varchar(32), details, required, count, evidence
+  ```
 
 ### 4. AI 呼叫（實際執行驗證）
 
-- [ ] GeminiLLM 重試、讀 PDF、累計 tokens -> verify: `uv run mypy app`，並在第 5 步的實跑輸出看到 tokens 總量
-- [ ] 教育部 PDF 轉錄與數字核對 -> verify: `uv run python -m app.features.documents.transcribe 3`，貼出批次數、字數、未核對數字
-- [ ] AI 挑連結 -> verify: 第 5 步的 fetch 輸出列出挑中的網址
+- [x] GeminiLLM 重試、讀 PDF、累計 tokens -> verify: `uv run mypy app`，並在第 5 步的實跑輸出看到 tokens 總量
+
+  ```text
+  Success: no issues found in 35 source files
+  tokens：輸入 39,595、輸出 7,012，約 US$0.029（NT$0.9）  ← extract --limit 7 的結尾
+  ```
+
+- [x] 教育部 PDF 轉錄與數字核對 -> verify: `uv run python -m app.features.documents.transcribe data/snapshots/3/20261010T084757Z_093808c1e5b1.pdf`（計畫原本寫來源 id，改成快照檔路徑，documents 才不必 import sources 的內部）
+
+  ```text
+  批次：6，轉錄稿 35,865 字元，存在 data/snapshots/3/20261010T084757Z_093808c1e5b1.pdf.transcribe-1.json
+  原文裡找不到的數字：['1151001234', '88.88', '80', '18']
+  tokens：輸入 30,434、輸出 27,653，約 US$0.078（NT$2.5）
+  ```
+
+- [x] AI 挑連結 -> verify: 第 5 步的 fetch 輸出列出挑中的網址
+
+  ```text
+  == 14 EUropean master on COntrol of Renewable Energy systems
+  new        9f64a38cb10a    https://master-eu-core.ec-nantes.fr
+  picked     AI 挑連結          https://master-eu-core.ec-nantes.fr/admission/students/deadlines
+  picked     AI 挑連結          https://master-eu-core.ec-nantes.fr/admission/students/fees-scholarships
+  picked     AI 挑連結          https://master-eu-core.ec-nantes.fr/admission/students/who-can-apply
+  ```
 
 ### 5. 指令與實跑
 
@@ -260,4 +483,8 @@ class StructuredLLM(Protocol):
 
 ## 執行時發現
 
-（實作與實跑中遇到的事，Claude 自行處理的和要使用者決策的分開寫）
+- 教育部 PDF 轉錄：6 批、35,865 字元、NT$2.5。原文核對找到 4 個對不上的數字，其中 2 個來自附錄的範例成績單（可能是圖片，pdfplumber 取不到字）
+- Gemini 轉錄真的寫錯字：轉錄稿把「優秀青年」寫成「優秀青青年」，學位的引用因此在 pdfplumber 原文裡找不到，被標成待確認（ADR-037 的核對有作用）。第一次單獨試轉兩頁時沒有這個錯，同一份 PDF 兩次轉錄結果不同
+- 抽取結果每次跑不一樣：同一份教育部轉錄稿，類別名稱有時是「新南向國家甲」，有時是整串國名；北歐與新南向的學位被加上原文沒有的 bachelor（直接看第一輪的輸出也一樣，是模型讀錯，不是合併規則的問題）。Chevening 有一次把沒有日期的句子當成截止日的依據，驗證者擋下來了
+- 驗證者擋下的例子：Chevening 用「Taiwan」一個字當台灣籍的依據（改提示詞後判為不支持）；學程網站寫「open to students from all over the world」，模型填 yes，驗證者判為不支持而改成 unclear（見待決策第 1 題）
+- 學程網站抓取：一個程序平均 55 秒一個網站（有些網站很慢或逾時 30 秒），改成 4 個程序平行抓

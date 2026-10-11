@@ -1,16 +1,18 @@
 """抓取指令（第 2 天）：抓所有該抓的來源，內容變了才存快照（ADR-019、027、028、029）。
 
-用法：uv run python -m app.features.sources.fetch [--limit N] [--unchecked] [--source ID] [--repick]
+用法：uv run python -m app.features.sources.fetch [--limit N] [--unchecked] [--source ID] [--repick] [--shard K/N]
 
 不翻頁的網頁來源（學程網站、Chevening）首頁是新的或變了，就請 AI 從首頁連結挑出申請頁一起抓（ADR-031）。
 """
 
 import argparse
 import sys
+import zlib
 from collections.abc import Callable
 from datetime import UTC, datetime
 from email.message import Message
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 from sqlalchemy import select
@@ -151,6 +153,12 @@ def fetch_source(
         source.last_page_count = checked  # 甲：警示後也照常更新，所以只會警示一次
 
 
+def in_shard(url: str, shard: str) -> bool:
+    """依網站分份：同一個網站一定在同一份，所以限速規則（ADR-028）在每個程序裡照樣成立。"""
+    index, total = (int(part) for part in shard.split("/"))
+    return zlib.crc32((urlsplit(url).hostname or "").encode()) % total == index
+
+
 def make_picker() -> tuple[LinkPicker | None, GeminiLLM | None]:
     from app.features.sources.pick import pick_links  # 只有挑連結時才需要
 
@@ -176,6 +184,9 @@ def main() -> None:
     parser.add_argument("--unchecked", action="store_true", help="只抓從來沒檢查過的來源")
     parser.add_argument("--source", type=int, help="只抓這個來源 id")
     parser.add_argument("--repick", action="store_true", help="首頁沒變也重新請 AI 挑連結")
+    parser.add_argument(
+        "--shard", help="K/N：只抓第 K 份（共 N 份），讓 N 個程序平行抓不同網站，例如 0/4"
+    )
     args = parser.parse_args()
 
     query = (
@@ -198,6 +209,8 @@ def main() -> None:
     try:
         with SessionLocal() as session:
             for source in session.scalars(query).all():
+                if args.shard and not in_shard(source.url, args.shard):
+                    continue
                 print(f"== {source.id} {source.name}")
                 fetch_source(session, fetcher, source, picker, repick=args.repick)
                 session.commit()  # 每個來源各自一個交易：一個出錯不影響其他已存的快照

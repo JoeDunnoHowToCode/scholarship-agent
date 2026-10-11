@@ -66,6 +66,9 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         values[evidence] = getattr(decider, evidence) if decider else None
     for name in LIST_FIELDS:
         values[name] = unique(item for s in sections for item in getattr(s, name))
+    # 學位的引用：取第一個真的有抽到學位的那一節
+    with_degrees = [s for s in sections if s.degrees]
+    values["degrees_evidence"] = with_degrees[0].degrees_evidence if with_degrees else None
     for name in TEXT_FIELDS:
         texts = unique(getattr(s, name) for s in sections if getattr(s, name))
         values[name] = "\n".join(texts) or None
@@ -74,7 +77,6 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         name=outline.name,
         name_zh=outline.name_zh,
         provider=outline.provider,
-        degrees_evidence=None,
         categories=[],
         requirements=[],
         **values,

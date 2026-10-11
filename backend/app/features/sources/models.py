@@ -34,6 +34,7 @@ class FetchMethod(enum.StrEnum):
 class Discovery(enum.StrEnum):
     SEED = "seed"  # 種子
     SEARCH = "search"  # 發掘 agent 搜尋到的
+    CATALOGUE = "catalogue"  # 從目錄頁解析出來的（例如 EACEA 的學程網站）
 
 
 class SourceStatus(enum.StrEnum):
@@ -58,6 +59,8 @@ class Source(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     name: Mapped[str] = mapped_column(Text)
+    # 從目錄解析出來的子來源指向目錄（例如學程網站指向 EACEA 目錄）；種子是空白
+    parent_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("sources.id"))
     # 唯一限制：同一個網址只會有一筆，seed 和發掘 agent 都靠它避免重複
     url: Mapped[str] = mapped_column(Text, unique=True)
     kind: Mapped[SourceKind] = mapped_column(_text_enum(SourceKind))

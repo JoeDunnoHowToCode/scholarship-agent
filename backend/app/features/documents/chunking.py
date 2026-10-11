@@ -6,6 +6,8 @@ from typing import Literal
 
 # 一段文字最多幾個字（超過就切開）
 MAX_CHARS = 3_000
+# 一段文字至少幾個字（太短就併進上一段，避免一段只有一兩句、缺上下文）
+MIN_CHARS = 200
 
 # 標題路徑裡每個標題最多留幾個字（太長的標題通常是整句話）
 HEADING_PATH_CHARS = 40
@@ -76,7 +78,28 @@ def chunk_transcript(markdown: str) -> list[Chunk]:
         lines.append(line)
     chunks.append(Chunk(path, "\n".join(lines).strip(), kind))
     chunks = [chunk for chunk in chunks if chunk.text]
-    return [piece for chunk in chunks for piece in _split_long(chunk)]
+    pieces = [piece for chunk in chunks for piece in _split_long(chunk)]
+    return _merge_short(pieces)
+
+
+def _merge_short(chunks: list[Chunk]) -> list[Chunk]:
+    """太短的文字段落併進上一段：上一段也是文字、同一個最上層標題、併完不超過上限。"""
+    merged: list[Chunk] = []
+    for chunk in chunks:
+        previous = merged[-1] if merged else None
+        if (
+            previous is not None
+            and chunk.kind == "text"
+            and previous.kind == "text"
+            and len(chunk.text) < MIN_CHARS
+            and chunk.heading_path[:1] == previous.heading_path[:1]
+            and len(previous.text) + 1 + len(chunk.text) <= MAX_CHARS
+        ):
+            # 併進去的段落沿用上一段的標題路徑
+            merged[-1] = Chunk(previous.heading_path, previous.text + "\n" + chunk.text, "text")
+        else:
+            merged.append(chunk)
+    return merged
 
 
 def _pack(parts: list[str], separator: str, limit: int) -> list[str]:

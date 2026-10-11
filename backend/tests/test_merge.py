@@ -137,3 +137,16 @@ def test_category_rules_use_explicit_facts_before_all() -> None:
     assert general.eligibility == "需有入學許可"
     assert (nordic.quota, nordic.countries) == (10, ["Denmark", "Sweden"])
     assert (special.quota, special.degrees) == (None, ["master", "phd"])
+
+
+def test_without_category_names_one_category_is_named_after_the_scholarship() -> None:
+    # 只有一種名額的獎學金也要有一筆類別（ADR-040）；學位與國家沒有規則時用整個獎學金的
+    result = merge.merge_sections(
+        OUTLINE,
+        [section(degrees=["master"], countries=["Sweden"],
+                 category_facts=[fact(["all"], quota=20)])],
+    )
+    (only,) = result.draft.categories
+    assert (only.name, only.quota, only.degrees, only.countries) == (
+        "GSSA", 20, ["master"], ["Sweden"],
+    )

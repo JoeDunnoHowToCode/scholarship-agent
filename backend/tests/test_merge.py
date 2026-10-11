@@ -86,3 +86,14 @@ def test_taiwan_answer_prefers_no_then_yes_then_unclear() -> None:
     assert result.draft.taiwan_evidence == "台灣不適用"
     assert result.draft.nationality_scope == "listed_countries"
     assert result.draft.nationality_evidence == "EU only"
+
+
+def test_degrees_evidence_comes_from_the_first_section_with_degrees() -> None:
+    result = merge.merge_sections(
+        OUTLINE,
+        [
+            section(degrees_evidence="與學位無關的句子"),
+            section(degrees=["phd"], degrees_evidence="一律以攻讀博士學位為限"),
+        ],
+    )
+    assert result.draft.degrees_evidence == "一律以攻讀博士學位為限"

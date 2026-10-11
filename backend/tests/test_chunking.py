@@ -129,3 +129,23 @@ def test_too_short_text_chunk_merges_into_previous_under_same_top_heading() -> N
         chunking.Chunk(("壹、獎學金", "三、附則"), "三、附則\n未盡事宜依本部規定辦理。", "text"),
         chunking.Chunk(("貳、申請方式",), "貳、申請方式\n一律網路報名。", "text"),
     ]
+
+
+def test_html_heading_tags_become_chunk_boundaries() -> None:
+    # 網頁的 h1～h4 就是標題：h1 第一層、h2 第二層……；script 不是看得到的文字
+    about = "The scholarship supports master's students in Europe. " * 4
+    rules = "Applicants must hold a bachelor's degree. " * 5
+    age = "Applicants must be under 35 years old. " * 6
+    docs = "Upload two reference letters before the deadline. " * 4
+    html = f"""<h1>Guide</h1><p>{about}</p><script>var x = 1;</script>
+<h2>Eligibility</h2><p>{rules}</p>
+<h3>Age</h3><p>{age}</p>
+<h4>Documents</h4><p>{docs}</p>"""
+    assert chunking.chunk_html(html) == [
+        chunking.Chunk(("Guide",), "Guide\n" + about.strip(), "text"),
+        chunking.Chunk(("Guide", "Eligibility"), "Eligibility\n" + rules.strip(), "text"),
+        chunking.Chunk(("Guide", "Eligibility", "Age"), "Age\n" + age.strip(), "text"),
+        chunking.Chunk(
+            ("Guide", "Eligibility", "Age", "Documents"), "Documents\n" + docs.strip(), "text"
+        ),
+    ]

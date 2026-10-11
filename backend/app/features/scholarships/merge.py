@@ -12,6 +12,7 @@ from app.features.scholarships.schemas import (
     CategoryDraft,
     CategoryFact,
     Outline,
+    OutlineCategory,
     RequirementDraft,
     ScholarshipDraft,
     SectionFacts,
@@ -67,21 +68,27 @@ def same_name(a: str, b: str) -> bool:
 
 
 def merge_category(
-    name: str, explicit: list[CategoryFact], shared: list[CategoryFact]
+    name: str,
+    explicit: list[CategoryFact],
+    shared: list[CategoryFact],
+    detail: OutlineCategory | None = None,
 ) -> CategoryDraft:
-    """一個類別：先用明確點名它的規則，沒有才用「全部」的規則。名額只看明確的規則。"""
+    """一個類別：明確點名它的規則 > 第一輪讀全文的類別資料 > 「全部」的規則。
+    名額只看明確的規則與第一輪的資料。"""
 
     def first[T](items: Iterable[T | None]) -> T | None:
         return next((item for item in items if item is not None), None)
 
     def pick_list(attr: str) -> list[Any]:
-        return unique(x for f in explicit for x in getattr(f, attr)) or unique(
-            x for f in shared for x in getattr(f, attr)
+        return (
+            unique(x for f in explicit for x in getattr(f, attr))
+            or (list(getattr(detail, attr)) if detail else [])
+            or unique(x for f in shared for x in getattr(f, attr))
         )
 
     return CategoryDraft(
         name=name,
-        quota=first(f.quota for f in explicit),
+        quota=first([*(f.quota for f in explicit), detail.quota if detail else None]),
         degrees=pick_list("degrees"),
         countries=pick_list("countries"),
         amount=first(f.amount for f in explicit) or first(f.amount for f in shared),
@@ -145,7 +152,10 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
                 warnings.append(f"未知類別：{name}")
         categories = [
             merge_category(
-                name, [f for f in facts if any(same_name(name, n) for n in f.applies_to)], shared
+                name,
+                [f for f in facts if any(same_name(name, n) for n in f.applies_to)],
+                shared,
+                next((d for d in outline.category_details if same_name(d.name, name)), None),
             )
             for name in outline.category_names
         ]

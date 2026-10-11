@@ -4,6 +4,10 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
+from bs4 import BeautifulSoup
+
+from app.core.fetch.text import html_to_text
+
 # 一段文字最多幾個字（超過就切開）
 MAX_CHARS = 3_000
 # 一段文字至少幾個字（太短就併進上一段，避免一段只有一兩句、缺上下文）
@@ -80,6 +84,16 @@ def chunk_transcript(markdown: str) -> list[Chunk]:
     chunks = [chunk for chunk in chunks if chunk.text]
     pieces = [piece for chunk in chunks for piece in _split_long(chunk)]
     return _merge_short(pieces)
+
+
+def chunk_html(html: str) -> list[Chunk]:
+    """網頁先轉成和 Gemini 轉錄稿一樣的 Markdown 文字，再用同一套規則切段。"""
+    soup = BeautifulSoup(html, "html.parser")
+    # <h2>Eligibility</h2> 換成一行「## Eligibility」，切段時就認得是第二層標題
+    for tag in soup.find_all(["h1", "h2", "h3", "h4"]):
+        text = " ".join(tag.get_text().split())
+        tag.replace_with(f"\n{'#' * int(tag.name[1])} {text}\n")
+    return chunk_transcript(html_to_text(str(soup)))
 
 
 def _merge_short(chunks: list[Chunk]) -> list[Chunk]:

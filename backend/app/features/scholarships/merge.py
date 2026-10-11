@@ -5,9 +5,16 @@
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+import unicodedata
 from typing import Any
 
-from app.features.scholarships.schemas import Outline, ScholarshipDraft, SectionFacts
+from app.features.scholarships.schemas import (
+    CategoryDraft,
+    CategoryFact,
+    Outline,
+    ScholarshipDraft,
+    SectionFacts,
+)
 
 # 「事實」欄位：只該有一個值。取第一個有值的；後面出現不同的值就記成衝突
 # 每個欄位配上它的引用欄位，引用跟著值一起取
@@ -49,6 +56,42 @@ def unique[T](items: Iterable[T]) -> list[T]:
     return list(dict.fromkeys(items))
 
 
+def same_name(a: str, b: str) -> bool:
+    """類別名稱比對：忽略空白與全形半形差異。"""
+
+    def key(name: str) -> str:
+        return "".join(unicodedata.normalize("NFKC", name).split())
+
+    return key(a) == key(b)
+
+
+def merge_category(
+    name: str, explicit: list[CategoryFact], shared: list[CategoryFact]
+) -> CategoryDraft:
+    """一個類別：先用明確點名它的規則，沒有才用「全部」的規則。名額只看明確的規則。"""
+
+    def first[T](items: Iterable[T | None]) -> T | None:
+        return next((item for item in items if item is not None), None)
+
+    def pick_list(attr: str) -> list[Any]:
+        return unique(x for f in explicit for x in getattr(f, attr)) or unique(
+            x for f in shared for x in getattr(f, attr)
+        )
+
+    return CategoryDraft(
+        name=name,
+        quota=first(f.quota for f in explicit),
+        degrees=pick_list("degrees"),
+        countries=pick_list("countries"),
+        amount=first(f.amount for f in explicit) or first(f.amount for f in shared),
+        eligibility="\n".join(
+            unique(f.eligibility for f in explicit + shared if f.eligibility)
+        )
+        or None,
+        evidence=first(f.evidence for f in explicit),
+    )
+
+
 def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResult:
     values: dict[str, Any] = {}
     conflicts: list[str] = []
@@ -61,23 +104,38 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
             conflicts.append(name)
 
     for name, (evidence, order) in PRIORITY_FIELDS.items():
-        decider = min(sections, key=lambda s: order.index(getattr(s, name)), default=None)
+        decider = min(
+            sections, key=lambda s: order.index(getattr(s, name)), default=None
+        )
         values[name] = getattr(decider, name) if decider else order[-1]
         values[evidence] = getattr(decider, evidence) if decider else None
     for name in LIST_FIELDS:
         values[name] = unique(item for s in sections for item in getattr(s, name))
     # 學位的引用：取第一個真的有抽到學位的那一節
     with_degrees = [s for s in sections if s.degrees]
-    values["degrees_evidence"] = with_degrees[0].degrees_evidence if with_degrees else None
+    values["degrees_evidence"] = (
+        with_degrees[0].degrees_evidence if with_degrees else None
+    )
     for name in TEXT_FIELDS:
         texts = unique(getattr(s, name) for s in sections if getattr(s, name))
         values[name] = "\n".join(texts) or None
+
+    facts = [f for s in sections for f in s.category_facts]
+    shared = [f for f in facts if "all" in f.applies_to]
+    categories = [
+        merge_category(
+            name,
+            [f for f in facts if any(same_name(name, n) for n in f.applies_to)],
+            shared,
+        )
+        for name in outline.category_names
+    ]
 
     draft = ScholarshipDraft(
         name=outline.name,
         name_zh=outline.name_zh,
         provider=outline.provider,
-        categories=[],
+        categories=categories,
         requirements=[],
         **values,
     )

@@ -171,3 +171,17 @@ def test_html_table_becomes_one_markdown_table_chunk() -> None:
     # 沒有表頭的表格不加分隔線
     html = "<table><tr><td>名額</td><td>120 名</td></tr></table>"
     assert chunking.chunk_html(html) == [chunking.Chunk((), "| 名額 | 120 名 |", "table")]
+
+
+def test_group_sections_packs_labeled_chunks_up_to_max_chars() -> None:
+    # 每段前面加上【標題路徑】；依序裝進同一大段，再裝下一段會超過 max_chars 就開新的一大段
+    chunks = [
+        chunking.Chunk(("壹、甄試", "一、名額"), "A" * 10, "text"),  # 加標籤後 24 字
+        chunking.Chunk((), "B" * 10, "text"),  # 沒有標題就不加標籤，10 字
+        chunking.Chunk(("貳",), "C" * 10, "table"),  # 加標籤後 14 字
+    ]
+    # 前兩段接起來 24 + 2 + 10 = 36 字；再接第三段會變 52 字，超過 40
+    assert chunking.group_sections(chunks, max_chars=40) == [
+        "【壹、甄試 > 一、名額】\nAAAAAAAAAA\n\nBBBBBBBBBB",
+        "【貳】\nCCCCCCCCCC",
+    ]

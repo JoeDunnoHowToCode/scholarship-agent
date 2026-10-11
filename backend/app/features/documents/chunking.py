@@ -93,6 +93,16 @@ def chunk_html(html: str) -> list[Chunk]:
     for tag in soup.find_all(["h1", "h2", "h3", "h4"]):
         text = " ".join(tag.get_text().split())
         tag.replace_with(f"\n{'#' * int(tag.name[1])} {text}\n")
+    # 表格換成 Markdown 表格：一個 <tr> 一行，格子用 | 隔開
+    for table in soup.find_all("table"):
+        rows: list[str] = []
+        for row in table.find_all("tr"):
+            cells = [" ".join(cell.get_text().split()) for cell in row.find_all(["th", "td"])]
+            rows.append("| " + " | ".join(cells) + " |")
+            # 第一列是表頭（th）時，下面加一行分隔線，和 Markdown 表格的寫法一樣
+            if len(rows) == 1 and row.find("th"):
+                rows.append("|" + " --- |" * len(cells))
+        table.replace_with("\n" + "\n".join(rows) + "\n")
     return chunk_transcript(html_to_text(str(soup)))
 
 

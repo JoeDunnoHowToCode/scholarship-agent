@@ -51,3 +51,19 @@ def test_first_value_wins_and_a_different_value_is_a_conflict() -> None:
     assert result.draft.deadline == "2027-02-13"
     assert result.draft.deadline_evidence == "2 月 13 日截止"
     assert result.conflicts == ["deadline"]
+
+
+def test_lists_are_unioned_and_texts_are_joined() -> None:
+    # 清單欄位取聯集（保持出現順序）；文字欄位把不同的內容串起來，不算衝突
+    result = merge.merge_sections(
+        OUTLINE,
+        [
+            section(countries=["Denmark", "Sweden"], degrees=["phd"], coverage="學費"),
+            section(countries=["Sweden", "Norway"], degrees=["master", "phd"], coverage="生活費"),
+            section(coverage="學費"),
+        ],
+    )
+    assert result.draft.countries == ["Denmark", "Sweden", "Norway"]
+    assert result.draft.degrees == ["phd", "master"]
+    assert result.draft.coverage == "學費\n生活費"
+    assert result.conflicts == []

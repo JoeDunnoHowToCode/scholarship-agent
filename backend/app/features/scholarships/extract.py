@@ -38,18 +38,19 @@ from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
 # 提示詞版本：改了提示詞就要改號碼；和快照雜湊、模型一起決定要不要重抽（ADR-013）
-PROMPT_VERSION = "extract-3"
-OUTLINE_VERSION = "outline-1"
-SECTION_VERSION = "section-2"
+PROMPT_VERSION = "extract-5"
+OUTLINE_VERSION = "outline-3"
+SECTION_VERSION = "section-4"
 # 網頁合併後超過這個長度才切段（docs/day-03.md「Claude 自行決定」第 6 點）
 LONG_TEXT_CHARS = 100_000
 
 RULES = """規則：
 - 只根據原文填寫；原文沒寫的欄位留空，不要推測
 - 原文沒有明確提到台灣籍能不能申請時，taiwan_eligibility 一律填 unclear
+- taiwan_evidence 必須是明確寫出台灣人（或中華民國國民）能或不能申請的句子；只是出現「Taiwan」這個字不算
 - 所有 evidence 欄位都要逐字複製原文的句子，不要改寫、不要翻譯
 - 日期換算成 YYYY-MM-DD；民國年加 1911 換成西元年
-- degrees 是拿這個獎學金去讀的學位，不是申請人已經有的學歷（「需有學士學位」不代表可以讀學士）
+- degrees 是拿這個獎學金去讀的學位，不是申請人已經有的學歷（「需有學士學位」不代表可以讀學士）；原文明確寫可以讀學士才填 bachelor
 """
 
 EXTRACT_PROMPT = """你是留學獎學金資料的抽取助手。下面是同一個獎學金（或學程）網站的頁面文字，
@@ -62,8 +63,12 @@ EXTRACT_PROMPT = """你是留學獎學金資料的抽取助手。下面是同一
 {text}
 """
 
-OUTLINE_PROMPT = """下面是一份留學獎學金簡章的全文。只要列出獎學金名稱、提供單位，
-以及所有名額類別的名稱（照原文寫，取最細的一層，例如「北歐國家」「新南向國家甲」）。
+OUTLINE_PROMPT = """下面是一份留學獎學金簡章的全文。只要列出獎學金名稱、提供單位、
+所有名額類別的名稱（取最細的一層，用簡短的名稱，例如「北歐國家」「新南向國家甲」，
+不要把國家清單當成名稱），
+以及每個類別的名額、可以讀的學位、可以去的國家（category_details）。
+學位要套用全文所有相關規則，例如別章用統稱（「一般生」）寫的學位限制，也要套到它涵蓋的每個類別。
+degrees 是拿獎學金去讀的學位，不是申請人已經有的學歷；原文明確寫可以讀學士才填 bachelor。
 
 全文：
 {text}

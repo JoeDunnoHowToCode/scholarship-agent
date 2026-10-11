@@ -12,7 +12,7 @@ from app.core.llm.base import StructuredLLM
 from app.features.documents.checks import quote_in_source, quote_in_table_text
 from app.features.scholarships.schemas import ScholarshipDraft
 
-PROMPT_VERSION = "verify-1"  # 改提示詞就要改版本號
+PROMPT_VERSION = "verify-2"  # 改提示詞就要改版本號
 
 # 每個欄位的結果：
 # supported 有依據；empty 沒抽到值（沒有要核對的）；no_evidence 有值但沒附引用；
@@ -21,6 +21,8 @@ Status = Literal["supported", "empty", "no_evidence", "quote_not_found", "not_su
 
 PROMPT = """你是查核員。下面每一項是從獎學金原文抽出的值，以及抽取時附上的原文引用。
 只根據引用本身判斷它是否支持這個值；引用沒寫到、寫得模糊、或要靠推測才成立，都算不支持。
+- taiwan_eligibility 是 yes 或 no 時，引用必須明確寫出台灣人（或中華民國國民）能或不能申請；只出現「Taiwan」這個字不算
+- deadline 的引用必須寫出那個日期
 
 {claims}
 """

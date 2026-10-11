@@ -122,14 +122,20 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
 
     facts = [f for s in sections for f in s.category_facts]
     shared = [f for f in facts if "all" in f.applies_to]
-    categories = [
-        merge_category(
-            name,
-            [f for f in facts if any(same_name(name, n) for n in f.applies_to)],
-            shared,
-        )
-        for name in outline.category_names
-    ]
+    if outline.category_names:
+        categories = [
+            merge_category(
+                name, [f for f in facts if any(same_name(name, n) for n in f.applies_to)], shared
+            )
+            for name in outline.category_names
+        ]
+    else:
+        # 只有一種名額：用獎學金名稱當類別名稱，「全部」的規則就是它的規則
+        categories = [merge_category(outline.name, shared, [])]
+    # 類別沒有自己的學位或國家時，用整個獎學金的
+    for category in categories:
+        category.degrees = category.degrees or values["degrees"]
+        category.countries = category.countries or values["countries"]
 
     draft = ScholarshipDraft(
         name=outline.name,

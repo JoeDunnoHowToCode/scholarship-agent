@@ -1,5 +1,6 @@
 """EACEA Erasmus Mundus 目錄頁解析（ADR-031：固定格式的清單頁 → 學程名稱與網址）。"""
 
+import re
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -32,6 +33,16 @@ def parse_catalogue(html: str) -> list[CatalogueEntry]:
             continue
         entries.append(CatalogueEntry(name=name, url=url))
     return entries
+
+
+def catalogue_total(html: str) -> int | None:
+    """讀標題「Projects(218)」裡的學程總數，之後可拿來檢查漏抓；找不到就回傳 None。"""
+    for heading in BeautifulSoup(html, "html.parser").find_all("h2"):
+        # \s* 允許括號前後有空白，例如 "Projects (218)"
+        match = re.fullmatch(r"Projects\s*\(\s*(\d+)\s*\)", heading.get_text().strip())
+        if match:
+            return int(match.group(1))
+    return None
 
 
 def _homepage_in_description(card: Tag) -> str | None:

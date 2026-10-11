@@ -1,8 +1,13 @@
 """抓取指令（第 2 天）：抓所有該抓的來源，內容變了才存快照（ADR-019、027、028、029）。
 
-用法：uv run python -m app.features.sources.fetch
+用法：uv run python -m app.features.sources.fetch [--limit N] [--unchecked] [--source ID]
+
+學程網站（有上層來源的子來源）的首頁是新的或變了，就請 AI 從首頁連結挑出申請頁一起抓（ADR-031）。
 """
 
+import argparse
+import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from email.message import Message
 from pathlib import Path
@@ -14,6 +19,8 @@ from sqlalchemy.orm import Session
 from app.core.fetch.base import BlockedError, Fetcher, FetchResult
 from app.core.fetch.http import HttpFetcher
 from app.core.fetch.text import content_hash, html_to_text, pdf_to_text
+from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
+from app.features.sources.links import Link, candidate_links
 from app.features.sources.models import FetchMethod, Snapshot, Source, SourceStatus
 from app.features.sources.pagination import missing_pages_warning, pagination_urls
 from app.shared.db import SessionLocal
@@ -22,6 +29,9 @@ from app.shared.settings import settings
 # 原始檔放在 backend/data/snapshots/（ADR-019，不進 git）
 SNAPSHOT_DIR = Path(__file__).resolve().parents[3] / "data" / "snapshots"
 MAX_PAGES = 50  # 翻頁最多 50 頁，避免無限翻下去
+
+# 挑連結的函式：(學程名稱, 首頁網址, 候選連結) → 挑中的網址
+LinkPicker = Callable[[str, str, list[Link]], list[str]]
 
 
 def report(label: str, detail: str, target: str) -> None:
@@ -54,7 +64,9 @@ def latest_snapshot(session: Session, source_id: int, url: str) -> Snapshot | No
     ).first()
 
 
-def fetch_source(session: Session, fetcher: Fetcher, source: Source) -> None:
+def fetch_source(
+    session: Session, fetcher: Fetcher, source: Source, picker: LinkPicker | None = None
+) -> None:
     source.last_checked_at = datetime.now(UTC)
     # 要檢查的網址：來源網址、以前快照過的頁面（翻頁遇到 304 也能繼續）、這次找到的翻頁連結
     known = session.scalars(
@@ -112,6 +124,12 @@ def fetch_source(session: Session, fetcher: Fetcher, source: Source) -> None:
                 )
             )
             report("changed" if latest else "new", digest[:12], url)
+            # 學程首頁是新的或變了：請 AI 挑申請頁，加進這次要抓的佇列
+            if picker and source.parent_id is not None and url == source.url and html:
+                for picked in picker(source.name, result.url, candidate_links(html, result.url)):
+                    report("picked", "AI 挑連結", picked)
+                    if picked not in seen:
+                        queue.append(picked)
         if source.follow_pagination and html:
             links = pagination_urls(
                 html, result.url, page_zero_is_first=source.page_zero_is_first
@@ -126,25 +144,59 @@ def fetch_source(session: Session, fetcher: Fetcher, source: Source) -> None:
         source.last_page_count = checked  # 甲：警示後也照常更新，所以只會警示一次
 
 
+def make_picker() -> tuple[LinkPicker | None, GeminiLLM | None]:
+    from app.features.sources.pick import pick_links  # 只有挑連結時才需要
+
+    try:
+        llm = GeminiLLM(settings.llm_model, settings.google_api_key)
+    except MissingApiKeyError as error:
+        print(f"{error}；這次不挑連結，只抓首頁", file=sys.stderr)
+        return None, None
+
+    def picker(name: str, url: str, links: list[Link]) -> list[str]:
+        try:
+            return pick_links(llm, name, url, links)
+        except LLMError as error:  # 挑連結失敗不影響首頁的快照，下次首頁變了會再挑
+            report("error", "挑連結失敗", f"{url} {type(error).__name__}: {error}")
+            return []
+
+    return picker, llm
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="抓取來源、存快照")
+    parser.add_argument("--limit", type=int, help="最多抓幾個來源")
+    parser.add_argument("--unchecked", action="store_true", help="只抓從來沒檢查過的來源")
+    parser.add_argument("--source", type=int, help="只抓這個來源 id")
+    args = parser.parse_args()
+
+    query = (
+        select(Source)
+        .where(
+            Source.enabled.is_(True),
+            Source.status == SourceStatus.APPROVED,
+            Source.manual_reason.is_(None),
+        )
+        .order_by(Source.id)
+        .limit(args.limit)
+    )
+    if args.unchecked:
+        query = query.where(Source.last_checked_at.is_(None))
+    if args.source:
+        query = query.where(Source.id == args.source)
+
+    picker, llm = make_picker()
     fetcher = HttpFetcher(settings.fetch_min_interval_seconds)
     try:
         with SessionLocal() as session:
-            sources = session.scalars(
-                select(Source)
-                .where(
-                    Source.enabled.is_(True),
-                    Source.status == SourceStatus.APPROVED,
-                    Source.manual_reason.is_(None),
-                )
-                .order_by(Source.id)
-            ).all()
-            for source in sources:
+            for source in session.scalars(query).all():
                 print(f"== {source.id} {source.name}")
-                fetch_source(session, fetcher, source)
+                fetch_source(session, fetcher, source, picker)
                 session.commit()  # 每個來源各自一個交易：一個出錯不影響其他已存的快照
     finally:
         fetcher.close()
+        if llm:
+            print(llm.usage_line())
 
 
 if __name__ == "__main__":

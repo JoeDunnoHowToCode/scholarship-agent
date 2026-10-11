@@ -17,7 +17,11 @@ class MissingApiKeyError(RuntimeError):
     """沒有設定 Gemini 金鑰。"""
 
 
-class ExtractionError(RuntimeError):
+class LLMError(RuntimeError):
+    """呼叫模型失敗。功能程式只需要接這一種例外，不必認識 Google 各種錯誤類別。"""
+
+
+class ExtractionError(LLMError):
     """重試後模型仍然沒有回傳符合 schema 的資料。"""
 
 
@@ -45,7 +49,11 @@ class GeminiLLM:
         runnable = self._chat.with_structured_output(schema, include_raw=True)
         current = prompt
         for _ in range(MAX_RETRIES + 1):
-            result: dict[str, Any] = runnable.invoke(current)  # type: ignore[assignment]
+            try:
+                result: dict[str, Any] = runnable.invoke(current)  # type: ignore[assignment]
+            except Exception as failure:
+                # 轉接頭的邊界：把 Google 與 LangChain 的各種錯誤統一成 LLMError
+                raise LLMError(f"{type(failure).__name__}: {failure}") from failure
             self._count(result["raw"])
             parsed = result["parsed"]
             if isinstance(parsed, schema):
@@ -67,7 +75,10 @@ class GeminiLLM:
                 },
             ]
         )
-        response = self._chat.invoke([message])
+        try:
+            response = self._chat.invoke([message])
+        except Exception as error:
+            raise LLMError(f"{type(error).__name__}: {error}") from error
         self._count(response)
         return response.text
 

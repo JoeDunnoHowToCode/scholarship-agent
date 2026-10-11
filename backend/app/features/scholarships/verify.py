@@ -9,7 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from app.core.llm.base import StructuredLLM
-from app.features.documents.checks import quote_in_source
+from app.features.documents.checks import quote_in_source, quote_in_table_text
 from app.features.scholarships.schemas import ScholarshipDraft
 
 PROMPT_VERSION = "verify-1"  # 改提示詞就要改版本號
@@ -58,8 +58,9 @@ def verify(
             status[field] = "empty"
         elif not evidence:
             status[field] = "no_evidence"
-        elif not quote_in_source(evidence, source):
-            status[field] = "quote_not_found"  # 第一關：引用必須逐字存在於原文
+        elif not (quote_in_source(evidence, source) or quote_in_table_text(evidence, source)):
+            # 第一關：引用必須存在於原文（表格的字被交錯排列時，允許切成幾截就近出現）
+            status[field] = "quote_not_found"
         else:
             to_ask[field] = (value, evidence)
     if to_ask:

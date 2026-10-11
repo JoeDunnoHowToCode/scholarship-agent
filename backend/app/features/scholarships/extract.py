@@ -38,9 +38,9 @@ from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
 # 提示詞版本：改了提示詞就要改號碼；和快照雜湊、模型一起決定要不要重抽（ADR-013）
-PROMPT_VERSION = "extract-2"
+PROMPT_VERSION = "extract-3"
 OUTLINE_VERSION = "outline-1"
-SECTION_VERSION = "section-1"
+SECTION_VERSION = "section-2"
 # 網頁合併後超過這個長度才切段（docs/day-03.md「Claude 自行決定」第 6 點）
 LONG_TEXT_CHARS = 100_000
 
@@ -49,6 +49,7 @@ RULES = """規則：
 - 原文沒有明確提到台灣籍能不能申請時，taiwan_eligibility 一律填 unclear
 - 所有 evidence 欄位都要逐字複製原文的句子，不要改寫、不要翻譯
 - 日期換算成 YYYY-MM-DD；民國年加 1911 換成西元年
+- degrees 是拿這個獎學金去讀的學位，不是申請人已經有的學歷（「需有學士學位」不代表可以讀學士）
 """
 
 EXTRACT_PROMPT = """你是留學獎學金資料的抽取助手。下面是同一個獎學金（或學程）網站的頁面文字，
@@ -72,7 +73,8 @@ SECTION_PROMPT = """你是留學獎學金資料的抽取助手。下面是「{na
 這份簡章的名額類別有：{categories}。
 {rules}
 - 這一節沒提到的欄位留空（清單留空清單，taiwan_eligibility 與 nationality_scope 填 unclear）
-- 只適用某些類別的規則放進 category_facts，applies_to 必須照抄上面的類別名稱；適用所有類別填 ["all"]
+- 名額、可讀的學位、可去的國家、金額只要因類別而不同，就一定要寫進 category_facts，不要只寫在整體欄位
+- applies_to 必須照抄上面的類別名稱；原文用的是統稱（例如「一般生」涵蓋好幾個類別）時，列出它涵蓋的每一個類別名稱；適用所有類別填 ["all"]
 
 這一節：
 {text}

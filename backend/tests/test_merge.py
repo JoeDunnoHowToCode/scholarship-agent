@@ -6,6 +6,7 @@ from app.features.scholarships import merge
 from app.features.scholarships.schemas import (
     CategoryFact,
     Outline,
+    OutlineCategory,
     RequirementDraft,
     SectionFacts,
 )
@@ -212,3 +213,26 @@ def test_same_document_type_keeps_one_row_with_the_longest_details() -> None:
         ("other", "排名資料", None, None),
         ("other", "指導教授簡介", None, None),
     ]
+
+
+def test_outline_details_fill_categories_without_explicit_facts() -> None:
+    # 第一輪讀過全文，知道「北歐國家」只能讀博士（規則寫在別章、用「一般生」統稱）
+    # 優先順序：明確點名的規則 > 第一輪的類別資料 > 「全部」的規則 > 整個獎學金的值
+    outline = Outline(
+        name="GSSA", name_zh=None, provider=None,
+        category_names=["一般學群", "北歐國家"],
+        category_details=[
+            OutlineCategory(name="一般學群", quota=150, degrees=["phd"], countries=[]),
+            OutlineCategory(name="北歐國家", quota=10, degrees=["phd"], countries=["Sweden"]),
+        ],
+    )
+    result = merge.merge_sections(
+        outline,
+        [section(degrees=["bachelor", "master", "phd"], category_facts=[
+            fact(["一般學群"], quota=155, degrees=["phd", "master"]),
+            fact(["all"], degrees=["master", "phd"]),
+        ])],
+    )
+    general, nordic = result.draft.categories
+    assert (general.quota, general.degrees) == (155, ["phd", "master"])
+    assert (nordic.quota, nordic.degrees, nordic.countries) == (10, ["phd"], ["Sweden"])

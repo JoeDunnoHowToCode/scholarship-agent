@@ -1,8 +1,8 @@
 """抓取指令（第 2 天）：抓所有該抓的來源，內容變了才存快照（ADR-019、027、028、029）。
 
-用法：uv run python -m app.features.sources.fetch [--limit N] [--unchecked] [--source ID]
+用法：uv run python -m app.features.sources.fetch [--limit N] [--unchecked] [--source ID] [--repick]
 
-學程網站（有上層來源的子來源）的首頁是新的或變了，就請 AI 從首頁連結挑出申請頁一起抓（ADR-031）。
+不翻頁的網頁來源（學程網站、Chevening）首頁是新的或變了，就請 AI 從首頁連結挑出申請頁一起抓（ADR-031）。
 """
 
 import argparse
@@ -65,7 +65,12 @@ def latest_snapshot(session: Session, source_id: int, url: str) -> Snapshot | No
 
 
 def fetch_source(
-    session: Session, fetcher: Fetcher, source: Source, picker: LinkPicker | None = None
+    session: Session,
+    fetcher: Fetcher,
+    source: Source,
+    picker: LinkPicker | None = None,
+    *,
+    repick: bool = False,
 ) -> None:
     source.last_checked_at = datetime.now(UTC)
     # 要檢查的網址：來源網址、以前快照過的頁面（翻頁遇到 304 也能繼續）、這次找到的翻頁連結
@@ -108,7 +113,8 @@ def fetch_source(
         html = decode_html(result) if source.fetch_method == FetchMethod.HTML else ""
         text = pdf_to_text(result.content) if source.fetch_method == FetchMethod.PDF else html_to_text(html)
         digest = content_hash(text)
-        if latest and latest.content_hash == digest:
+        changed = not (latest and latest.content_hash == digest)
+        if not changed:
             report("unchanged", digest[:12], url)
         else:
             session.add(
@@ -124,12 +130,13 @@ def fetch_source(
                 )
             )
             report("changed" if latest else "new", digest[:12], url)
-            # 學程首頁是新的或變了：請 AI 挑申請頁，加進這次要抓的佇列
-            if picker and source.parent_id is not None and url == source.url and html:
-                for picked in picker(source.name, result.url, candidate_links(html, result.url)):
-                    report("picked", "AI 挑連結", picked)
-                    if picked not in seen:
-                        queue.append(picked)
+        # 首頁是新的或變了（或指定 --repick）：請 AI 挑申請頁，加進這次要抓的佇列
+        # 目錄這類翻頁來源不挑；學程網站與 Chevening 這類單頁來源都挑
+        if (changed or repick) and picker and not source.follow_pagination and url == source.url and html:
+            for picked in picker(source.name, result.url, candidate_links(html, result.url)):
+                report("picked", "AI 挑連結", picked)
+                if picked not in seen:
+                    queue.append(picked)
         if source.follow_pagination and html:
             links = pagination_urls(
                 html, result.url, page_zero_is_first=source.page_zero_is_first
@@ -168,6 +175,7 @@ def main() -> None:
     parser.add_argument("--limit", type=int, help="最多抓幾個來源")
     parser.add_argument("--unchecked", action="store_true", help="只抓從來沒檢查過的來源")
     parser.add_argument("--source", type=int, help="只抓這個來源 id")
+    parser.add_argument("--repick", action="store_true", help="首頁沒變也重新請 AI 挑連結")
     args = parser.parse_args()
 
     query = (
@@ -191,7 +199,7 @@ def main() -> None:
         with SessionLocal() as session:
             for source in session.scalars(query).all():
                 print(f"== {source.id} {source.name}")
-                fetch_source(session, fetcher, source, picker)
+                fetch_source(session, fetcher, source, picker, repick=args.repick)
                 session.commit()  # 每個來源各自一個交易：一個出錯不影響其他已存的快照
     finally:
         fetcher.close()

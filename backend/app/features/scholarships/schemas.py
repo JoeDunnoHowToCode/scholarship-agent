@@ -95,13 +95,25 @@ class ScholarshipDraft(ProgramFacts):
     requirements: list[RequirementDraft] = Field(description="申請要交的文件")
 
 
+class OutlineCategory(BaseModel):
+    """第一輪讀完全文後，每個類別的基本條件（跨章節的規則在這裡就能套上）。"""
+
+    name: str = Field(description="類別名稱，和 category_names 一致")
+    quota: int | None = Field(description="名額，只填數字")
+    degrees: list[Degree] = Field(description="這個類別可以讀的學位，套用全文所有相關規則")
+    countries: list[str] = Field(description="這個類別可以去的國家，用英文國名；不限就留空清單")
+
+
 class Outline(BaseModel):
-    """長文件第一輪：只列名稱與類別清單（輸出短）。"""
+    """長文件第一輪：讀全文，只列名稱與類別清單（輸出短）。"""
 
     name: str = Field(description="獎學金的原文名稱")
     name_zh: str | None = Field(description="中文名稱；原文不是中文就翻譯")
     provider: str | None = Field(description="提供單位")
     category_names: list[str] = Field(description="所有名額類別的名稱，照原文寫；只有一種就留空清單")
+    category_details: list[OutlineCategory] = Field(
+        default_factory=list, description="每個類別的名額、學位、國家，順序和 category_names 一致"
+    )
 
 
 class CategoryFact(BaseModel):

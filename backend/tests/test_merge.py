@@ -192,3 +192,23 @@ def test_requirements_are_unioned_without_duplicates() -> None:
         ("cv", None), ("portfolio", "北歐國家"), ("transcript", None),
     ]
     assert result.warnings == ["未知類別：藝術"]
+
+
+def test_same_document_type_keeps_one_row_with_the_longest_details() -> None:
+    # 簡章常在好幾節重複列同一份文件（正文、檢核表、報名流程），寫法不同
+    # 同一類型、同一類別只留一筆：保留寫得最詳細的；份數取有寫的；任一處說必要就是必要
+    # other 是好幾種不同文件的統稱，只有要求文字一樣才算重複
+    result = merge.merge_sections(
+        OUTLINE,
+        [
+            section(requirements=[requirement("cv", details="履歷表", required=True),
+                                  requirement("other", details="排名資料")]),
+            section(requirements=[requirement("cv", details="包括自我介紹、學經歷", count=1),
+                                  requirement("other", details="指導教授簡介")]),
+        ],
+    )
+    assert [(r.doc_type, r.details, r.count, r.required) for r in result.draft.requirements] == [
+        ("cv", "包括自我介紹、學經歷", 1, True),
+        ("other", "排名資料", None, None),
+        ("other", "指導教授簡介", None, None),
+    ]

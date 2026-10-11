@@ -19,3 +19,22 @@ def test_candidate_links_keeps_same_site_absolute_urls() -> None:
         links.Link(url="https://example.eu/scholarships", text="Scholarships"),
         links.Link(url="https://WWW.EXAMPLE.EU/contact", text="Contact"),
     ]
+
+
+def test_candidate_links_removes_fragments_duplicates_and_the_page_itself() -> None:
+    # # 後面的錨點只在瀏覽器裡跳位置，去掉後才比較；同一網址只留第一次出現的那個（連同它的文字）；
+    # 連回本頁的連結（不論有沒有結尾的 /）沒有新資訊，也不留。
+    # 只有圖示沒有文字的連結，改用 aria-label 或 title 當文字
+    html = """
+    <a href="apply#deadlines" aria-label="Apply now"><img src="arrow.svg"></a>
+    <a href="apply">Apply</a>
+    <a href="#main-content">Skip to content</a>
+    <a href="https://www.example.eu/programme">Home</a>
+    <a href="contact" title="Contact us"></a>
+    <a href="news"><span></span></a>
+    """
+    assert links.candidate_links(html, PAGE_URL) == [
+        links.Link(url="https://www.example.eu/programme/apply", text="Apply now"),
+        links.Link(url="https://www.example.eu/programme/contact", text="Contact us"),
+        links.Link(url="https://www.example.eu/programme/news", text=""),
+    ]

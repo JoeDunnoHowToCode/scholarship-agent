@@ -17,6 +17,9 @@ NUMBERING_LEVELS = [
 # 目錄行：結尾是 3 個以上的點點點，再接頁碼，例如「一、設置目的………… 2」
 TOC_LINE = re.compile(r"[.…．]{3,}\s*\d+$")
 
+# Markdown 標題：1 到 4 個 #，接空白，再接標題文字
+MARKDOWN_HEADING = re.compile(r"^(#{1,4})\s+(.+)$")
+
 
 @dataclass(frozen=True)
 class Chunk:
@@ -25,13 +28,18 @@ class Chunk:
     kind: Literal["text", "table"]
 
 
-def _heading_level(line: str) -> int | None:
-    """這一行是標題就回傳層級，不是就回傳 None。"""
-    if TOC_LINE.search(line):
+def _parse_heading(line: str) -> tuple[int, str] | None:
+    """這一行是標題就回傳 (層級, 去掉 # 的標題文字)，不是就回傳 None。"""
+    markdown = MARKDOWN_HEADING.match(line)
+    text = markdown.group(2) if markdown else line
+    if TOC_LINE.search(text):
         return None
+    # 有公文編號就看編號；沒有編號的 Markdown 標題看 # 的數量
     for level, pattern in NUMBERING_LEVELS:
-        if pattern.match(line):
-            return level
+        if pattern.match(text):
+            return level, text
+    if markdown:
+        return len(markdown.group(1)), text
     return None
 
 
@@ -43,13 +51,14 @@ def chunk_transcript(markdown: str) -> list[Chunk]:
     lines: list[str] = []
     for raw_line in markdown.splitlines():
         line = raw_line.strip()
-        level = _heading_level(line)
-        if level is not None:
+        heading = _parse_heading(line)
+        if heading is not None:
             # 先把上一段收起來，再更新標題堆疊：同層或更深的標題都要退出
             chunks.append(Chunk(path, "\n".join(lines).strip(), "text"))
             lines = []
+            level, line = heading
             stack = [entry for entry in stack if entry[0] < level]
-            stack.append((level, line))
+            stack.append(heading)
             path = tuple(text[:HEADING_PATH_CHARS] for _, text in stack)
         lines.append(line)
     chunks.append(Chunk(path, "\n".join(lines).strip(), "text"))

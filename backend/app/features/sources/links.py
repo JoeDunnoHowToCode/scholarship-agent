@@ -5,6 +5,12 @@ from urllib.parse import urldefrag, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
+# 這些副檔名是檔案、不是網頁（交給 AI 挑也讀不到內容）
+FILE_EXTENSIONS = (
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".zip", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".mp4",
+)
+
 
 @dataclass(frozen=True)
 class Link:
@@ -24,6 +30,10 @@ def candidate_links(html: str, page_url: str) -> list[Link]:
     for anchor in BeautifulSoup(html, "html.parser").find_all("a", href=True):
         # 去掉 # 後面的錨點：它只在瀏覽器裡跳位置，伺服器收到的是同一頁
         url = urldefrag(urljoin(page_url, str(anchor["href"]))).url
+        parts = urlsplit(url)
+        # mailto:、javascript: 這類不是網頁；檔案看路徑副檔名（不看 ? 後面的參數）
+        if parts.scheme not in ("http", "https") or parts.path.lower().endswith(FILE_EXTENSIONS):
+            continue
         if _site(url) != site or url.rstrip("/") == page or url in seen:
             continue
         seen.add(url)

@@ -24,6 +24,10 @@ def parse_catalogue(html: str) -> list[CatalogueEntry]:
         name = " ".join(title.get_text().split())
         link = title.find("a", href=True)
         if link is None:
+            # 少數卡片標題沒有連結，官網網址寫在說明文字裡
+            description = card.find("div", class_="ecl-content-block__description")
+            link = description.find("a", href=True) if description else None
+        if link is None:
             continue
         entries.append(CatalogueEntry(name=name, url=str(link["href"])))
     return entries

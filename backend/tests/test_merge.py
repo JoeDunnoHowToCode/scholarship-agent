@@ -67,3 +67,22 @@ def test_lists_are_unioned_and_texts_are_joined() -> None:
     assert result.draft.degrees == ["phd", "master"]
     assert result.draft.coverage == "學費\n生活費"
     assert result.conflicts == []
+
+
+def test_taiwan_answer_prefers_no_then_yes_then_unclear() -> None:
+    # 只要有一節說台灣不行就是不行；其次才是可以；引用跟著做出決定的那一節
+    # 國籍描述同理：專給台灣 > 列出國家 > 開放所有國籍 > 沒寫
+    result = merge.merge_sections(
+        OUTLINE,
+        [
+            section(taiwan_eligibility="yes", taiwan_evidence="台灣可申請",
+                    nationality_scope="worldwide", nationality_evidence="all nationalities"),
+            section(taiwan_eligibility="no", taiwan_evidence="台灣不適用",
+                    nationality_scope="listed_countries", nationality_evidence="EU only"),
+            section(),
+        ],
+    )
+    assert result.draft.taiwan_eligibility == "no"
+    assert result.draft.taiwan_evidence == "台灣不適用"
+    assert result.draft.nationality_scope == "listed_countries"
+    assert result.draft.nationality_evidence == "EU only"

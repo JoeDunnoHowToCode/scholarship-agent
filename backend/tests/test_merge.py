@@ -3,7 +3,7 @@
 from typing import Any
 
 from app.features.scholarships import merge
-from app.features.scholarships.schemas import Outline, SectionFacts
+from app.features.scholarships.schemas import CategoryFact, Outline, SectionFacts
 
 EMPTY: dict[str, Any] = {
     "provider": None,
@@ -97,3 +97,43 @@ def test_degrees_evidence_comes_from_the_first_section_with_degrees() -> None:
         ],
     )
     assert result.draft.degrees_evidence == "一律以攻讀博士學位為限"
+
+
+def fact(applies_to: list[str], **fields: Any) -> CategoryFact:
+    empty: dict[str, Any] = {
+        "quota": None, "degrees": [], "countries": [], "amount": None,
+        "eligibility": None, "evidence": None,
+    }
+    return CategoryFact(applies_to=applies_to, **{**empty, **fields})
+
+
+def test_category_rules_use_explicit_facts_before_all() -> None:
+    # 教育部的例子：第 3 章寫學位規則，第 4 章寫名額，另有一條適用所有類別的規則
+    # 類別先用明確點名它的規則；沒有才用「全部」的規則
+    outline = Outline(
+        name="GSSA", name_zh=None, provider=None,
+        category_names=["一般學群", "北歐國家", "特殊生"],
+    )
+    result = merge.merge_sections(
+        outline,
+        [
+            section(category_facts=[
+                fact(["一般學群", "北歐國家"], degrees=["phd"], evidence="一律以攻讀博士學位為限"),
+            ]),
+            section(category_facts=[
+                fact(["一般學群"], quota=155),
+                fact(["北歐國家"], quota=10, countries=["Denmark", "Sweden"]),
+            ]),
+            section(category_facts=[
+                fact(["all"], degrees=["master", "phd"], amount="每年 1 萬 6 千美元",
+                     eligibility="需有入學許可"),
+            ]),
+        ],
+    )
+    general, nordic, special = result.draft.categories
+    assert (general.name, general.quota, general.degrees) == ("一般學群", 155, ["phd"])
+    assert general.evidence == "一律以攻讀博士學位為限"
+    assert general.amount == "每年 1 萬 6 千美元"
+    assert general.eligibility == "需有入學許可"
+    assert (nordic.quota, nordic.countries) == (10, ["Denmark", "Sweden"])
+    assert (special.quota, special.degrees) == (None, ["master", "phd"])

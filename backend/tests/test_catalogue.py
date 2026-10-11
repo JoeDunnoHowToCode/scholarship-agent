@@ -1,0 +1,24 @@
+"""EACEA 目錄頁解析的單元測試（ADR-031：清單頁 → 學程名稱與網址）。"""
+
+from app.features.sources import catalogue
+
+
+def test_parse_catalogue_uses_title_link() -> None:
+    # 一般卡片：標題本身就是連到學程官網的 <a>；名稱裡多餘的空白要收成一格。
+    # 沒有 ecl-card 的 <article> 不是學程卡片，要略過
+    html = """
+    <article class="ecl-card"><div class="ecl-card__body"><div class="ecl-content-block ecl-card__content-block">
+     <div class="ecl-content-block__title">
+      <a class="ecl-link ecl-link--standalone ecl-link--icon" href="https://www.multidiverse.eu/"><span class="ecl-link__label">Erasmus Mundus Joint Master in
+        Multilingualism and Cultural Diversity</span><span class="wt-icon--external ecl-icon"></span></a>
+     </div>
+     <div class="ecl-content-block__description"><p>MultiDiverse - Project overview<br/><a href="https://erasmus-plus.ec.europa.eu/projects/search/details/101241136">https://erasmus-plus.ec.europa.eu/projects/search/details/101241136</a></p></div>
+    </div></div></article>
+    <article class="other"><a href="https://example.org/">不是學程卡片</a></article>
+    """
+    assert catalogue.parse_catalogue(html) == [
+        catalogue.CatalogueEntry(
+            name="Erasmus Mundus Joint Master in Multilingualism and Cultural Diversity",
+            url="https://www.multidiverse.eu/",
+        )
+    ]

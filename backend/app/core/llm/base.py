@@ -12,3 +12,9 @@ class StructuredLLM(Protocol):
     def extract[M: BaseModel](self, prompt: str, schema: type[M]) -> M:
         """把 prompt 交給模型，回傳符合 schema 的 Pydantic 物件。"""
         ...
+
+
+class PdfReader(Protocol):
+    def read_pdf(self, prompt: str, pdf: bytes) -> str:
+        """把 PDF 原檔連同 prompt 交給模型，回傳模型寫的文字（ADR-037）。"""
+        ...

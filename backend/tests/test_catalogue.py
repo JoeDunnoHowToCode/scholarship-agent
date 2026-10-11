@@ -1,5 +1,7 @@
 """EACEA 目錄頁解析的單元測試（ADR-031：清單頁 → 學程名稱與網址）。"""
 
+import pytest
+
 from app.features.sources import catalogue
 
 
@@ -59,3 +61,23 @@ def test_parse_catalogue_never_uses_the_project_page() -> None:
             url="https://example-master.eu/",
         )
     ]
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        '<h2 class="ecl-u-type-heading-2">Projects(218)</h2>',
+        '<h2 class="ecl-u-type-heading-2">\n  Projects (218)\n</h2>',
+    ],
+    ids=["no_space", "with_spaces"],
+)
+def test_catalogue_total_reads_projects_count(heading: str) -> None:
+    # 標題寫著總共幾個學程，之後可以拿來檢查有沒有漏抓；空白多寡不影響
+    html = f"<h2>Filters</h2>{heading}"
+    assert catalogue.catalogue_total(html) == 218
+
+
+def test_catalogue_total_is_none_when_heading_missing() -> None:
+    # 找不到 Projects(N) 標題時回傳 None，不要亂猜一個數字
+    html = "<h2>Filters</h2><p>Projects(218)</p>"
+    assert catalogue.catalogue_total(html) is None

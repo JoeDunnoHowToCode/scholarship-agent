@@ -150,3 +150,14 @@ def test_without_category_names_one_category_is_named_after_the_scholarship() ->
     assert (only.name, only.quota, only.degrees, only.countries) == (
         "GSSA", 20, ["master"], ["Sweden"],
     )
+
+
+def test_unknown_category_name_is_dropped_with_a_warning() -> None:
+    # 第二輪的 AI 寫了大綱沒有的類別名稱：不能猜它指哪個類別，丟掉並記警告
+    outline = Outline(name="GSSA", name_zh=None, provider=None, category_names=["北歐國家"])
+    result = merge.merge_sections(
+        outline,
+        [section(category_facts=[fact(["北歐國家"], quota=10), fact(["北歐"], quota=99)])],
+    )
+    assert [c.quota for c in result.draft.categories] == [10]
+    assert result.warnings == ["未知類別：北歐"]

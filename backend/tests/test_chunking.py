@@ -9,17 +9,15 @@ def test_numbering_lines_become_headings_but_toc_lines_do_not() -> None:
     purpose = "教育部為厚植國家實力，培育各領域人才。" * 12
     benefit = "獎學金依留學國家及學門核發，名額依甄試結果決定。" * 10
     amount = "1.一般生每人每年核發 1 萬 6 千美元。\n" + "核發期間依實際就讀情形而定。" * 15
-    transcript = "\n".join([
-        "一、設置目的………………………… 2",
-        "壹、教育部 115 年留學獎學金甄試",
-        "貳、教育部 115 年留學獎學金甄試簡章",
-        "一、設置目的",
-        purpose,
-        "二、獎學金待遇及年限",
-        benefit,
-        "(一)獎學金待遇：",
-        amount,
-    ])
+    transcript = f"""一、設置目的………………………… 2
+壹、教育部 115 年留學獎學金甄試
+貳、教育部 115 年留學獎學金甄試簡章
+一、設置目的
+{purpose}
+二、獎學金待遇及年限
+{benefit}
+(一)獎學金待遇：
+{amount}"""
     brochure = "貳、教育部 115 年留學獎學金甄試簡章"
     assert chunking.chunk_transcript(transcript) == [
         chunking.Chunk((), "一、設置目的………………………… 2", "text"),

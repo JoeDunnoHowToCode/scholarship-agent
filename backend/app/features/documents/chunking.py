@@ -4,6 +4,9 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
+# 一段文字最多幾個字（超過就切開）
+MAX_CHARS = 3_000
+
 # 標題路徑裡每個標題最多留幾個字（太長的標題通常是整句話）
 HEADING_PATH_CHARS = 40
 
@@ -72,4 +75,28 @@ def chunk_transcript(markdown: str) -> list[Chunk]:
             path = tuple(text[:HEADING_PATH_CHARS] for _, text in stack)
         lines.append(line)
     chunks.append(Chunk(path, "\n".join(lines).strip(), kind))
-    return [chunk for chunk in chunks if chunk.text]
+    chunks = [chunk for chunk in chunks if chunk.text]
+    return [piece for chunk in chunks for piece in _split_long(chunk)]
+
+
+def _pack(parts: list[str], separator: str, limit: int) -> list[str]:
+    """依序把小塊接起來；接上下一塊會超過 limit 就另起一塊（不會切開任何一塊）。"""
+    packed: list[str] = []
+    for part in parts:
+        if packed and len(packed[-1]) + len(separator) + len(part) <= limit:
+            packed[-1] += separator + part
+        else:
+            packed.append(part)
+    return packed
+
+
+def _split_long(chunk: Chunk) -> list[Chunk]:
+    """太長的文字段落在換行處切開；單獨一行就太長時照字數硬切。表格不切。"""
+    if chunk.kind == "table" or len(chunk.text) <= MAX_CHARS:
+        return [chunk]
+    parts = [
+        line[start : start + MAX_CHARS]
+        for line in chunk.text.splitlines()
+        for start in range(0, len(line), MAX_CHARS)
+    ]
+    return [Chunk(chunk.heading_path, piece, "text") for piece in _pack(parts, "\n", MAX_CHARS)]

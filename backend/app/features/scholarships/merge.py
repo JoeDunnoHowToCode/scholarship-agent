@@ -93,6 +93,20 @@ def merge_category(
     )
 
 
+def combine(first: RequirementDraft, second: RequirementDraft) -> RequirementDraft:
+    """同一份文件出現兩次：保留寫得比較詳細的要求；份數取有寫的；任一處說必要就是必要。"""
+    longer = second if len(second.details or "") > len(first.details or "") else first
+    required = True if True in (first.required, second.required) else first.required
+    if required is None:
+        required = second.required
+    return longer.model_copy(
+        update={
+            "count": first.count if first.count is not None else second.count,
+            "required": required,
+        }
+    )
+
+
 def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResult:
     values: dict[str, Any] = {}
     conflicts: list[str] = []
@@ -138,7 +152,7 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
     else:
         # 只有一種名額：用獎學金名稱當類別名稱，「全部」的規則就是它的規則
         categories = [merge_category(outline.name, shared, [])]
-    # 文件要求：取聯集；類型、類別、要求都一樣（忽略空白）就算同一份
+    # 文件要求：同一類型、同一類別只留一筆（other 要連要求文字都一樣才算同一份）
     requirements: dict[tuple[str, str, str], RequirementDraft] = {}
     for item in (r for s in sections for r in s.requirements):
         target = item.category
@@ -146,8 +160,12 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
             if outline.category_names:
                 warnings.append(f"未知類別：{target}")
             target = None  # 不能猜它指哪個類別，當成所有類別都要交
-        key = (item.doc_type, normalized(target or ""), normalized(item.details or ""))
-        requirements.setdefault(key, item.model_copy(update={"category": target}))
+        details = normalized(item.details or "") if item.doc_type == "other" else ""
+        key = (item.doc_type, normalized(target or ""), details)
+        item = item.model_copy(update={"category": target})
+        if key in requirements:
+            item = combine(requirements[key], item)
+        requirements[key] = item
 
     # 類別沒有自己的學位或國家時，用整個獎學金的
     for category in categories:

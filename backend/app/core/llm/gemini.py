@@ -36,8 +36,9 @@ class GeminiLLM:
         # 金鑰明確傳進來：pydantic-settings 讀 .env 時不會放進環境變數，LangChain 自己讀不到
         # 不設定 temperature：Gemini 3 系列官方建議維持預設值
         # 輸出上限調高：PDF 轉錄一批 10 頁、長的抽取結果都可能超過預設值
+        # timeout：連線斷掉（例如電腦睡眠）時不會永遠卡住；實測曾卡住整晚
         self._chat = ChatGoogleGenerativeAI(
-            model=model, api_key=api_key, max_output_tokens=32_000
+            model=model, api_key=api_key, max_output_tokens=32_000, timeout=120
         )
         # 這次執行累計用了多少 tokens（ADR-013；完整的成本表是第 10 天）
         self.input_tokens = 0

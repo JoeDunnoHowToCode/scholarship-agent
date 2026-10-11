@@ -38,3 +38,25 @@ def test_candidate_links_removes_fragments_duplicates_and_the_page_itself() -> N
         links.Link(url="https://www.example.eu/programme/contact", text="Contact us"),
         links.Link(url="https://www.example.eu/programme/news", text=""),
     ]
+
+
+def test_candidate_links_excludes_files_and_non_web_links() -> None:
+    # 檔案（看路徑的副檔名，大小寫不拘）不是網頁，交給 AI 挑也打不開；
+    # mailto:、javascript:、ftp:// 也不是 http/https 網頁，都不留
+    html = """
+    <a href="brochure.PDF">Brochure</a>
+    <a href="/files/form.pdf?v=2">Application form</a>
+    <a href="a.doc">doc</a><a href="a.docx">docx</a>
+    <a href="a.xls">xls</a><a href="a.xlsx">xlsx</a>
+    <a href="a.ppt">ppt</a><a href="a.pptx">pptx</a>
+    <a href="a.zip">zip</a><a href="a.jpg">jpg</a><a href="a.jpeg">jpeg</a>
+    <a href="a.png">png</a><a href="a.gif">gif</a><a href="a.svg">svg</a>
+    <a href="a.mp4">mp4</a>
+    <a href="mailto:info@example.eu">Email us</a>
+    <a href="javascript:void(0)">Menu</a>
+    <a href="ftp://example.eu/archive">Archive</a>
+    <a href="admission.html">Admission</a>
+    """
+    assert links.candidate_links(html, PAGE_URL) == [
+        links.Link(url="https://www.example.eu/programme/admission.html", text="Admission"),
+    ]

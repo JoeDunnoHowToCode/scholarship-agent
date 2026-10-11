@@ -38,3 +38,24 @@ def test_parse_catalogue_falls_back_to_description_link() -> None:
             url="http://www.spreeafrica.com/",
         )
     ]
+
+
+def test_parse_catalogue_never_uses_the_project_page() -> None:
+    # erasmus-plus.ec.europa.eu 的專案介紹頁不是學程官網，不能當網址：
+    # 第一張卡片要跳過它、改用後面的官網連結；第二張只有專案頁，整張略過
+    html = """
+    <article class="ecl-card"><div class="ecl-card__body"><div class="ecl-content-block ecl-card__content-block">
+     <div class="ecl-content-block__title">Joint Master in Example Studies</div>
+     <div class="ecl-content-block__description"><p>EXAMPLE - <a href="https://erasmus-plus.ec.europa.eu/projects/search/details/101000001">project overview</a> <a href="https://example-master.eu/">https://example-master.eu/</a></p></div>
+    </div></div></article>
+    <article class="ecl-card"><div class="ecl-card__body"><div class="ecl-content-block ecl-card__content-block">
+     <div class="ecl-content-block__title">Joint Master Without Homepage</div>
+     <div class="ecl-content-block__description"><p>NOHOME - <a href="https://erasmus-plus.ec.europa.eu/projects/search/details/101000002">project overview</a></p></div>
+    </div></div></article>
+    """
+    assert catalogue.parse_catalogue(html) == [
+        catalogue.CatalogueEntry(
+            name="Joint Master in Example Studies",
+            url="https://example-master.eu/",
+        )
+    ]

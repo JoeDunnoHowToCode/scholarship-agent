@@ -17,6 +17,14 @@ FACT_FIELDS: dict[str, str | None] = {
     "intake": None,
     "requires_admission": None,
 }
+# 有優先順序的欄位：取排在最前面的答案，引用跟著做出決定的那一節
+PRIORITY_FIELDS: dict[str, tuple[str, list[str]]] = {
+    "taiwan_eligibility": ("taiwan_evidence", ["no", "yes", "unclear"]),
+    "nationality_scope": (
+        "nationality_evidence",
+        ["taiwan_specific", "listed_countries", "worldwide", "unclear"],
+    ),
+}
 # 清單欄位：取聯集，保持第一次出現的順序
 LIST_FIELDS = ["countries", "degrees", "fields"]
 # 文字欄位：不同節可能各寫一部分，把不同的內容串起來
@@ -52,6 +60,10 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         if len({getattr(s, name) for s in found}) > 1:
             conflicts.append(name)
 
+    for name, (evidence, order) in PRIORITY_FIELDS.items():
+        decider = min(sections, key=lambda s: order.index(getattr(s, name)), default=None)
+        values[name] = getattr(decider, name) if decider else order[-1]
+        values[evidence] = getattr(decider, evidence) if decider else None
     for name in LIST_FIELDS:
         values[name] = unique(item for s in sections for item in getattr(s, name))
     for name in TEXT_FIELDS:
@@ -63,10 +75,6 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         name_zh=outline.name_zh,
         provider=outline.provider,
         degrees_evidence=None,
-        taiwan_eligibility="unclear",
-        taiwan_evidence=None,
-        nationality_scope="unclear",
-        nationality_evidence=None,
         categories=[],
         requirements=[],
         **values,

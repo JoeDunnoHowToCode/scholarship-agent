@@ -106,6 +106,15 @@ def chunk_html(html: str) -> list[Chunk]:
     return chunk_transcript(html_to_text(str(soup)))
 
 
+def group_sections(chunks: list[Chunk], max_chars: int = 12_000) -> list[str]:
+    """把段落依序裝成較大的幾段，給 AI 一次讀一大段；每段前面標上它的標題路徑。"""
+    rendered = [
+        f"【{' > '.join(chunk.heading_path)}】\n{chunk.text}" if chunk.heading_path else chunk.text
+        for chunk in chunks
+    ]
+    return _pack(rendered, "\n\n", max_chars)
+
+
 def _merge_short(chunks: list[Chunk]) -> list[Chunk]:
     """太短的文字段落併進上一段：上一段也是文字、同一個最上層標題、併完不超過上限。"""
     merged: list[Chunk] = []

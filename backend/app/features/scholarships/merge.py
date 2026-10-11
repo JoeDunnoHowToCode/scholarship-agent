@@ -3,15 +3,16 @@
 規則見 docs/day-03.md「Claude 自行決定」第 9 點。
 """
 
+import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-import unicodedata
 from typing import Any
 
 from app.features.scholarships.schemas import (
     CategoryDraft,
     CategoryFact,
     Outline,
+    RequirementDraft,
     ScholarshipDraft,
     SectionFacts,
 )
@@ -56,13 +57,13 @@ def unique[T](items: Iterable[T]) -> list[T]:
     return list(dict.fromkeys(items))
 
 
+def normalized(text: str) -> str:
+    """忽略空白與全形半形差異，用來比對名稱與要求。"""
+    return "".join(unicodedata.normalize("NFKC", text).split())
+
+
 def same_name(a: str, b: str) -> bool:
-    """類別名稱比對：忽略空白與全形半形差異。"""
-
-    def key(name: str) -> str:
-        return "".join(unicodedata.normalize("NFKC", name).split())
-
-    return key(a) == key(b)
+    return normalized(a) == normalized(b)
 
 
 def merge_category(
@@ -137,6 +138,17 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
     else:
         # 只有一種名額：用獎學金名稱當類別名稱，「全部」的規則就是它的規則
         categories = [merge_category(outline.name, shared, [])]
+    # 文件要求：取聯集；類型、類別、要求都一樣（忽略空白）就算同一份
+    requirements: dict[tuple[str, str, str], RequirementDraft] = {}
+    for item in (r for s in sections for r in s.requirements):
+        target = item.category
+        if target and not any(same_name(target, n) for n in outline.category_names):
+            if outline.category_names:
+                warnings.append(f"未知類別：{target}")
+            target = None  # 不能猜它指哪個類別，當成所有類別都要交
+        key = (item.doc_type, normalized(target or ""), normalized(item.details or ""))
+        requirements.setdefault(key, item.model_copy(update={"category": target}))
+
     # 類別沒有自己的學位或國家時，用整個獎學金的
     for category in categories:
         category.degrees = category.degrees or values["degrees"]
@@ -147,7 +159,7 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         name_zh=outline.name_zh,
         provider=outline.provider,
         categories=categories,
-        requirements=[],
+        requirements=list(requirements.values()),
         **values,
     )
     return MergeResult(draft, conflicts, warnings)

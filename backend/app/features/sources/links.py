@@ -1,7 +1,7 @@
 """學程首頁的候選連結（ADR-031 第 3 層：列出同站連結，之後交給 AI 挑申請與獎學金頁）。"""
 
 from dataclasses import dataclass
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urldefrag, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -17,13 +17,20 @@ class Link:
 def candidate_links(html: str, page_url: str) -> list[Link]:
     """列出同一個網站的連結（相對網址轉成完整網址），保留出現順序。"""
     site = _site(page_url)
+    # 本頁網址：去掉錨點和結尾的 /，用來排除連回自己的連結
+    page = urldefrag(page_url).url.rstrip("/")
     found: list[Link] = []
+    seen: set[str] = set()
     for anchor in BeautifulSoup(html, "html.parser").find_all("a", href=True):
-        url = urljoin(page_url, str(anchor["href"]))
-        if _site(url) != site:
+        # 去掉 # 後面的錨點：它只在瀏覽器裡跳位置，伺服器收到的是同一頁
+        url = urldefrag(urljoin(page_url, str(anchor["href"]))).url
+        if _site(url) != site or url.rstrip("/") == page or url in seen:
             continue
-        # split + join 把換行和連續空白收成一格
-        found.append(Link(url=url, text=" ".join(anchor.get_text().split())))
+        seen.add(url)
+        # split + join 把換行和連續空白收成一格；只有圖示的連結改用 aria-label 或 title
+        text = " ".join(anchor.get_text().split())
+        text = text or str(anchor.get("aria-label") or anchor.get("title") or "")
+        found.append(Link(url=url, text=text))
     return found
 
 

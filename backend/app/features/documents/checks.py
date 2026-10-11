@@ -6,6 +6,9 @@ import unicodedata
 # 刪節號：三個半形點，或一個「…」
 ELLIPSIS = re.compile(r"\.\.\.|…")
 
+# 數字：可以帶千分位逗號或小數點，例如 16,000、25.5
+NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
+
 
 def _normalize(text: str) -> str:
     """全形轉半形（NFKC），再去掉所有空白和換行。"""
@@ -26,3 +29,15 @@ def quote_in_source(quote: str, source: str) -> bool:
         # 下一截要從這一截的結尾之後開始找，才能確認順序
         position = found + len(part)
     return True
+
+
+def unverified_numbers(transcript: str, raw: str) -> list[str]:
+    """列出轉錄稿裡、原始文字找不到的數字（逗號不算，所以 1,400 和 1400 視為相同）。"""
+    numbers = [
+        number.replace(",", "")
+        for number in NUMBER.findall(unicodedata.normalize("NFKC", transcript))
+    ]
+    normalized_raw = _normalize(raw).replace(",", "")
+    missing = [number for number in numbers if number not in normalized_raw]
+    # dict.fromkeys 去掉重複，同時保留第一次出現的順序
+    return list(dict.fromkeys(missing))

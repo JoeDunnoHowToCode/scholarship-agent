@@ -42,3 +42,32 @@ def test_numbering_lines_become_headings_but_toc_lines_do_not() -> None:
     assert chunks == [
         chunking.Chunk((long_heading[:40],), long_heading + "\n" + purpose, "text")
     ]
+
+
+def test_markdown_heading_sets_level_unless_text_is_numbered() -> None:
+    # 一般 Markdown 標題：幾個 # 就是第幾層
+    # 「### 一、設置目的」有公文編號，層級看編號（第二層），不看 # 的數量
+    intro = "This guide explains the scholarship rules. " * 6
+    rules = "The applicant must be a citizen of Taiwan. " * 6
+    age = "The applicant must be under 35 years old. " * 6
+    purpose = "教育部為厚植國家實力，培育各領域人才。" * 12
+    transcript = f"""# Scholarship Guide
+{intro}
+## Eligibility
+{rules}
+### Age
+{age}
+### 一、設置目的
+{purpose}"""
+    assert chunking.chunk_transcript(transcript) == [
+        chunking.Chunk(("Scholarship Guide",), "Scholarship Guide\n" + intro.strip(), "text"),
+        chunking.Chunk(
+            ("Scholarship Guide", "Eligibility"), "Eligibility\n" + rules.strip(), "text"
+        ),
+        chunking.Chunk(
+            ("Scholarship Guide", "Eligibility", "Age"), "Age\n" + age.strip(), "text"
+        ),
+        chunking.Chunk(
+            ("Scholarship Guide", "一、設置目的"), "一、設置目的\n" + purpose, "text"
+        ),
+    ]

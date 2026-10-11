@@ -21,11 +21,15 @@ TOC_LINE = re.compile(r"[.…．]{3,}\s*\d+$")
 MARKDOWN_HEADING = re.compile(r"^(#{1,4})\s+(.+)$")
 
 
+# 段落種類：一般文字，或一整張表格
+ChunkKind = Literal["text", "table"]
+
+
 @dataclass(frozen=True)
 class Chunk:
     heading_path: tuple[str, ...]  # 從最上層到這一段的標題
     text: str
-    kind: Literal["text", "table"]
+    kind: ChunkKind
 
 
 def _parse_heading(line: str) -> tuple[int, str] | None:
@@ -49,17 +53,23 @@ def chunk_transcript(markdown: str) -> list[Chunk]:
     stack: list[tuple[int, str]] = []  # 目前所在的標題：(層級, 標題文字)
     path: tuple[str, ...] = ()
     lines: list[str] = []
+    kind: ChunkKind = "text"
     for raw_line in markdown.splitlines():
         line = raw_line.strip()
         heading = _parse_heading(line)
-        if heading is not None:
-            # 先把上一段收起來，再更新標題堆疊：同層或更深的標題都要退出
-            chunks.append(Chunk(path, "\n".join(lines).strip(), "text"))
+        # 以 | 開頭的行是 Markdown 表格的一列
+        line_kind: ChunkKind = "table" if line.startswith("|") else "text"
+        if heading is not None or line_kind != kind:
+            # 遇到標題，或在文字和表格之間切換：先把上一段收起來
+            chunks.append(Chunk(path, "\n".join(lines).strip(), kind))
             lines = []
+            kind = line_kind
+        if heading is not None:
+            # 更新標題堆疊：同層或更深的標題都要退出
             level, line = heading
             stack = [entry for entry in stack if entry[0] < level]
             stack.append(heading)
             path = tuple(text[:HEADING_PATH_CHARS] for _, text in stack)
         lines.append(line)
-    chunks.append(Chunk(path, "\n".join(lines).strip(), "text"))
+    chunks.append(Chunk(path, "\n".join(lines).strip(), kind))
     return [chunk for chunk in chunks if chunk.text]

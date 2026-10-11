@@ -3,6 +3,7 @@
 規則見 docs/day-03.md「Claude 自行決定」第 9 點。
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -16,6 +17,16 @@ FACT_FIELDS: dict[str, str | None] = {
     "intake": None,
     "requires_admission": None,
 }
+# 清單欄位：取聯集，保持第一次出現的順序
+LIST_FIELDS = ["countries", "degrees", "fields"]
+# 文字欄位：不同節可能各寫一部分，把不同的內容串起來
+TEXT_FIELDS = [
+    "coverage",
+    "amount",
+    "taiwan_conditions",
+    "language_requirements",
+    "other_eligibility",
+]
 
 
 @dataclass
@@ -23,6 +34,11 @@ class MergeResult:
     draft: ScholarshipDraft
     conflicts: list[str] = field(default_factory=list)  # 有衝突的欄位名稱
     warnings: list[str] = field(default_factory=list)
+
+
+def unique[T](items: Iterable[T]) -> list[T]:
+    """去掉重複、保持順序。"""
+    return list(dict.fromkeys(items))
 
 
 def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResult:
@@ -36,23 +52,21 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         if len({getattr(s, name) for s in found}) > 1:
             conflicts.append(name)
 
+    for name in LIST_FIELDS:
+        values[name] = unique(item for s in sections for item in getattr(s, name))
+    for name in TEXT_FIELDS:
+        texts = unique(getattr(s, name) for s in sections if getattr(s, name))
+        values[name] = "\n".join(texts) or None
+
     draft = ScholarshipDraft(
         name=outline.name,
         name_zh=outline.name_zh,
         provider=outline.provider,
-        countries=[],
-        degrees=[],
         degrees_evidence=None,
-        fields=[],
-        coverage=None,
-        amount=None,
         taiwan_eligibility="unclear",
         taiwan_evidence=None,
         nationality_scope="unclear",
         nationality_evidence=None,
-        taiwan_conditions=None,
-        language_requirements=None,
-        other_eligibility=None,
         categories=[],
         requirements=[],
         **values,

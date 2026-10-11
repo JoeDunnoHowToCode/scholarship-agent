@@ -89,3 +89,18 @@ def test_transcript_table_lines_become_one_table_chunk() -> None:
         ),
         chunking.Chunk(("一、重要日程",), "以上日期如有變動，以本部公告為準。", "text"),
     ]
+
+
+def test_too_long_text_chunk_splits_at_line_boundaries() -> None:
+    # 一段超過 MAX_CHARS 就在換行處切開：每塊都不超過上限，標題路徑不變，字一個都不少
+    line = "申請人應檢附成績單。" * 10  # 一行 100 字
+    transcript = "一、應繳文件\n" + "\n".join([line] * 30)
+    chunks = chunking.chunk_transcript(transcript)
+    assert len(chunks) == 2
+    assert all(len(chunk.text) <= chunking.MAX_CHARS for chunk in chunks)
+    assert all(chunk.heading_path == ("一、應繳文件",) for chunk in chunks)
+    assert "\n".join(chunk.text for chunk in chunks) == transcript
+
+    # 單獨一行就超過上限時，只好照字數硬切
+    chunks = chunking.chunk_transcript("一、說明\n" + "字" * 7000)
+    assert [len(chunk.text) for chunk in chunks] == [4, 3000, 3000, 1000]

@@ -71,3 +71,21 @@ def test_markdown_heading_sets_level_unless_text_is_numbered() -> None:
             ("Scholarship Guide", "一、設置目的"), "一、設置目的\n" + purpose, "text"
         ),
     ]
+
+
+def test_transcript_table_lines_become_one_table_chunk() -> None:
+    # 連續以 | 開頭的行是一張表，整張表自成一段；表格前後的文字各自成段
+    transcript = """一、重要日程
+| 時程 | 要項 |
+| --- | --- |
+| 115 年 1 月 16 日 | 開放網路報名 |
+以上日期如有變動，以本部公告為準。"""
+    assert chunking.chunk_transcript(transcript) == [
+        chunking.Chunk(("一、重要日程",), "一、重要日程", "text"),
+        chunking.Chunk(
+            ("一、重要日程",),
+            "| 時程 | 要項 |\n| --- | --- |\n| 115 年 1 月 16 日 | 開放網路報名 |",
+            "table",
+        ),
+        chunking.Chunk(("一、重要日程",), "以上日期如有變動，以本部公告為準。", "text"),
+    ]

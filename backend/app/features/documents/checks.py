@@ -31,6 +31,39 @@ def quote_in_source(quote: str, source: str) -> bool:
     return True
 
 
+# 表格引用的每一截至少幾個字、下一截要在上一截結尾後幾個字內出現
+MIN_FRAGMENT = 6
+FRAGMENT_WINDOW = 300
+
+
+def quote_in_table_text(quote: str, source: str) -> bool:
+    """表格版的引用核對：pdfplumber 會把表格左右兩欄的字交錯排在一起，
+    所以允許引用被切成幾截，但每一截至少 6 個字、依序出現，而且下一截就在附近。"""
+    remaining = _normalize(quote)
+    normalized_source = _normalize(source)
+    if not remaining:
+        return False
+    position = 0
+    first = True
+    while remaining:
+        # 第一截可以在原文任何地方；之後每一截只在上一截結尾後的附近找
+        region = normalized_source[position:] if first else normalized_source[
+            position : position + FRAGMENT_WINDOW + len(remaining)
+        ]
+        # 從最長的開頭往短的試，找到最長、而且原文裡有的那一截
+        shortest = min(MIN_FRAGMENT, len(remaining))
+        for length in range(len(remaining), shortest - 1, -1):
+            found = region.find(remaining[:length])
+            if found != -1 and (first or found <= FRAGMENT_WINDOW):
+                break
+        else:
+            return False
+        position += found + length
+        remaining = remaining[length:]
+        first = False
+    return True
+
+
 def unverified_numbers(transcript: str, raw: str) -> list[str]:
     """列出轉錄稿裡、原始文字找不到的數字（逗號不算，所以 1,400 和 1400 視為相同）。"""
     numbers = [

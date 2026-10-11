@@ -22,3 +22,19 @@ def test_parse_catalogue_uses_title_link() -> None:
             url="https://www.multidiverse.eu/",
         )
     ]
+
+
+def test_parse_catalogue_falls_back_to_description_link() -> None:
+    # 真實網站 218 張卡片裡有 7 張標題沒有連結，官網網址只出現在說明文字裡
+    html = """
+    <article class="ecl-card"><div class="ecl-card__body"><div class="ecl-content-block ecl-card__content-block">
+     <div class="ecl-content-block__title">Strengthening Mobility and Promoting Regional Integration of Engineering Education in Africa</div>
+     <div class="ecl-content-block__description"><p>SPREE - <a href="http://www.spreeafrica.com/">http://www.spreeafrica.com/</a></p></div>
+    </div></div></article>
+    """
+    assert catalogue.parse_catalogue(html) == [
+        catalogue.CatalogueEntry(
+            name="Strengthening Mobility and Promoting Regional Integration of Engineering Education in Africa",
+            url="http://www.spreeafrica.com/",
+        )
+    ]

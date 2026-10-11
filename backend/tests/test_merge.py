@@ -3,7 +3,12 @@
 from typing import Any
 
 from app.features.scholarships import merge
-from app.features.scholarships.schemas import CategoryFact, Outline, SectionFacts
+from app.features.scholarships.schemas import (
+    CategoryFact,
+    Outline,
+    RequirementDraft,
+    SectionFacts,
+)
 
 EMPTY: dict[str, Any] = {
     "provider": None,
@@ -161,3 +166,29 @@ def test_unknown_category_name_is_dropped_with_a_warning() -> None:
     )
     assert [c.quota for c in result.draft.categories] == [10]
     assert result.warnings == ["未知類別：北歐"]
+
+
+def requirement(doc_type: str, **fields: Any) -> RequirementDraft:
+    empty: dict[str, Any] = {
+        "details": None, "required": None, "count": None, "category": None, "evidence": None,
+    }
+    return RequirementDraft(doc_type=doc_type, **{**empty, **fields})  # type: ignore[arg-type]
+
+
+def test_requirements_are_unioned_without_duplicates() -> None:
+    # 同一份文件在兩節都出現（類型、類別、要求都一樣，只差空白）只留一筆
+    # 寫了大綱沒有的類別：不能猜，改成所有類別都要交，並記警告
+    outline = Outline(name="GSSA", name_zh=None, provider=None, category_names=["北歐國家"])
+    result = merge.merge_sections(
+        outline,
+        [
+            section(requirements=[requirement("cv", details="英文履歷"),
+                                  requirement("portfolio", category="北歐國家")]),
+            section(requirements=[requirement("cv", details="英文 履歷"),
+                                  requirement("transcript", category="藝術")]),
+        ],
+    )
+    assert [(r.doc_type, r.category) for r in result.draft.requirements] == [
+        ("cv", None), ("portfolio", "北歐國家"), ("transcript", None),
+    ]
+    assert result.warnings == ["未知類別：藝術"]

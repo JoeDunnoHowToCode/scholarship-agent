@@ -122,7 +122,12 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
 
     facts = [f for s in sections for f in s.category_facts]
     shared = [f for f in facts if "all" in f.applies_to]
+    warnings: list[str] = []
     if outline.category_names:
+        known = [*outline.category_names, "all"]
+        for name in unique(n for f in facts for n in f.applies_to):
+            if not any(same_name(name, k) for k in known):
+                warnings.append(f"未知類別：{name}")
         categories = [
             merge_category(
                 name, [f for f in facts if any(same_name(name, n) for n in f.applies_to)], shared
@@ -145,4 +150,4 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         requirements=[],
         **values,
     )
-    return MergeResult(draft, conflicts)
+    return MergeResult(draft, conflicts, warnings)

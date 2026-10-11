@@ -149,3 +149,25 @@ def test_html_heading_tags_become_chunk_boundaries() -> None:
             ("Guide", "Eligibility", "Age", "Documents"), "Documents\n" + docs.strip(), "text"
         ),
     ]
+
+
+def test_html_table_becomes_one_markdown_table_chunk() -> None:
+    # 網頁表格轉成 Markdown 表格，整張自成一段；第一列是 th（表頭）時，下面加分隔線
+    html = """<h2>重要日程</h2>
+<table>
+  <tr><th>時程</th><th>要項</th></tr>
+  <tr><td>115 年 1 月 16 日</td><td>開放 <b>網路</b>
+  報名</td></tr>
+</table>"""
+    assert chunking.chunk_html(html) == [
+        chunking.Chunk(("重要日程",), "重要日程", "text"),
+        chunking.Chunk(
+            ("重要日程",),
+            "| 時程 | 要項 |\n| --- | --- |\n| 115 年 1 月 16 日 | 開放 網路 報名 |",
+            "table",
+        ),
+    ]
+
+    # 沒有表頭的表格不加分隔線
+    html = "<table><tr><td>名額</td><td>120 名</td></tr></table>"
+    assert chunking.chunk_html(html) == [chunking.Chunk((), "| 名額 | 120 名 |", "table")]

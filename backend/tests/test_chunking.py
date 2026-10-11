@@ -104,3 +104,28 @@ def test_too_long_text_chunk_splits_at_line_boundaries() -> None:
     # 單獨一行就超過上限時，只好照字數硬切
     chunks = chunking.chunk_transcript("一、說明\n" + "字" * 7000)
     assert [len(chunk.text) for chunk in chunks] == [4, 3000, 3000, 1000]
+
+
+def test_too_short_text_chunk_merges_into_previous_under_same_top_heading() -> None:
+    # 「二、年限」太短，併進同在「壹、」底下的上一段，沿用上一段的標題路徑
+    # 「三、附則」的上一段是表格，不併；「貳、」的上一段屬於「壹、」，也不併
+    quota = "本年度預計錄取一百二十名，依學門分配。" * 12
+    transcript = f"""壹、獎學金
+一、名額
+{quota}
+二、年限
+最長二年。
+| 項目 | 金額 |
+三、附則
+未盡事宜依本部規定辦理。
+貳、申請方式
+一律網路報名。"""
+    assert chunking.chunk_transcript(transcript) == [
+        chunking.Chunk(("壹、獎學金",), "壹、獎學金", "text"),
+        chunking.Chunk(
+            ("壹、獎學金", "一、名額"), f"一、名額\n{quota}\n二、年限\n最長二年。", "text"
+        ),
+        chunking.Chunk(("壹、獎學金", "二、年限"), "| 項目 | 金額 |", "table"),
+        chunking.Chunk(("壹、獎學金", "三、附則"), "三、附則\n未盡事宜依本部規定辦理。", "text"),
+        chunking.Chunk(("貳、申請方式",), "貳、申請方式\n一律網路報名。", "text"),
+    ]

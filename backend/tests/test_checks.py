@@ -14,3 +14,11 @@ def test_quote_in_source_ignores_whitespace_width_and_checks_ellipsis_order() ->
     # 原文沒有的話、只有刪節號的空引用，都算不通過
     assert not checks.quote_in_source("申請人須具備 IELTS 6.5", source)
     assert not checks.quote_in_source("…", source)
+
+
+def test_unverified_numbers_lists_numbers_missing_from_raw_text() -> None:
+    # 轉錄稿的「16,000」對得到原文的「16000」，「1400」也對得到「1,400」
+    # 「9」和「25.5」原文裡找不到，列出來（重複的只列一次，依出現順序）
+    transcript = "核發 16,000 美元，名額 1400 名，115 年 3 月 9 日截止，共 9 年，另有 25.5 萬元。"
+    raw = "核發 16000 美元，名額 1,400 名，\n115 年 3 月 1 日截止"
+    assert checks.unverified_numbers(transcript, raw) == ["9", "25.5"]

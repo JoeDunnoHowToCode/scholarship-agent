@@ -468,18 +468,70 @@ T1–T7 由 sub agent A、T8–T17 由 sub agent B 各自在獨立的 worktree �
 
 ### 5. 指令與實跑
 
-- [ ] 目錄 → 子來源 -> verify: `uv run python -m app.features.sources.catalogue`，貼出解析數與 Projects(N)
-- [ ] 抽 Chevening -> verify: `uv run python -m app.features.scholarships.extract --source 2`，貼出結果與驗證狀態
-- [ ] 抽教育部 PDF -> verify: `uv run python -m app.features.scholarships.extract --source 3`，貼出 8 個類別的名額與學位
-- [ ] 先抓 5 個學程試跑 -> verify: `uv run python -m app.features.sources.fetch --limit 5` 與 `extract --limit 5`
-- [ ] 218 個學程全部抓取 -> verify: fetch 輸出的統計（新增、被擋、錯誤）
-- [ ] 218 個學程全部抽取 -> verify: extract 輸出的統計（成功、失敗、驗證狀態、tokens 與費用）
-- [ ] 抽查 10 筆和原網頁比對 -> verify: 貼出比對表
+- [x] 目錄 → 子來源 -> verify: `uv run python -m app.features.sources.catalogue`，貼出解析數與 Projects(N)
+
+  ```text
+  解析出 218 個學程（11 頁）；頁面寫的總數：218
+  ```
+
+- [x] 抽 Chevening -> verify: `uv run python -m app.features.scholarships.extract --source 2`，貼出結果與驗證狀態
+
+  ```text
+  2 Chevening Taiwan｜類別 1、文件 3、截止 None、台灣 unclear｜deadline=empty taiwan_eligibility=not_supported degrees=supported
+  ```
+
+- [x] 抽教育部 PDF -> verify: `uv run python -m app.features.scholarships.extract --source 3`，貼出 8 個類別的名額與學位
+
+  ```text
+  3 教育部 115 年留學獎學金簡章｜類別 8、文件 12、截止 2026-02-13、台灣 yes｜deadline=supported taiwan_eligibility=supported degrees=not_supported
+  一般學群 155 {phd}｜北歐國家 10｜新南向國家甲 15｜新南向國家乙 10｜勵學優秀生、原住民生、身心障礙生 各 10 {master,phd}｜特殊教育生 5 {master,phd}
+  名額全對；北歐與新南向的學位被模型多加了 bachelor（見執行時發現）
+  ```
+
+- [x] 先抓 5 個學程試跑 -> verify: `fetch --unchecked --limit 3` 與 `extract --limit 7`（含 2 個種子）
+
+  ```text
+  12 MASTER IN INTELLECTUAL PROPERTY AND DATA LAW｜類別 1、文件 7、截止 2027-01-15、台灣 unclear｜deadline=supported …
+  完成 6、沒變 1、失敗 0；tokens：輸入 39,595、輸出 7,012，約 NT$0.9
+  ```
+
+- [x] 218 個學程全部抓取 -> verify: fetch 輸出的統計（新增、被擋、錯誤）
+
+  ```text
+  218 個都檢查過；178 個有快照；27 個被擋（403×15、429×3、captcha×2、robots.txt 禁止×3、robots.txt 讀不到×4）；13 個連不上
+  有快照的學程裡，13 個只有首頁（AI 沒挑到或挑到的頁面抓不到）
+  ```
+
+- [x] 218 個學程全部抽取 -> verify: extract 輸出的統計（成功、失敗、驗證狀態、tokens 與費用）
+
+  ```text
+  scholarships 共 180 筆（178 個學程＋Chevening＋教育部），失敗 0
+  截止日：有依據 116、沒寫 57、待確認 7；學位有依據 161；台灣 yes 5、no 0、unclear 175
+  國籍描述 worldwide 153；截止日在今天之後 66
+  各次執行印出的 AI 費用加總約 NT$35（實際以帳單為準）
+  ```
+
+- [x] 抽查 10 筆和原網頁比對 -> verify: 貼出比對表
+
+  | 來源 | 抽出的截止日 | 原網頁 | 結果 |
+  | --- | --- | --- | --- |
+  | 129 EPOG-JM | 2027-01-27 | January 27, 2027 (13:00, Paris time) | 對 |
+  | 70 SuCat | 2026-02-19 | open … to February 19th, 2026 | 對（網站還沒更新到下一屆） |
+  | 20 MemBioMed | 2027-02-28 | February 28th, 2027 Application deadline | 對 |
+  | 21 E pico | 2027-01-31 | … scholarships: 31 January 2027 | 對 |
+  | 19 MARIHE | 2026-09-21 | Deadline: September 21, 2026 | 對 |
+  | 177 SARENA | 空白 | 抓到的頁面沒有日期 | 對 |
+  | 159 Impact Entrepreneurship | 空白 | 只寫 application deadline，沒有日期 | 對 |
+  | 209 Transnational German Studies | 空白 | 抓到的頁面沒有日期 | 對 |
+  | 35 Lascala | 空白 | Mid-February（沒有年份與日） | 對：沒有硬換成日期，引用有存 |
+  | 82 Sustainable Food Systems | 2025-03-01 | 1st of March（沒寫年份） | **錯**：年份是模型自己補的，驗證者也放行 |
+
+  10 筆的學位都是 master、有依據，和原網頁一致
 
 ### 6. 收尾
 
-- [ ] 完整檢查 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
-- [ ] 更新 progress.md、推上 main -> verify: `git log origin/main --oneline -1`
+- [x] 完整檢查 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`（輸出見最後的推送紀錄）
+- [x] 更新 progress.md、推上 main -> verify: `git log origin/main --oneline -1`
 
 ## 執行時發現
 
@@ -488,3 +540,11 @@ T1–T7 由 sub agent A、T8–T17 由 sub agent B 各自在獨立的 worktree �
 - 抽取結果每次跑不一樣：同一份教育部轉錄稿，類別名稱有時是「新南向國家甲」，有時是整串國名；北歐與新南向的學位被加上原文沒有的 bachelor（直接看第一輪的輸出也一樣，是模型讀錯，不是合併規則的問題）。Chevening 有一次把沒有日期的句子當成截止日的依據，驗證者擋下來了
 - 驗證者擋下的例子：Chevening 用「Taiwan」一個字當台灣籍的依據（改提示詞後判為不支持）；學程網站寫「open to students from all over the world」，模型填 yes，驗證者判為不支持而改成 unclear（見待決策第 1 題）
 - 學程網站抓取：一個程序平均 55 秒一個網站（有些網站很慢或逾時 30 秒），改成 4 個程序平行抓
+- 兩個抓取程序整晚卡住：卡在挑連結的 Gemini 呼叫，轉接頭沒有逾時；加上 120 秒逾時
+- 撞到免費方案的每分鐘 15 次上限（同時 5 個程序），並發現專案用的是免費方案，和 ADR-012 衝突；使用者選擇付費＋限速器（ADR-042）
+- 預付餘額是 0 時回 402：官方文件寫預付制要先有預付餘額，GCP 抵免額才會被使用、而且先扣抵免額；使用者購買 NT$150 後恢復
+- 挑連結失敗時首頁快照照存，之後就不會重挑：改成整個來源退回（bug 修正）；已經受影響的 4 個來源用 `--repick` 補挑
+- 有一個學程網頁不是 UTF-8，抽取時當機：快照改用頁面自己的編碼解碼（decode_snapshot，紅綠循環）
+- 意外的好發現：Flood Risk Management 學程（來源 103）寫著教育部有給台灣學生的國家獎學金
+- 抽查時發現截止日年份被模型自己補上（來源 82），驗證者沒擋住
+- 驗證者的判斷不一致：同樣只寫「open to all nationalities」，2 筆被判為台灣 yes（122、193），另外 150 筆是 unclear

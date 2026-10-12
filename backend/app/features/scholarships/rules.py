@@ -49,3 +49,14 @@ def category_name_issue(name: str, source: str) -> str | None:
     if not quote_in_source(name, source):
         return "name_not_in_source"
     return None
+
+
+def number_in_source(number: int, source: str) -> bool:
+    """名額這類數字要在原文找得到（1,400 和 1400 視為相同）。"""
+    return _has_number(number, source)
+
+
+def name_in_source(name: str, source: str) -> bool:
+    """國名要在原文找得到（不分大小寫，整個字比對：Niger 不會因為 Nigeria 而通過）。"""
+    pattern = rf"(?<![A-Za-z]){re.escape(name)}(?![A-Za-z])"
+    return re.search(pattern, _normalize(source), re.IGNORECASE) is not None

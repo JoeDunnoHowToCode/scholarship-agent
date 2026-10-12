@@ -28,3 +28,9 @@ def test_content_hash_ignores_whitespace_differences() -> None:
     assert text.content_hash("Closed for applications") != text.content_hash(
         "Open for applications"
     )
+
+
+def test_decode_snapshot_follows_the_page_charset() -> None:
+    # 快照只存原始位元組；不是 UTF-8 的網頁要照 <meta charset> 解碼，不能一律當 UTF-8
+    page = '<html><head><meta charset="windows-1252"></head><body>Universität Zürich</body></html>'
+    assert text.decode_snapshot(page.encode("windows-1252")) == page

@@ -171,11 +171,7 @@ def make_picker() -> tuple[LinkPicker | None, GeminiLLM | None]:
         return None, None
 
     def picker(name: str, url: str, links: list[Link]) -> list[str]:
-        try:
-            return pick_links(llm, name, url, links)
-        except LLMError as error:  # 挑連結失敗不影響首頁的快照，下次首頁變了會再挑
-            report("error", "挑連結失敗", f"{url} {type(error).__name__}: {error}")
-            return []
+        return pick_links(llm, name, url, links)
 
     return picker, llm
 
@@ -214,7 +210,13 @@ def main() -> None:
                 if args.shard and not in_shard(source.url, args.shard):
                     continue
                 print(f"== {source.id} {source.name}")
-                fetch_source(session, fetcher, source, picker, repick=args.repick)
+                try:
+                    fetch_source(session, fetcher, source, picker, repick=args.repick)
+                except LLMError as error:
+                    # 挑連結失敗：整個來源退回（首頁也不存），保持「沒檢查過」，下次重抓時會再挑
+                    session.rollback()
+                    report("error", "挑連結失敗", f"{source.url} {error}")
+                    continue
                 session.commit()  # 每個來源各自一個交易：一個出錯不影響其他已存的快照
     finally:
         fetcher.close()

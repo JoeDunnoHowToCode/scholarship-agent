@@ -39,12 +39,17 @@ def degree_supported(degree: str, quotes: list[str | None]) -> bool:
     return any(quote and DEGREE_KEYWORDS[degree].search(quote) for quote in quotes)
 
 
-MAX_CATEGORY_NAME = 20  # 類別名稱最多幾個字；更長的通常是把國家清單當成名稱
+MAX_CATEGORY_NAME = 20  # 中文類別名稱最多幾個字；更長的通常是把國家清單當成名稱
+MAX_CATEGORY_WORDS = 8  # 英文類別名稱最多幾個字（以空白分開的字）
+CJK = re.compile(r"[\u4e00-\u9fff]")
 
 
 def category_name_issue(name: str, source: str) -> str | None:
     """類別名稱的問題：太長、或原文裡找不到；沒問題回傳 None。"""
-    if len(name) > MAX_CATEGORY_NAME:
+    too_long = (
+        len(name) > MAX_CATEGORY_NAME if CJK.search(name) else len(name.split()) > MAX_CATEGORY_WORDS
+    )
+    if too_long:
         return "name_too_long"
     if not quote_in_source(name, source):
         return "name_not_in_source"

@@ -4,9 +4,9 @@
 可能缺的欄位允許 null 或 unclear；關鍵欄位附逐字引用的 evidence，之後由驗證者核對原文。
 """
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
 Degree = Literal["bachelor", "master", "phd"]
 # 國籍資格的範圍（ADR-043）：開放所有國籍、只限列出的國家、排除列出的國家、沒寫
@@ -141,3 +141,33 @@ class SectionFacts(ProgramFacts):
 
     category_facts: list[CategoryFact] = Field(description="這一節提到的類別規則")
     requirements: list[RequirementDraft] = Field(description="這一節提到的申請文件")
+
+
+def section_schema(category_names: list[str]) -> type[SectionFacts]:
+    """第二輪的 schema 依第一輪的類別名稱動態產生（ADR-045 格式限制）。
+
+    applies_to 與文件的 category 變成選單（JSON schema 的 enum），模型只能從清單挑，
+    寫不出清單以外的名稱。
+    """
+    # 執行時才知道選項，型別檢查器看不懂，所以標成 Any
+    names: Any = Literal[(*category_names, "all")]
+    targets: Any = Literal[tuple(category_names)] if category_names else Literal["all"]
+    fact: Any = create_model(
+        "CategoryFactChoice",
+        __base__=CategoryFact,
+        applies_to=(list[names], Field(description="這條規則適用的類別；適用所有類別填 all")),
+    )
+    requirement: Any = create_model(
+        "RequirementChoice",
+        __base__=RequirementDraft,
+        category=(
+            targets | None,
+            Field(description="只有某個類別要交時選類別名稱；所有人都要交就留空"),
+        ),
+    )
+    return create_model(
+        "SectionFactsChoice",
+        __base__=SectionFacts,
+        category_facts=(list[fact], Field(description="這一節提到的類別規則")),
+        requirements=(list[requirement], Field(description="這一節提到的申請文件")),
+    )

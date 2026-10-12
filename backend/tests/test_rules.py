@@ -29,3 +29,12 @@ def test_category_name_must_be_short_and_in_the_source() -> None:
     # 把整串國名當成類別名稱：雖然在原文裡，但太長
     assert rules.category_name_issue("印尼、菲律賓、泰國、馬來西亞、汶萊、越南、緬甸、柬埔寨、寮國", source) == "name_too_long"
     assert rules.category_name_issue("新南向國家甲", source) == "name_not_in_source"
+
+
+def test_quota_and_country_names_must_be_in_source() -> None:
+    source = "一般學群名額計 155 名。北歐國家(Denmark, Sweden)：10 名。每月 EUR 1,400"
+    assert rules.number_in_source(155, source)
+    assert rules.number_in_source(1400, source)
+    assert not rules.number_in_source(15, source)  # 155 裡面的 15 不算
+    assert rules.name_in_source("Sweden", source)
+    assert not rules.name_in_source("Norway", source)

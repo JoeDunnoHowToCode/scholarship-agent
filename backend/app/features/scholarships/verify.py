@@ -14,7 +14,7 @@ from app.features.documents.checks import quote_in_source, quote_in_table_text
 from app.features.scholarships import rules
 from app.features.scholarships.schemas import ScholarshipDraft
 
-PROMPT_VERSION = "verify-3"  # 改提示詞就要改版本號
+PROMPT_VERSION = "verify-4"  # 改提示詞就要改版本號
 
 # 每個欄位的結果：
 # supported 有依據；empty 沒抽到值（沒有要核對的）；no_evidence 有值但沒附引用；
@@ -33,7 +33,7 @@ Status = Literal[
 
 PROMPT = """你是查核員。下面每一項是從獎學金原文抽出的值，以及抽取時附上的原文引用。
 只根據引用本身判斷它是否支持這個值；引用沒寫到、寫得模糊、或要靠推測才成立，都算不支持。
-- deadline 的引用必須寫出那個日期（包括年份）
+- deadline 的引用必須寫出那個日期（包括年份）；民國年加 1911 就是西元年，例如 115 年＝2026 年
 - nationality 是 all 時，引用必須明確寫出開放所有國籍；listed 或 excluded 時，引用必須寫出那些國家
 
 {claims}

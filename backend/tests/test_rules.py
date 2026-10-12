@@ -46,3 +46,13 @@ def test_quota_sum_must_match_the_total() -> None:
     assert rules.quota_sum_mismatch(225, [155, 10, 15, 10, 10, 10, 5])  # 漏了新南向乙的 10 名
     assert not rules.quota_sum_mismatch(225, [155, None, 10])
     assert not rules.quota_sum_mismatch(None, [155, 10])
+
+
+def test_english_category_names_are_measured_in_words() -> None:
+    # 英文一個字就好幾個字母，20 個字元的上限只適用中文；英文改看字數（最多 8 個字）
+    source = "Chevening Scholarship. Internal consortium scholarship for partner country students."
+    assert rules.category_name_issue("Chevening Scholarship", source) is None
+    assert rules.category_name_issue("Internal consortium scholarship", source) is None
+    long_name = "Internal consortium scholarship for partner country students"  # 剛好 8 個字
+    assert rules.category_name_issue(long_name, source) is None
+    assert rules.category_name_issue(long_name + " and others", source + " and others") == "name_too_long"

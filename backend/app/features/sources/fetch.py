@@ -47,9 +47,9 @@ def decode_html(result: FetchResult) -> str:
     return result.content.decode(header.get_content_charset() or "utf-8", "replace")
 
 
-def save_raw(source: Source, digest: str, result: FetchResult) -> str:
+def save_raw(source: Source, digest: str, result: FetchResult, is_pdf: bool) -> str:
     """把原始檔存進 data/snapshots/<來源 id>/，回傳相對路徑。"""
-    extension = "pdf" if source.fetch_method == FetchMethod.PDF else "html"
+    extension = "pdf" if is_pdf else "html"
     relative = Path(str(source.id)) / f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}_{digest[:12]}.{extension}"
     path = SNAPSHOT_DIR / relative
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -112,8 +112,10 @@ def fetch_source(
         if result.status == 304:
             report("unchanged", "304", url)
             continue
-        html = decode_html(result) if source.fetch_method == FetchMethod.HTML else ""
-        text = pdf_to_text(result.content) if source.fetch_method == FetchMethod.PDF else html_to_text(html)
+        # 依 Content-Type 判斷：網頁來源也可能有 PDF 快照（學程補抓的申請說明，ADR-044）
+        is_pdf = source.fetch_method == FetchMethod.PDF or "pdf" in result.content_type
+        html = "" if is_pdf else decode_html(result)
+        text = pdf_to_text(result.content) if is_pdf else html_to_text(html)
         digest = content_hash(text)
         changed = not (latest and latest.content_hash == digest)
         if not changed:
@@ -125,7 +127,7 @@ def fetch_source(
                     url=url,
                     fetched_at=datetime.now(UTC),
                     content_hash=digest,
-                    file_path=save_raw(source, digest, result),
+                    file_path=save_raw(source, digest, result, is_pdf),
                     http_status=result.status,
                     etag=result.etag,
                     last_modified=result.last_modified,

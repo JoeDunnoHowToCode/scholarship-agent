@@ -11,14 +11,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.shared.db import Base
 
 
-class TaiwanEligibility(enum.StrEnum):
-    """台灣籍能否申請。原文沒提到台灣一律是 UNCLEAR，絕不推定可以。"""
-
-    YES = "yes"
-    NO = "no"
-    UNCLEAR = "unclear"
-
-
 class ScholarshipStatus(enum.StrEnum):
     ACTIVE = "active"  # 使用中
     ARCHIVED = "archived"  # 已封存（截止後）
@@ -43,12 +35,10 @@ class Scholarship(Base):
     fields: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
     coverage: Mapped[str | None] = mapped_column(Text)
     amount: Mapped[str | None] = mapped_column(Text)  # 保留原文，例如「每月 GBP 1,400」
-    # 選項存成文字欄位，不用 PostgreSQL 原生 ENUM（改選項時不必手寫遷移）
-    taiwan_eligibility: Mapped[TaiwanEligibility] = mapped_column(
-        Enum(TaiwanEligibility, native_enum=False, values_callable=_enum_values, length=16),
-        server_default=TaiwanEligibility.UNCLEAR.value,
-    )
-    taiwan_conditions: Mapped[str | None] = mapped_column(Text)
+    # 國籍資格（ADR-043）：all／listed／excluded／unclear；評分時才和使用者的國籍比對
+    nationality_scope: Mapped[str] = mapped_column(String(16), server_default="unclear")
+    nationalities: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
+    nationality_conditions: Mapped[str | None] = mapped_column(Text)
     language_requirements: Mapped[str | None] = mapped_column(Text)
     other_eligibility: Mapped[str | None] = mapped_column(Text)
     requires_admission: Mapped[bool | None]  # 是否需先錄取；不知道就留空

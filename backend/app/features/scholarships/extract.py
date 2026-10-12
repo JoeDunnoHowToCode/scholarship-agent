@@ -1,8 +1,8 @@
 """抽取指令（第 3 天）：把每個來源最新的快照抽成獎學金、類別與文件清單（ADR-008、031、034、037）。
 
-用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N]
+用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N] [--max-cost NT$]
 
-- 網頁：每頁的可見文字合併後整份抽（ADR-034：一般網頁整頁讀）
+- 網頁：每頁的可見文字合併後整份抽（ADR-034：一般網頁整頁讀）；學程補抓的 PDF 轉錄後當成一頁（ADR-044）
 - PDF 與很長的網頁：切段 → 第一輪列大綱 → 第二輪逐節抽 → 程式合併
 - 最後都經過驗證者，再把獎學金、類別、文件清單在同一個交易裡整批重寫
 """
@@ -24,13 +24,12 @@ from app.features.scholarships.models import (
     Requirement,
     Scholarship,
     ScholarshipCategory,
-    TaiwanEligibility,
 )
 from app.features.scholarships.schemas import (
     CategoryDraft,
     Outline,
     ScholarshipDraft,
-    SectionFacts,
+    section_schema,
 )
 from app.features.sources.fetch import SNAPSHOT_DIR, in_shard, latest_snapshot
 from app.features.sources.models import FetchMethod, Snapshot, Source
@@ -38,18 +37,17 @@ from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
 # 提示詞版本：改了提示詞就要改號碼；和快照雜湊、模型一起決定要不要重抽（ADR-013）
-PROMPT_VERSION = "extract-5"
-OUTLINE_VERSION = "outline-3"
-SECTION_VERSION = "section-4"
+PROMPT_VERSION = "extract-6"
+OUTLINE_VERSION = "outline-4"
+SECTION_VERSION = "section-5"
 # 網頁合併後超過這個長度才切段（docs/day-03.md「Claude 自行決定」第 6 點）
 LONG_TEXT_CHARS = 100_000
 
 RULES = """規則：
 - 只根據原文填寫；原文沒寫的欄位留空，不要推測
-- 原文沒有明確提到台灣籍能不能申請時，taiwan_eligibility 一律填 unclear
-- taiwan_evidence 必須是明確寫出台灣人（或中華民國國民）能或不能申請的句子；只是出現「Taiwan」這個字不算
+- 國籍資格照原文填 nationality_scope；原文沒寫國籍資格就填 unclear，不要推測
 - 所有 evidence 欄位都要逐字複製原文的句子，不要改寫、不要翻譯
-- 日期換算成 YYYY-MM-DD；民國年加 1911 換成西元年
+- 截止日分成年、月、日填；原文沒寫年份就把年份留空，不要自己補；民國年加 1911 換成西元年
 - degrees 是拿這個獎學金去讀的學位，不是申請人已經有的學歷（「需有學士學位」不代表可以讀學士）；原文明確寫可以讀學士才填 bachelor
 """
 
@@ -66,7 +64,7 @@ EXTRACT_PROMPT = """你是留學獎學金資料的抽取助手。下面是同一
 OUTLINE_PROMPT = """下面是一份留學獎學金簡章的全文。只要列出獎學金名稱、提供單位、
 所有名額類別的名稱（取最細的一層，用簡短的名稱，例如「北歐國家」「新南向國家甲」，
 不要把國家清單當成名稱），
-以及每個類別的名額、可以讀的學位、可以去的國家（category_details）。
+以及總名額（total_quota）和每個類別的名額、可以讀的學位、可以去的國家、原文引用（category_details）。
 學位要套用全文所有相關規則，例如別章用統稱（「一般生」）寫的學位限制，也要套到它涵蓋的每個類別。
 degrees 是拿獎學金去讀的學位，不是申請人已經有的學歷；原文明確寫可以讀學士才填 bachelor。
 
@@ -77,9 +75,9 @@ degrees 是拿獎學金去讀的學位，不是申請人已經有的學歷；原
 SECTION_PROMPT = """你是留學獎學金資料的抽取助手。下面是「{name}」簡章的其中一節，
 這份簡章的名額類別有：{categories}。
 {rules}
-- 這一節沒提到的欄位留空（清單留空清單，taiwan_eligibility 與 nationality_scope 填 unclear）
+- 這一節沒提到的欄位留空（清單留空清單，nationality_scope 填 unclear）
 - 名額、可讀的學位、可去的國家、金額只要因類別而不同，就一定要寫進 category_facts，不要只寫在整體欄位
-- applies_to 必須照抄上面的類別名稱；原文用的是統稱（例如「一般生」涵蓋好幾個類別）時，列出它涵蓋的每一個類別名稱；適用所有類別填 ["all"]
+- applies_to 只能從類別清單裡選；原文用的是統稱（例如「一般生」涵蓋好幾個類別）時，選它涵蓋的每一個類別；適用所有類別選 all
 
 這一節：
 {text}
@@ -100,16 +98,36 @@ def documents(session: Session, source: Source) -> list[Snapshot]:
     return list(unique.values())
 
 
-def extract_web(llm: GeminiLLM, snapshots: list[Snapshot]) -> tuple[ScholarshipDraft, str, dict[str, Any]]:
-    """網頁：回傳（初稿, 核對用的原文, 額外紀錄）。"""
-    pages = {s.url: decode_snapshot((SNAPSHOT_DIR / s.file_path).read_bytes()) for s in snapshots}
-    text = "\n\n".join(f"=== 頁面：{url} ===\n{html_to_text(html)}" for url, html in pages.items())
+def extract_web(
+    llm: GeminiLLM, snapshots: list[Snapshot]
+) -> tuple[ScholarshipDraft, str, dict[str, Any]]:
+    """網頁（加上補抓的 PDF）：回傳（初稿, 核對用的原文, 額外紀錄）。"""
+    pages: dict[str, str] = {}  # 網址 → 給 AI 讀的文字
+    raws: list[str] = []  # 核對用的原文：網頁的可見文字、PDF 的 pdfplumber 原文
+    htmls: list[str] = []
+    unverified: list[str] = []
+    for snapshot in snapshots:
+        path = SNAPSHOT_DIR / snapshot.file_path
+        if path.suffix == ".pdf":
+            # ADR-044：學程的 PDF 照 ADR-037 轉錄，pdfplumber 原文當核對基準
+            transcript, missing = transcribe(llm, path)
+            pages[snapshot.url] = transcript
+            raws.append(pdf_to_text(path.read_bytes()))
+            unverified += missing
+        else:
+            html = decode_snapshot(path.read_bytes())
+            htmls.append(html)
+            pages[snapshot.url] = html_to_text(html)
+            raws.append(pages[snapshot.url])
+    text = "\n\n".join(f"=== 頁面：{url} ===\n{body}" for url, body in pages.items())
+    extra: dict[str, Any] = {"unverified_numbers": unverified} if unverified else {}
     if len(text) <= LONG_TEXT_CHARS:
         prompt = EXTRACT_PROMPT.format(rules=RULES, text=text)
-        return llm.extract(prompt, ScholarshipDraft), text, {"mode": "whole"}
-    chunks = [chunk for html in pages.values() for chunk in chunk_html(html)]
-    draft, extra = extract_long(llm, text, group_sections(chunks))
-    return draft, text, extra
+        return llm.extract(prompt, ScholarshipDraft), "\n\n".join(raws), {"mode": "whole", **extra}
+    chunks = [chunk for html in htmls for chunk in chunk_html(html)]
+    chunks += [c for url, body in pages.items() if url.endswith(".pdf") for c in chunk_transcript(body)]
+    draft, long_extra = extract_long(llm, text, group_sections(chunks))
+    return draft, "\n\n".join(raws), {**long_extra, **extra}
 
 
 def extract_pdf(llm: GeminiLLM, snapshot: Snapshot) -> tuple[ScholarshipDraft, str, dict[str, Any]]:
@@ -131,7 +149,7 @@ def extract_long(
     facts = [
         llm.extract(
             SECTION_PROMPT.format(name=outline.name, categories=categories, rules=RULES, text=text),
-            SectionFacts,
+            section_schema(outline.category_names),  # ADR-045：類別名稱變成選單
         )
         for text in sections
     ]
@@ -163,8 +181,9 @@ def save(
     row.fields = draft.fields
     row.coverage = draft.coverage
     row.amount = draft.amount
-    row.taiwan_eligibility = TaiwanEligibility(draft.taiwan_eligibility)
-    row.taiwan_conditions = draft.taiwan_conditions
+    row.nationality_scope = draft.nationality_scope
+    row.nationalities = draft.nationalities
+    row.nationality_conditions = draft.nationality_conditions
     row.language_requirements = draft.language_requirements
     row.other_eligibility = draft.other_eligibility
     row.requires_admission = draft.requires_admission
@@ -230,18 +249,22 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
         draft = draft.model_copy(update={"categories": [only]})
     status = verify.verify(llm, draft, raw, extra.get("conflicts", []))
     verified = verify.apply_verification(draft, status)
+    # 年份不在引用裡（模型自己補的）就不組成完整日期（ADR-045）
+    deadline = None if status["deadline"] == "year_not_in_quote" else verify.deadline_text(verified)
     extracted = {
         **verified.model_dump(mode="json"),
+        "deadline": deadline,
         "verification": status,
-        "original_taiwan_eligibility": draft.taiwan_eligibility,
+        "original_nationality_scope": draft.nationality_scope,
         **extra,
         "meta": meta,
     }
     save(session, source, verified, extracted)
-    checks = " ".join(f"{field}={value}" for field, value in status.items())
+    checks = " ".join(f"{f}={status[f]}" for f in ("deadline", "nationality", "degrees"))
+    flagged = len(status["categories"]) + len(status["issues"])
     return (
         f"類別 {len(verified.categories)}、文件 {len(verified.requirements)}、"
-        f"截止 {verified.deadline}、台灣 {verified.taiwan_eligibility}｜{checks}"
+        f"截止 {deadline}、國籍 {verified.nationality_scope}｜{checks}｜其他待確認 {flagged}"
     )
 
 
@@ -250,6 +273,9 @@ def main() -> None:
     parser.add_argument("--source", type=int, help="只抽這個來源 id")
     parser.add_argument("--limit", type=int, help="最多抽幾個來源")
     parser.add_argument("--shard", help="K/N：只抽第 K 份（共 N 份），讓 N 個程序平行抽")
+    parser.add_argument(
+        "--max-cost", type=float, help="這次執行的 AI 費用上限（新台幣），超過就停下"
+    )
     args = parser.parse_args()
     try:
         llm = GeminiLLM(
@@ -275,6 +301,9 @@ def main() -> None:
         for source in session.scalars(query).all():
             if args.shard and not in_shard(source.url, args.shard):
                 continue
+            if args.max_cost and llm.cost_usd() * 32 > args.max_cost:
+                print(f"已超過這次的費用上限 NT${args.max_cost}，停下")
+                break
             try:
                 summary = extract_source(session, llm, source)
                 session.commit()  # 每個來源各自一個交易

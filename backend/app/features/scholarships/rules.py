@@ -60,3 +60,10 @@ def name_in_source(name: str, source: str) -> bool:
     """國名要在原文找得到（不分大小寫，整個字比對：Niger 不會因為 Nigeria 而通過）。"""
     pattern = rf"(?<![A-Za-z]){re.escape(name)}(?![A-Za-z])"
     return re.search(pattern, _normalize(source), re.IGNORECASE) is not None
+
+
+def quota_sum_mismatch(total: int | None, quotas: list[int | None]) -> bool:
+    """原文寫了總名額、每個類別也都有名額時，加總要相等；資料不齊就不比。"""
+    if total is None or not quotas or any(quota is None for quota in quotas):
+        return False
+    return sum(quota for quota in quotas if quota is not None) != total

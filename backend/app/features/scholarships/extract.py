@@ -15,7 +15,7 @@ from typing import Any
 from sqlalchemy import delete, exists, select
 from sqlalchemy.orm import Session, aliased
 
-from app.core.fetch.text import html_to_text, pdf_to_text
+from app.core.fetch.text import decode_snapshot, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
 from app.features.documents.chunking import chunk_html, chunk_transcript, group_sections
 from app.features.documents.transcribe import transcribe
@@ -102,7 +102,7 @@ def documents(session: Session, source: Source) -> list[Snapshot]:
 
 def extract_web(llm: GeminiLLM, snapshots: list[Snapshot]) -> tuple[ScholarshipDraft, str, dict[str, Any]]:
     """網頁：回傳（初稿, 核對用的原文, 額外紀錄）。"""
-    pages = {s.url: (SNAPSHOT_DIR / s.file_path).read_text(encoding="utf-8") for s in snapshots}
+    pages = {s.url: decode_snapshot((SNAPSHOT_DIR / s.file_path).read_bytes()) for s in snapshots}
     text = "\n\n".join(f"=== 頁面：{url} ===\n{html_to_text(html)}" for url, html in pages.items())
     if len(text) <= LONG_TEXT_CHARS:
         prompt = EXTRACT_PROMPT.format(rules=RULES, text=text)

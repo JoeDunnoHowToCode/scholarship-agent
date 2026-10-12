@@ -4,7 +4,7 @@ import hashlib
 import io
 
 import pdfplumber
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, UnicodeDammit
 
 # 區塊元素：前後換行。其他（span、a、strong…）是行內元素，文字直接接起來，
 # 所以被標籤切開的字（例如 <span>202</span><span>7</span>）會接回「2027」
@@ -27,6 +27,11 @@ def html_to_text(html: str) -> str:
     # 每一行的空白縮成一個，去掉空行
     lines = (" ".join(line.split()) for line in soup.get_text().splitlines())
     return "\n".join(line for line in lines if line)
+
+
+def decode_snapshot(data: bytes) -> str:
+    """把存下來的網頁原始位元組轉回文字：先試 UTF-8，再看頁面的 <meta charset> 與內容推測編碼。"""
+    return str(UnicodeDammit(data, ["utf-8"], is_html=True).unicode_markup)
 
 
 def pdf_to_text(data: bytes) -> str:

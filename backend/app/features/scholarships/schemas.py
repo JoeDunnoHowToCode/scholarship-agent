@@ -9,9 +9,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Degree = Literal["bachelor", "master", "phd"]
-TaiwanAnswer = Literal["yes", "no", "unclear"]
-# 原文怎麼描述國籍資格；「台灣能不能申請」的規則之後可能改，先把原文的說法存下來
-NationalityScope = Literal["worldwide", "listed_countries", "taiwan_specific", "unclear"]
+# 國籍資格的範圍（ADR-043）：開放所有國籍、只限列出的國家、排除列出的國家、沒寫
+NationalityScope = Literal["all", "listed", "excluded", "unclear"]
 # 文件類型代號（docs/day-03.md「Claude 自行決定」第 13 點）
 DocType = Literal[
     "cv",
@@ -63,25 +62,30 @@ class ProgramFacts(BaseModel):
     fields: list[str] = Field(description="適用的領域，用英文；不限領域就留空清單")
     coverage: str | None = Field(description="補助內容，例如學費、生活費、機票")
     amount: str | None = Field(description="補助金額，照原文寫，例如「每月 EUR 1,400」")
-    taiwan_eligibility: TaiwanAnswer = Field(
-        description="台灣籍能否申請；原文沒有明確提到台灣就填 unclear，不要推測"
-    )
-    taiwan_evidence: str | None = Field(description="提到台灣的原文句子，逐字引用")
     nationality_scope: NationalityScope = Field(
         description=(
-            "原文怎麼描述國籍資格：開放所有國籍填 worldwide；列出特定國家填 listed_countries；"
-            "專給台灣人填 taiwan_specific；沒寫填 unclear"
+            "國籍資格：開放所有國籍填 all；只限某些國家填 listed；"
+            "除了某些國家都可以填 excluded；原文沒寫填 unclear"
         )
     )
+    nationalities: list[str] = Field(
+        description="listed 或 excluded 時，列出的國家（英文國名，台灣寫 Taiwan）；其他情況留空清單"
+    )
     nationality_evidence: str | None = Field(description="描述國籍資格的原文句子，逐字引用")
-    taiwan_conditions: str | None = Field(description="台灣申請人特有的條件")
+    nationality_conditions: str | None = Field(
+        description="特定國籍申請人的附加條件，例如台灣申請人需另附的文件"
+    )
     language_requirements: str | None = Field(description="語言要求，例如 IELTS 6.5")
     other_eligibility: str | None = Field(description="其他資格條件，例如學歷、工作年資、年齡")
     requires_admission: bool | None = Field(
         description="申請獎學金前是否必須先拿到學校的入學許可；原文沒說就留空"
     )
     intake: str | None = Field(description="入學年度，例如 2027/28")
-    deadline: str | None = Field(description="申請截止日，格式 YYYY-MM-DD；原文沒寫就留空")
+    total_quota: int | None = Field(description="原文寫的總名額，只填數字；沒寫就留空")
+    # ADR-045：截止日拆成年月日，原文沒寫年份時年份必須留空，不能自己補
+    deadline_year: int | None = Field(description="截止日的西元年；原文沒寫年份就留空，不要推測")
+    deadline_month: int | None = Field(description="截止日的月份 1–12；沒寫就留空")
+    deadline_day: int | None = Field(description="截止日的日 1–31；沒寫就留空")
     deadline_timezone: str | None = Field(description="截止時間的時區，例如 CET；原文沒寫就留空")
     deadline_evidence: str | None = Field(description="寫著截止日的原文句子，逐字引用")
 
@@ -102,6 +106,7 @@ class OutlineCategory(BaseModel):
     quota: int | None = Field(description="名額，只填數字")
     degrees: list[Degree] = Field(description="這個類別可以讀的學位，套用全文所有相關規則")
     countries: list[str] = Field(description="這個類別可以去的國家，用英文國名；不限就留空清單")
+    evidence: str | None = Field(default=None, description="支持名額與學位的原文句子，逐字引用")
 
 
 class Outline(BaseModel):
@@ -111,6 +116,7 @@ class Outline(BaseModel):
     name_zh: str | None = Field(description="中文名稱；原文不是中文就翻譯")
     provider: str | None = Field(description="提供單位")
     category_names: list[str] = Field(description="所有名額類別的名稱，照原文寫；只有一種就留空清單")
+    total_quota: int | None = Field(default=None, description="原文寫的總名額；沒寫就留空")
     category_details: list[OutlineCategory] = Field(
         default_factory=list, description="每個類別的名額、學位、國家，順序和 category_names 一致"
     )

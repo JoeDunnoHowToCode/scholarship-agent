@@ -21,18 +21,15 @@ from app.features.scholarships.schemas import (
 # 「事實」欄位：只該有一個值。取第一個有值的；後面出現不同的值就記成衝突
 # 每個欄位配上它的引用欄位，引用跟著值一起取
 FACT_FIELDS: dict[str, str | None] = {
-    "deadline": "deadline_evidence",
     "deadline_timezone": None,
+    "total_quota": None,
     "intake": None,
     "requires_admission": None,
 }
 # 有優先順序的欄位：取排在最前面的答案，引用跟著做出決定的那一節
 PRIORITY_FIELDS: dict[str, tuple[str, list[str]]] = {
-    "taiwan_eligibility": ("taiwan_evidence", ["no", "yes", "unclear"]),
-    "nationality_scope": (
-        "nationality_evidence",
-        ["taiwan_specific", "listed_countries", "worldwide", "unclear"],
-    ),
+    # ADR-043：列出限定國家的說法最嚴格，優先採用
+    "nationality_scope": ("nationality_evidence", ["listed", "excluded", "all", "unclear"]),
 }
 # 清單欄位：取聯集，保持第一次出現的順序
 LIST_FIELDS = ["countries", "degrees", "fields"]
@@ -40,7 +37,7 @@ LIST_FIELDS = ["countries", "degrees", "fields"]
 TEXT_FIELDS = [
     "coverage",
     "amount",
-    "taiwan_conditions",
+    "nationality_conditions",
     "language_requirements",
     "other_eligibility",
 ]
@@ -96,7 +93,7 @@ def merge_category(
             unique(f.eligibility for f in explicit + shared if f.eligibility)
         )
         or None,
-        evidence=first(f.evidence for f in explicit),
+        evidence=first([*(f.evidence for f in explicit), detail.evidence if detail else None]),
     )
 
 
@@ -125,12 +122,24 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         if len({getattr(s, name) for s in found}) > 1:
             conflicts.append(name)
 
+    # 截止日的年、月、日是一個事實：一起取第一個有年或月的那一節，日期不同就是衝突
+    dated = [s for s in sections if s.deadline_year is not None or s.deadline_month is not None]
+    for part in ("deadline_year", "deadline_month", "deadline_day", "deadline_evidence"):
+        values[part] = getattr(dated[0], part) if dated else None
+    if len({(s.deadline_year, s.deadline_month, s.deadline_day) for s in dated}) > 1:
+        conflicts.insert(0, "deadline")
+
     for name, (evidence, order) in PRIORITY_FIELDS.items():
         decider = min(
             sections, key=lambda s: order.index(getattr(s, name)), default=None
         )
         values[name] = getattr(decider, name) if decider else order[-1]
         values[evidence] = getattr(decider, evidence) if decider else None
+    # 國家清單：只取和最後決定的範圍同一類的那些節
+    values["nationalities"] = unique(
+        n for s in sections if s.nationality_scope == values["nationality_scope"]
+        for n in s.nationalities
+    )
     for name in LIST_FIELDS:
         values[name] = unique(item for s in sections for item in getattr(s, name))
     # 學位的引用：取第一個真的有抽到學位的那一節
@@ -182,6 +191,7 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         category.degrees = category.degrees or values["degrees"]
         category.countries = category.countries or values["countries"]
 
+    values["total_quota"] = outline.total_quota or values["total_quota"]
     draft = ScholarshipDraft(
         name=outline.name,
         name_zh=outline.name_zh,

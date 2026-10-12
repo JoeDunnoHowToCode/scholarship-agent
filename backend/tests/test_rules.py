@@ -21,3 +21,11 @@ def test_degree_keywords_must_appear_in_the_quotes() -> None:
     assert rules.degree_supported("master", [None, "study for a one-year Master's degree"])
     assert rules.degree_supported("phd", ["PhD positions"])
     assert not rules.degree_supported("master", [None])
+
+
+def test_category_name_must_be_short_and_in_the_source() -> None:
+    source = "(1)北歐國家(丹麥、瑞典、挪威、芬蘭、冰島)：10 名。\n甲、 印尼、菲律賓、泰國、馬來西亞、汶萊、越南、緬甸、柬埔寨、寮國：15 名。"
+    assert rules.category_name_issue("北歐國家", source) is None
+    # 把整串國名當成類別名稱：雖然在原文裡，但太長
+    assert rules.category_name_issue("印尼、菲律賓、泰國、馬來西亞、汶萊、越南、緬甸、柬埔寨、寮國", source) == "name_too_long"
+    assert rules.category_name_issue("新南向國家甲", source) == "name_not_in_source"

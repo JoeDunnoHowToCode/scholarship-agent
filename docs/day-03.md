@@ -548,3 +548,60 @@ T1–T7 由 sub agent A、T8–T17 由 sub agent B 各自在獨立的 worktree �
 - 意外的好發現：Flood Risk Management 學程（來源 103）寫著教育部有給台灣學生的國家獎學金
 - 抽查時發現截止日年份被模型自己補上（來源 82），驗證者沒擋住
 - 驗證者的判斷不一致：同樣只寫「open to all nationalities」，2 筆被判為台灣 yes（122、193），另外 150 筆是 unclear
+
+## 第 3 天補強（ADR-043、044、045）
+
+使用者 2026-10-12 決定：國籍資格依國籍判斷、180 筆全部重抽；學程 PDF 照 ADR-037、缺資料才讀；五條程式檢查與兩種格式限制全做。改完只重抽一次。
+
+### 設計草圖
+
+國籍資格（ADR-043）：
+
+- schema：`taiwan_eligibility`、`taiwan_evidence`、`nationality_scope`（舊四種）、`taiwan_conditions` 改成 `nationality_scope`（all／listed／excluded／unclear）、`nationalities`（英文國名清單）、`nationality_evidence`、`nationality_conditions`
+- 資料表 scholarships：刪 `taiwan_eligibility`、`taiwan_conditions`，加 `nationality_scope`、`nationalities text[]`、`nationality_conditions`（舊資料會整批重抽，所以直接刪欄，不搬資料）
+- 合併：範圍取 listed > excluded > all > unclear；國家清單取做出決定那一類的聯集
+- 驗證者：第三個核對欄位從台灣籍改成國籍範圍；沒通過就改成 unclear
+
+格式限制（ADR-045）：
+
+- 截止日改成 `deadline_year`、`deadline_month`、`deadline_day` 三個整數欄位，年份可空；程式組成 `deadline`（三個都有才組）
+- 第二輪抽取的 schema 依第一輪的類別名稱動態產生：`applies_to` 與文件的 `category` 只能選這些名稱（或 all）
+- 第一輪的類別資料加 `evidence`；大綱與整份抽取加 `total_quota`（原文寫的總名額）
+
+程式檢查（ADR-045，`features/scholarships/rules.py`，純函式）：
+
+1. 截止日年份要在引用裡（民國年也算，例如 2026 對應「115 年」）；不符合就不組 `deadline`，狀態 year_not_in_quote
+2. 學位要在原文寫到：bachelor／master／phd 各有關鍵字，要出現在該類別的引用或學位引用裡
+3. 類別名稱要在原文裡，而且不超過 20 個字
+4. 名額數字要在原文找得到；國籍清單的國名要在原文找得到
+5. 原文寫了總名額，而且每個類別都有名額時，加總要相等
+
+檢查結果存在 `extracted.verification`：`deadline`、`degrees`、`nationality` 三欄的狀態，加上 `categories`（類別名稱 → 問題清單）與 `issues`（其他問題）。
+
+學程 PDF（ADR-044）：
+
+- 新指令 `uv run python -m app.features.scholarships.pdfs`：找截止日或文件清單有缺的學程，從它的快照頁面列出 PDF 連結，請 AI 挑一份最可能是申請說明的，抓下來存成同一個來源的快照
+- fetch 依 Content-Type 判斷 PDF（不再只看來源的抓取方式），已存的 PDF 快照之後照常重新檢查
+- extract 遇到 PDF 快照就轉錄（ADR-037），轉錄稿當成一頁加進原文；核對基準加上 pdfplumber 原文
+
+### Claude 自行決定（補強）
+
+25. 每個學程最多讀 1 份 PDF，超過 30 頁就跳過不讀（26 個學程最壞約 NT$35，一般約 NT$10）
+26. PDF 連結的候選：頁面上所有 .pdf 連結（不限同一個網站，大學常把說明放在主網域），由 AI 挑一份；沒有和申請相關的就不挑
+27. 費用保護：extract 與 pdfs 加 `--max-cost`（新台幣），這次執行的估計費用超過就停下；本月已用約 NT$40（各次執行印出的估計），重抽＋PDF 預計再用 NT$30–55，會接近每月 NT$100 的上限
+28. 改動既有的合併測試（台灣籍改成國籍、截止日拆成年月日）：使用者已同意設計變更（ADR-043、045），測試單獨一個 commit
+
+### 檢查清單（補強）
+
+- [ ] T24 截止年份在引用裡（含民國年） -> verify: `uv run pytest tests/test_rules.py -k deadline_year`
+- [ ] T25 學位要有關鍵字 -> verify: `uv run pytest tests/test_rules.py -k degree_keywords`
+- [ ] T26 類別名稱在原文且不太長 -> verify: `uv run pytest tests/test_rules.py -k category_name`
+- [ ] T27 名額與國名在原文 -> verify: `uv run pytest tests/test_rules.py -k in_source`
+- [ ] T28 名額加總等於總額 -> verify: `uv run pytest tests/test_rules.py -k quota_sum`
+- [ ] T29 合併：國籍範圍的優先順序與國家清單 -> verify: `uv run pytest tests/test_merge.py -k nationality`
+- [ ] T30 合併：截止日年月日當成一個事實 -> verify: `uv run pytest tests/test_merge.py -k conflict`
+- [ ] T31 動態 schema 只接受第一輪的類別名稱 -> verify: `uv run pytest tests/test_schemas.py -k section_schema`
+- [ ] 遷移：國籍欄位 -> verify: `uv run alembic upgrade head` 與 `\d scholarships`
+- [ ] 180 筆重抽 -> verify: extract 輸出統計
+- [ ] 缺資料的學程讀 PDF 後重抽 -> verify: pdfs 與 extract 輸出統計
+- [ ] 抽查與完整檢查、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`

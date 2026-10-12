@@ -163,7 +163,9 @@ def make_picker() -> tuple[LinkPicker | None, GeminiLLM | None]:
     from app.features.sources.pick import pick_links  # 只有挑連結時才需要
 
     try:
-        llm = GeminiLLM(settings.llm_model, settings.google_api_key)
+        llm = GeminiLLM(
+            settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute
+        )
     except MissingApiKeyError as error:
         print(f"{error}；這次不挑連結，只抓首頁", file=sys.stderr)
         return None, None

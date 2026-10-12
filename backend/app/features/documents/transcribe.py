@@ -73,7 +73,9 @@ def main() -> None:
     parser.add_argument("path", type=Path, help="PDF 快照檔")
     args = parser.parse_args()
     try:
-        llm = GeminiLLM(settings.llm_model, settings.google_api_key)
+        llm = GeminiLLM(
+            settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute
+        )
     except MissingApiKeyError as error:
         sys.exit(str(error))
     transcript, unverified = transcribe(llm, args.path)

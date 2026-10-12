@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     google_api_key: SecretStr | None = None
     # 模型名稱放在設定裡（ADR-015）
     llm_model: str = "gemini-3.5-flash-lite"
+    # 每個程序每分鐘最多幾次 Gemini 請求（ADR-042）；平行跑 N 個程序時總量是 N 倍
+    llm_requests_per_minute: int = 60
     # 同一個網站兩次請求至少間隔幾秒（ADR-028）；robots.txt 的 Crawl-delay 更長就照它
     fetch_min_interval_seconds: float = 5.0
 

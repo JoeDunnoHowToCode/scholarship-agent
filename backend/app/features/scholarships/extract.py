@@ -1,6 +1,6 @@
 """抽取指令（第 3 天）：把每個來源最新的快照抽成獎學金、類別與文件清單（ADR-008、031、034、037）。
 
-用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N]
+用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N]
 
 - 網頁：每頁的可見文字合併後整份抽（ADR-034：一般網頁整頁讀）
 - PDF 與很長的網頁：切段 → 第一輪列大綱 → 第二輪逐節抽 → 程式合併
@@ -32,7 +32,7 @@ from app.features.scholarships.schemas import (
     ScholarshipDraft,
     SectionFacts,
 )
-from app.features.sources.fetch import SNAPSHOT_DIR, latest_snapshot
+from app.features.sources.fetch import SNAPSHOT_DIR, in_shard, latest_snapshot
 from app.features.sources.models import FetchMethod, Snapshot, Source
 from app.shared.db import SessionLocal
 from app.shared.settings import settings
@@ -249,9 +249,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="把來源快照抽成獎學金資料")
     parser.add_argument("--source", type=int, help="只抽這個來源 id")
     parser.add_argument("--limit", type=int, help="最多抽幾個來源")
+    parser.add_argument("--shard", help="K/N：只抽第 K 份（共 N 份），讓 N 個程序平行抽")
     args = parser.parse_args()
     try:
-        llm = GeminiLLM(settings.llm_model, settings.google_api_key)
+        llm = GeminiLLM(
+            settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute
+        )
     except MissingApiKeyError as error:
         sys.exit(str(error))
 
@@ -270,6 +273,8 @@ def main() -> None:
     counts = {"ok": 0, "unchanged": 0, "failed": 0}
     with SessionLocal() as session:
         for source in session.scalars(query).all():
+            if args.shard and not in_shard(source.url, args.shard):
+                continue
             try:
                 summary = extract_source(session, llm, source)
                 session.commit()  # 每個來源各自一個交易

@@ -7,6 +7,8 @@ from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, SecretStr
 
+from app.core.llm.ratelimit import RateLimiter
+
 # Gemini 3.5 Flash-Lite 每百萬 tokens 的價格（美元，Gemini API 定價頁；docs/spec.md 成本粗估）
 INPUT_PRICE_PER_M = 0.30
 OUTPUT_PRICE_PER_M = 2.50
@@ -28,7 +30,9 @@ class ExtractionError(LLMError):
 class GeminiLLM:
     """符合 StructuredLLM 與 PdfReader 插座的 Gemini 實作。"""
 
-    def __init__(self, model: str, api_key: SecretStr | None) -> None:
+    def __init__(
+        self, model: str, api_key: SecretStr | None, requests_per_minute: int = 60
+    ) -> None:
         if api_key is None or not api_key.get_secret_value():
             raise MissingApiKeyError(
                 "沒有 Gemini 金鑰：請在 backend/.env 設定 GOOGLE_API_KEY=你的金鑰"
@@ -41,6 +45,7 @@ class GeminiLLM:
             model=model, api_key=api_key, max_output_tokens=32_000, timeout=120
         )
         # 這次執行累計用了多少 tokens（ADR-013；完整的成本表是第 10 天）
+        self._limiter = RateLimiter(requests_per_minute)  # ADR-042
         self.input_tokens = 0
         self.output_tokens = 0
 
@@ -50,6 +55,7 @@ class GeminiLLM:
         runnable = self._chat.with_structured_output(schema, include_raw=True)
         current = prompt
         for _ in range(MAX_RETRIES + 1):
+            self._limiter.wait()
             try:
                 result: dict[str, Any] = runnable.invoke(current)  # type: ignore[assignment]
             except Exception as failure:
@@ -76,6 +82,7 @@ class GeminiLLM:
                 },
             ]
         )
+        self._limiter.wait()
         try:
             response = self._chat.invoke([message])
         except Exception as error:

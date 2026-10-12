@@ -38,3 +38,11 @@ def test_quota_and_country_names_must_be_in_source() -> None:
     assert not rules.number_in_source(15, source)  # 155 裡面的 15 不算
     assert rules.name_in_source("Sweden", source)
     assert not rules.name_in_source("Norway", source)
+
+
+def test_quota_sum_must_match_the_total() -> None:
+    # 教育部：一般生 190＋特殊生 35＝225；有類別沒寫名額時不能比，不算錯
+    assert not rules.quota_sum_mismatch(225, [155, 10, 15, 10, 10, 10, 10, 5])
+    assert rules.quota_sum_mismatch(225, [155, 10, 15, 10, 10, 10, 5])  # 漏了新南向乙的 10 名
+    assert not rules.quota_sum_mismatch(225, [155, None, 10])
+    assert not rules.quota_sum_mismatch(None, [155, 10])

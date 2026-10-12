@@ -19,16 +19,18 @@ EMPTY: dict[str, Any] = {
     "fields": [],
     "coverage": None,
     "amount": None,
-    "taiwan_eligibility": "unclear",
-    "taiwan_evidence": None,
     "nationality_scope": "unclear",
+    "nationalities": [],
     "nationality_evidence": None,
-    "taiwan_conditions": None,
+    "nationality_conditions": None,
     "language_requirements": None,
     "other_eligibility": None,
     "requires_admission": None,
     "intake": None,
-    "deadline": None,
+    "total_quota": None,
+    "deadline_year": None,
+    "deadline_month": None,
+    "deadline_day": None,
     "deadline_timezone": None,
     "deadline_evidence": None,
     "category_facts": [],
@@ -50,12 +52,16 @@ def test_first_value_wins_and_a_different_value_is_a_conflict() -> None:
         OUTLINE,
         [
             section(),
-            section(deadline="2027-02-13", deadline_evidence="2 月 13 日截止"),
-            section(deadline="2027-03-16", deadline_evidence="3 月 16 日截止"),
+            section(deadline_year=2027, deadline_month=2, deadline_day=13,
+                    deadline_evidence="2 月 13 日截止"),
+            section(deadline_year=2027, deadline_month=3, deadline_day=16,
+                    deadline_evidence="3 月 16 日截止"),
         ],
     )
-    assert result.draft.deadline == "2027-02-13"
-    assert result.draft.deadline_evidence == "2 月 13 日截止"
+    # 截止日的年、月、日當成一個事實：一起取第一節的，日期不同就是衝突
+    draft = result.draft
+    assert (draft.deadline_year, draft.deadline_month, draft.deadline_day) == (2027, 2, 13)
+    assert draft.deadline_evidence == "2 月 13 日截止"
     assert result.conflicts == ["deadline"]
 
 
@@ -75,23 +81,22 @@ def test_lists_are_unioned_and_texts_are_joined() -> None:
     assert result.conflicts == []
 
 
-def test_taiwan_answer_prefers_no_then_yes_then_unclear() -> None:
-    # 只要有一節說台灣不行就是不行；其次才是可以；引用跟著做出決定的那一節
-    # 國籍描述同理：專給台灣 > 列出國家 > 開放所有國籍 > 沒寫
+def test_nationality_scope_prefers_listed_then_excluded_then_all() -> None:
+    # ADR-043：只要有一節列出限定的國家，就以列出的為準；國家清單取這一類各節的聯集
     result = merge.merge_sections(
         OUTLINE,
         [
-            section(taiwan_eligibility="yes", taiwan_evidence="台灣可申請",
-                    nationality_scope="worldwide", nationality_evidence="all nationalities"),
-            section(taiwan_eligibility="no", taiwan_evidence="台灣不適用",
-                    nationality_scope="listed_countries", nationality_evidence="EU only"),
+            section(nationality_scope="all", nationality_evidence="all nationalities"),
+            section(nationality_scope="listed", nationalities=["Taiwan", "Japan"],
+                    nationality_evidence="citizens of Taiwan or Japan"),
+            section(nationality_scope="listed", nationalities=["Japan", "South Korea"],
+                    nationality_evidence="and South Korea"),
             section(),
         ],
     )
-    assert result.draft.taiwan_eligibility == "no"
-    assert result.draft.taiwan_evidence == "台灣不適用"
-    assert result.draft.nationality_scope == "listed_countries"
-    assert result.draft.nationality_evidence == "EU only"
+    assert result.draft.nationality_scope == "listed"
+    assert result.draft.nationalities == ["Taiwan", "Japan", "South Korea"]
+    assert result.draft.nationality_evidence == "citizens of Taiwan or Japan"
 
 
 def test_degrees_evidence_comes_from_the_first_section_with_degrees() -> None:

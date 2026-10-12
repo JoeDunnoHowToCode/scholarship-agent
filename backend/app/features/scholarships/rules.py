@@ -3,6 +3,8 @@
 import re
 import unicodedata
 
+from app.features.documents.checks import quote_in_source
+
 ROC_OFFSET = 1911  # 民國年 + 1911 = 西元年
 
 
@@ -35,3 +37,15 @@ DEGREE_KEYWORDS = {
 def degree_supported(degree: str, quotes: list[str | None]) -> bool:
     """這個學位的關鍵字要出現在任一句引用裡（例如原文沒寫「學士」就不能填 bachelor）。"""
     return any(quote and DEGREE_KEYWORDS[degree].search(quote) for quote in quotes)
+
+
+MAX_CATEGORY_NAME = 20  # 類別名稱最多幾個字；更長的通常是把國家清單當成名稱
+
+
+def category_name_issue(name: str, source: str) -> str | None:
+    """類別名稱的問題：太長、或原文裡找不到；沒問題回傳 None。"""
+    if len(name) > MAX_CATEGORY_NAME:
+        return "name_too_long"
+    if not quote_in_source(name, source):
+        return "name_not_in_source"
+    return None

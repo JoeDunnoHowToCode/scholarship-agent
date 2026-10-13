@@ -71,7 +71,7 @@ def merge_category(
     detail: OutlineCategory | None = None,
 ) -> CategoryDraft:
     """一個類別：明確點名它的規則 > 第一輪讀全文的類別資料 > 「全部」的規則。
-    名額只看明確的規則與第一輪的資料。"""
+    名額只看只點名這一類的規則與第一輪的資料。"""
 
     def first[T](items: Iterable[T | None]) -> T | None:
         return next((item for item in items if item is not None), None)
@@ -85,7 +85,10 @@ def merge_category(
 
     return CategoryDraft(
         name=name,
-        quota=first([*(f.quota for f in explicit), detail.quota if detail else None]),
+        # 名額只取「只點名這一個類別」的規則：點名多個類別的規則，名額是那幾類的總數
+        quota=first(
+            [*(f.quota for f in explicit if len(f.applies_to) == 1), detail.quota if detail else None]
+        ),
         degrees=pick_list("degrees"),
         countries=pick_list("countries"),
         amount=first(f.amount for f in explicit) or first(f.amount for f in shared),

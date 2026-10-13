@@ -39,7 +39,7 @@ from app.shared.settings import settings
 # 提示詞版本：改了提示詞就要改號碼；和快照雜湊、模型一起決定要不要重抽（ADR-013）
 PROMPT_VERSION = "extract-6"
 OUTLINE_VERSION = "outline-4"
-SECTION_VERSION = "section-5"
+SECTION_VERSION = "section-6"
 # 網頁合併後超過這個長度才切段（docs/day-03.md「Claude 自行決定」第 6 點）
 LONG_TEXT_CHARS = 100_000
 

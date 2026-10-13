@@ -128,7 +128,9 @@ class CategoryFact(BaseModel):
     applies_to: list[str] = Field(
         description="這條規則適用的類別名稱，必須照抄類別清單裡的名稱；適用所有類別就填 [\"all\"]"
     )
-    quota: int | None = Field(description="名額，只填數字；這條規則沒提到就留空")
+    quota: int | None = Field(
+        description="這一個類別的名額，只填數字；applies_to 有好幾個類別時一律留空（那是總數，不是每類的名額）"
+    )
     degrees: list[Degree] = Field(description="可以讀的學位；沒提到就留空清單")
     countries: list[str] = Field(description="可以去的國家，用英文國名；沒提到就留空清單")
     amount: str | None = Field(description="補助金額，照原文寫")

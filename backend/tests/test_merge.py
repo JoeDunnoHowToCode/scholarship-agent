@@ -241,3 +241,26 @@ def test_outline_details_fill_categories_without_explicit_facts() -> None:
     general, nordic = result.draft.categories
     assert (general.quota, general.degrees) == (155, ["phd", "master"])
     assert (nordic.quota, nordic.degrees, nordic.countries) == (10, ["phd"], ["Sweden"])
+
+
+def test_group_quota_is_not_copied_to_each_category() -> None:
+    # 教育部的真實情況：第二輪把「選送赴特定國家名額計 35 名」寫成一條規則，
+    # applies_to 同時列了北歐、新南向甲、新南向乙。35 是三類加起來的總數，不是每一類的名額
+    # 名額只能來自只點名一個類別的規則；多個類別的規則只提供學位、國家等其他資料
+    outline = Outline(
+        name="GSSA", name_zh=None, provider=None,
+        category_names=["北歐國家", "新南向國家甲", "新南向國家乙"],
+        category_details=[
+            OutlineCategory(name="北歐國家", quota=10, degrees=["phd"], countries=[]),
+            OutlineCategory(name="新南向國家甲", quota=15, degrees=["phd"], countries=[]),
+            OutlineCategory(name="新南向國家乙", quota=10, degrees=["phd"], countries=[]),
+        ],
+    )
+    result = merge.merge_sections(
+        outline,
+        [section(category_facts=[
+            fact(["北歐國家", "新南向國家甲", "新南向國家乙"], quota=35),
+            fact(["新南向國家甲"], quota=15),
+        ])],
+    )
+    assert [c.quota for c in result.draft.categories] == [10, 15, 10]

@@ -93,7 +93,9 @@ def category_issues(draft: ScholarshipDraft, source: str) -> dict[str, list[str]
     found: dict[str, list[str]] = {}
     for category in draft.categories:
         issues = []
-        if name_issue := rules.category_name_issue(category.name, source):
+        # 只有一個類別時，名稱照規定用獎學金名稱，名稱檢查只對多個類別有意義
+        multiple = len(draft.categories) > 1
+        if multiple and (name_issue := rules.category_name_issue(category.name, source)):
             issues.append(name_issue)
         if category.quota is not None and not rules.number_in_source(category.quota, source):
             issues.append("quota_not_in_source")

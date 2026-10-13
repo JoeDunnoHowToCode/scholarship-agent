@@ -591,17 +591,51 @@ T1–T7 由 sub agent A、T8–T17 由 sub agent B 各自在獨立的 worktree �
 27. 費用保護：extract 與 pdfs 加 `--max-cost`（新台幣），這次執行的估計費用超過就停下；本月已用約 NT$40（各次執行印出的估計），重抽＋PDF 預計再用 NT$30–55，會接近每月 NT$100 的上限
 28. 改動既有的合併測試（台灣籍改成國籍、截止日拆成年月日）：使用者已同意設計變更（ADR-043、045），測試單獨一個 commit
 
+29. （執行時）類別名稱檢查只在有 2 個以上類別時做：只有一個類別時名稱照規定用獎學金名稱，名稱本來就長（55 個誤報降到 6 個）；已存的 180 筆用一次性腳本重算純程式的檢查，沒有呼叫 AI
+30. （執行時）英文類別名稱改用字數（最多 8 個字）判斷太長，中文仍是 20 個字
+31. （執行時）驗證者提示詞加上民國年換算（verify-4）：教育部的截止日引用是「115 年」，原本被判為不支持
+
 ### 檢查清單（補強）
 
-- [ ] T24 截止年份在引用裡（含民國年） -> verify: `uv run pytest tests/test_rules.py -k deadline_year`
-- [ ] T25 學位要有關鍵字 -> verify: `uv run pytest tests/test_rules.py -k degree_keywords`
-- [ ] T26 類別名稱在原文且不太長 -> verify: `uv run pytest tests/test_rules.py -k category_name`
-- [ ] T27 名額與國名在原文 -> verify: `uv run pytest tests/test_rules.py -k in_source`
-- [ ] T28 名額加總等於總額 -> verify: `uv run pytest tests/test_rules.py -k quota_sum`
-- [ ] T29 合併：國籍範圍的優先順序與國家清單 -> verify: `uv run pytest tests/test_merge.py -k nationality`
-- [ ] T30 合併：截止日年月日當成一個事實 -> verify: `uv run pytest tests/test_merge.py -k conflict`
-- [ ] T31 動態 schema 只接受第一輪的類別名稱 -> verify: `uv run pytest tests/test_schemas.py -k section_schema`
-- [ ] 遷移：國籍欄位 -> verify: `uv run alembic upgrade head` 與 `\d scholarships`
-- [ ] 180 筆重抽 -> verify: extract 輸出統計
-- [ ] 缺資料的學程讀 PDF 後重抽 -> verify: pdfs 與 extract 輸出統計
-- [ ] 抽查與完整檢查、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
+- [x] T24 截止年份在引用裡（含民國年） -> verify: `uv run pytest tests/test_rules.py -k deadline_year`（紅：AttributeError … 'deadline_year_in_quote'；綠：1 passed）
+- [x] T25 學位要有關鍵字 -> verify: `uv run pytest tests/test_rules.py -k degree_keywords`（紅：AttributeError … 'degree_supported'；綠：1 passed）
+- [x] T26 類別名稱在原文且不太長 -> verify: `uv run pytest tests/test_rules.py -k category_name`（紅：AttributeError … 'category_name_issue'；綠：1 passed）
+- [x] T26b（執行時新增）英文類別名稱用字數 -> verify: `uv run pytest tests/test_rules.py -k english_category`（紅：AssertionError: assert 'name_too_long' is None；綠：1 passed）
+- [x] T27 名額與國名在原文 -> verify: `uv run pytest tests/test_rules.py -k in_source`（紅：AttributeError … 'number_in_source'；綠：1 passed）
+- [x] T28 名額加總等於總額 -> verify: `uv run pytest tests/test_rules.py -k quota_sum`（紅：AttributeError … 'quota_sum_mismatch'；綠：1 passed）
+- [x] T29 合併：國籍範圍的優先順序與國家清單 -> verify: `uv run pytest tests/test_merge.py -k nationality`（紅：修改後的測試在舊 schema 下 10 failed；綠：10 passed）
+- [x] T30 合併：截止日年月日當成一個事實 -> verify: `uv run pytest tests/test_merge.py -k conflict`（同上一個紅綠循環）
+- [x] T31 動態 schema 只接受第一輪的類別名稱 -> verify: `uv run pytest tests/test_schemas.py -k section_schema`（紅：AttributeError … 'section_schema'；綠：1 passed）
+- [x] 遷移：國籍欄位 -> verify: `uv run alembic upgrade head` 與 `\d scholarships`
+
+  ```text
+  Running upgrade 837b61df1d63 -> 38d397472d61, nationality eligibility replaces taiwan columns
+  nationality_scope varchar(16) not null default 'unclear'｜nationalities text[] not null default '{}'｜nationality_conditions text
+  ```
+
+- [x] 缺資料的學程讀 PDF -> verify: `uv run python -m app.features.scholarships.pdfs --max-cost 3`
+
+  ```text
+  缺資料的學程 69 個，嘗試抓 PDF 19 份（存下 13 份；超過 30 頁跳過 3 份、被擋或錯誤 3 份）
+  tokens：輸入 10,182、輸出 1,508，約 NT$0.2
+  ```
+
+- [x] 180 筆重抽 -> verify: 4 個 `extract --shard K/4 --max-cost 12` 的輸出統計
+
+  ```text
+  完成 33＋52＋48＋47＝180、失敗 0；約 NT$5.7＋11.0＋10.0＋9.9＝NT$36.6
+  有完整截止日 115（都有依據）；年份不在引用裡 7；學位有依據 158
+  國籍：all 93、listed 5、excluded 2、unclear 80（其中 38 筆模型說 all 但沒附引用，16 筆引用不支持）
+  文件清單空白 29；截止日在今天之後 62
+  程式檢查標出的問題：國名不在原文 23、學位關鍵字不在引用 16、名稱不在原文 13、名稱太長 6、名額加總不符 6、名額不在原文 3
+  ```
+
+- [x] 抽查與完整檢查、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
+
+  抽查同樣 10 筆：截止日 82 不再自己補年份（改成空白）；20 有兩個截止日（夥伴國 2/28、歐盟國 3/31），模型取了歐盟國的；國籍 159 錯（引用寫的是「各種學術背景」不是國籍，驗證者放行）。教育部名額加總 250≠225（新南向兩類都填了 25），程式檢查有標出來
+
+### 執行時發現（補強）
+
+- 溫度實驗：gemini-3.5-flash-lite 使用固定的取樣設定，LangChain 會忽略 temperature；9 次結果顯示錯誤大多固定（教育部新南向每次都寫成國名清單）
+- 國籍改由驗證者核對後，unclear 從原本未核對的狀態變成 80 筆；之前的 153 筆 worldwide 從來沒有被驗證過
+- 同一個學程對不同申請人有不同截止日（夥伴國、歐盟國），現在只能存一個；第 4 天做申請期（cycles）時要處理

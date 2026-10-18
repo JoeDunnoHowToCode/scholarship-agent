@@ -641,3 +641,33 @@ T1–T7 由 sub agent A、T8–T17 由 sub agent B 各自在獨立的 worktree �
 - 國籍改由驗證者核對後，unclear 從原本未核對的狀態變成 80 筆；之前的 153 筆 worldwide 從來沒有被驗證過
 - 同一個學程對不同申請人有不同截止日（夥伴國、歐盟國），現在只能存一個；第 4 天做申請期（cycles）時要處理
 - 教育部名額錯誤的根本原因（使用者要求追查）：轉錄稿正確（甲 15、乙 10，全文沒有 25）；第一輪大綱也正確；錯在第二輪把「選送赴特定國家名額計 35 名」寫成一條同時套用北歐、新南向甲、乙的規則，名額填總數 35，而合併規則把它複製給每一類。這是 schema 與合併規則的設計漏洞，不是模型讀錯。修法：名額只取只點名一個類別的規則（T32，紅綠循環）；quota 欄位說明改成「套用多個類別時留空」（section-6）。重抽後 8 類名額全對，加總 225
+
+## 第 3 天補強之二（ADR-046，2026-10-18）
+
+使用者要求先追查根本原因，三個錯誤的結果：
+
+- 北歐被加上碩士：類別的名額和學位共用一格引用，模型只引用名額那句，學位沒有依據；學位檢查又接受整份簡章的學位引用，所以放行；模型可能把「選送赴特定國家『新南向國家』」理解成包括北歐（推測）；學位清單表達不了「碩士限藝術、建築學群」。bachelor 在要求附引用（outline-4）之後 4 次都沒有再出現（outline-3 是 9 次都有）
+- 學程 159 的國籍：不是錯誤。完整引用是「open to individuals of all academic backgrounds and of all nationalities」，抽查時把引用截到 70 字，誤判成錯誤；之後抽查看完整引用
+- 學程 20 的截止日：同一頁有夥伴國 2/28、歐盟國 3/31 兩個截止日，資料格式只有一格截止日，模型每次挑的不一樣；178 個學程中 69 個在 deadline 附近提到申請人分組或輪次（關鍵字粗估）。屬於第 4 天申請期（cycles）的設計
+
+### 設計
+
+- CategoryDraft：`evidence` 拆成 `quota_evidence`、`degrees_evidence`，加 `degree_conditions`
+- OutlineCategory：同上；CategoryFact 加 `degree_conditions`（`evidence` 仍是這條規則的原文）
+- 合併：名額引用跟著名額來源（只點名一類的規則，或第一輪）；學位引用與學位條件跟著學位來源（明確規則 > 第一輪 > 全部 > 整個獎學金）
+- 學位檢查：有多個類別時只看該類別自己的學位引用；只有一個類別時才可以用整個獎學金的學位引用
+- 資料表 scholarship_categories 加 `degree_conditions`
+- 提示詞：extract-7、outline-5、section-7；這次只重抽教育部（約 NT$1）
+
+### Claude 自行決定（補強之二）
+
+32. 改既有測試：category_rules 的斷言從 `evidence` 改成 `degrees_evidence`（欄位拆開，使用者已同意方向，單獨一個 commit）
+33. 新欄位在 CategoryFact、OutlineCategory 給預設值空白（模型可以不填）；CategoryDraft 的新欄位必填但可空，讓整份抽取時模型一定會考慮
+
+### 檢查清單（補強之二）
+
+- [ ] T33 合併：名額引用、學位引用、學位條件跟著各自的來源 -> verify: `uv run pytest tests/test_merge.py -k evidence_follows`
+- [ ] T34 學位檢查：多個類別時只看自己的學位引用 -> verify: `uv run pytest tests/test_verify.py -k own_degree_quote`
+- [ ] 遷移：degree_conditions -> verify: `uv run alembic upgrade head` 與 `\d scholarship_categories`
+- [ ] 重抽教育部 -> verify: `uv run python -m app.features.scholarships.extract --source 3`，貼出 8 類的學位與條件
+- [ ] 完整檢查、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`

@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.features.scholarships import rules
 from app.features.scholarships.schemas import (
     CategoryDraft,
     CategoryFact,
@@ -64,6 +65,19 @@ def same_name(a: str, b: str) -> bool:
     return normalized(a) == normalized(b)
 
 
+def has_degree_rule(fact: CategoryFact) -> bool:
+    """這張卡的學位算不算數：有學位，而且引用（如果有）真的提到學位。
+
+    教育部北歐的例子：第二輪把學位寫在名額那張卡上，引用只講名額，
+    這種卡的學位沒有依據，不能蓋掉第一輪有依據的學位（ADR-046）。
+    """
+    if not fact.degrees:
+        return False
+    if fact.evidence is None:
+        return True
+    return any(rules.degree_supported(d, [fact.evidence]) for d in rules.DEGREE_KEYWORDS)
+
+
 def merge_category(
     name: str,
     explicit: list[CategoryFact],
@@ -91,8 +105,8 @@ def merge_category(
         else (detail.quota, detail.quota_evidence) if detail else (None, None)
     )
     # 學位：明確點名的規則 > 第一輪 > 「全部」的規則；學位的引用與條件跟著學位從哪裡來
-    explicit_degrees = [f for f in explicit if f.degrees]
-    shared_degrees = [f for f in shared if f.degrees]
+    explicit_degrees = [f for f in explicit if has_degree_rule(f)]
+    shared_degrees = [f for f in shared if has_degree_rule(f)]
     degree_conditions: str | None
     if explicit_degrees or not (detail and detail.degrees):
         source = explicit_degrees or shared_degrees
@@ -104,7 +118,9 @@ def merge_category(
     return CategoryDraft(
         name=name,
         quota=quota,
-        degrees=pick_list("degrees"),
+        degrees=unique(x for f in explicit_degrees for x in f.degrees)
+        or (list(detail.degrees) if detail else [])
+        or unique(x for f in shared_degrees for x in f.degrees),
         countries=pick_list("countries"),
         amount=first(f.amount for f in explicit) or first(f.amount for f in shared),
         eligibility="\n".join(

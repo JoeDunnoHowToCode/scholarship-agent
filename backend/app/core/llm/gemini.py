@@ -4,7 +4,7 @@ import base64
 from typing import Any
 
 from langchain_core.messages import HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from pydantic import BaseModel, SecretStr
 
 from app.core.llm.ratelimit import RateLimiter
@@ -105,3 +105,54 @@ class GeminiLLM:
         usage = getattr(message, "usage_metadata", None) or {}
         self.input_tokens += usage.get("input_tokens", 0)
         self.output_tokens += usage.get("output_tokens", 0)
+
+
+class GeminiEmbedder:
+    """符合 Embedder 插座的 Gemini 實作（gemini-embedding-2）。
+
+    gemini-embedding-2 不用 task_type 參數，而是在文字前面加前綴（Gemini 官方說明）：
+    原文寫成「title: 標題 | text: 內容」，問句寫成「task: search result | query: 問句」。
+    """
+
+    BATCH = 100  # 一次送幾段
+
+    def __init__(
+        self,
+        model: str,
+        api_key: SecretStr | None,
+        dimensions: int,
+        requests_per_minute: int = 60,
+    ) -> None:
+        if api_key is None or not api_key.get_secret_value():
+            raise MissingApiKeyError(
+                "沒有 Gemini 金鑰：請在 backend/.env 設定 GOOGLE_API_KEY=你的金鑰"
+            )
+        self._client = GoogleGenerativeAIEmbeddings(
+            model=model, google_api_key=api_key, output_dimensionality=dimensions
+        )
+        self._limiter = RateLimiter(requests_per_minute)  # ADR-042
+        self.model_id = f"{model}@{dimensions}"
+        self.characters = 0  # 送出的字數，用來粗估費用
+
+    def embed_documents(self, items: list[tuple[str, str]]) -> list[list[float]]:
+        texts = [f"title: {title or 'none'} | text: {content}" for title, content in items]
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), self.BATCH):
+            batch = texts[start : start + self.BATCH]
+            self._limiter.wait()
+            try:
+                vectors += self._client.embed_documents(batch, batch_size=self.BATCH)
+            except Exception as failure:
+                raise LLMError(f"{type(failure).__name__}: {failure}") from failure
+            self.characters += sum(len(t) for t in batch)
+        return vectors
+
+    def embed_query(self, text: str) -> list[float]:
+        self._limiter.wait()
+        query = f"task: search result | query: {text}"
+        try:
+            vector = self._client.embed_query(query)
+        except Exception as failure:
+            raise LLMError(f"{type(failure).__name__}: {failure}") from failure
+        self.characters += len(query)
+        return vector

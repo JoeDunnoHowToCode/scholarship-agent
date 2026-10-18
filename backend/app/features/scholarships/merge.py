@@ -208,7 +208,9 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
 
     # 類別沒有自己的學位或國家時，用整個獎學金的
     for category in categories:
-        category.degrees = category.degrees or values["degrees"]
+        if not category.degrees:
+            category.degrees = values["degrees"]
+            category.degrees_evidence = values["degrees_evidence"]
         category.countries = category.countries or values["countries"]
 
     values["total_quota"] = outline.total_quota or values["total_quota"]

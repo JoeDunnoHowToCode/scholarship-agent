@@ -306,3 +306,26 @@ def test_category_inheriting_program_degrees_also_inherits_the_quote() -> None:
     )
     (only,) = result.draft.categories
     assert (only.degrees, only.degrees_evidence) == (["master"], "a two-year Master's programme")
+
+
+def test_card_whose_quote_never_mentions_degrees_does_not_set_degrees() -> None:
+    # 教育部北歐的真實情況：第二輪把學位寫在名額那張卡上，但那張卡的引用只講名額；
+    # 這種卡的學位不能蓋掉第一輪有依據的學位、引用與條件（ADR-046）
+    outline = Outline(
+        name="GSSA", name_zh=None, provider=None, category_names=["北歐國家"],
+        category_details=[OutlineCategory(
+            name="北歐國家", quota=10, degrees=["master", "phd"], countries=[],
+            degrees_evidence="一般生一律以攻讀博士學位為限，惟「藝術學群」……得攻讀碩士或博士學位",
+            degree_conditions="碩士限藝術學群、建築規劃與設計學群",
+        )],
+    )
+    result = merge.merge_sections(
+        outline,
+        [section(category_facts=[
+            fact(["北歐國家"], quota=10, degrees=["phd"], evidence="(1)北歐國家(丹麥、瑞典、挪威、芬蘭、冰島)：10 名。"),
+        ])],
+    )
+    (nordic,) = result.draft.categories
+    assert nordic.degrees == ["master", "phd"]
+    assert nordic.degree_conditions == "碩士限藝術學群、建築規劃與設計學群"
+    assert nordic.quota == 10

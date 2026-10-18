@@ -1,6 +1,6 @@
 """申請期日期計算的單元測試。"""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from app.features.scholarships import cycles
 
@@ -55,3 +55,24 @@ def test_next_intake_adds_one_to_every_year() -> None:
     # 沒有四位數年份就不知道怎麼推
     assert cycles.next_intake("Fall") is None
     assert cycles.next_intake(None) is None
+
+
+def test_estimate_next_is_one_year_later() -> None:
+    # 今年 2026-11-01 開放、2027-01-31 截止：猜明年同一天同一時間，開放前 30 天開始回原網站檢查
+    estimate = cycles.estimate_next(
+        datetime(2026, 11, 1, tzinfo=UTC), datetime(2027, 1, 31, 22, 59, tzinfo=UTC), "2027/28"
+    )
+    assert estimate == cycles.Estimate(
+        opens_at=datetime(2027, 11, 1, tzinfo=UTC),
+        closes_at=datetime(2028, 1, 31, 22, 59, tzinfo=UTC),
+        intake="2028/29",
+        recheck_from=date(2027, 10, 2),
+    )
+    # 沒寫開放日：截止前 90 天開始檢查；閏年 2/29 截止，明年沒有 2/29，改成 2/28
+    leap = cycles.estimate_next(None, datetime(2028, 2, 29, 10, 0, tzinfo=UTC), None)
+    assert leap == cycles.Estimate(
+        opens_at=None,
+        closes_at=datetime(2029, 2, 28, 10, 0, tzinfo=UTC),
+        intake=None,
+        recheck_from=date(2028, 11, 30),
+    )

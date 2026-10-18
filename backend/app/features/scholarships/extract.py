@@ -177,9 +177,10 @@ def extract_long(
 def save_cycles(
     session: Session, row: Scholarship, windows: list[WindowDraft], statuses: list[str]
 ) -> None:
-    """抽出來的申請期整批重寫（ADR-047）；預估的那幾筆留著，除非新的一屆已經出現。"""
+    """申請期整批重寫（ADR-047）。預估的申請期是從真的申請期算出來的，也一起刪掉，
+    之後由 cycles 指令依新的資料重新產生，才不會留下依舊資料算出來的預估。"""
     now = datetime.now(UTC)
-    session.execute(delete(Cycle).where(Cycle.scholarship_id == row.id, Cycle.estimated.is_(False)))
+    session.execute(delete(Cycle).where(Cycle.scholarship_id == row.id))
     built: list[Cycle] = []
     for window, status in zip(windows, statuses, strict=True):
         # 年月日不齊全、或年份是模型自己補的，不建申請期（docs/day-04.md「Claude 自行決定」第 4 點）
@@ -215,10 +216,9 @@ def save_cycles(
         )
         session.add(cycle)
         built.append(cycle)
-    # 喚回（「Claude 自行決定」第 7 點）：新的一屆即將開放或開放中，就改回使用中、刪掉預估的申請期
+    # 喚回（「Claude 自行決定」第 7 點）：新的一屆即將開放或開放中，就改回使用中
     if any(c.status in ("upcoming", "open") for c in built):
         row.status = ScholarshipStatus.ACTIVE
-        session.execute(delete(Cycle).where(Cycle.scholarship_id == row.id, Cycle.estimated.is_(True)))
 
 
 def save(

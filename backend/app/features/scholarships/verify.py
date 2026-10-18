@@ -12,9 +12,9 @@ from pydantic import BaseModel, Field
 from app.core.llm.base import StructuredLLM
 from app.features.documents.checks import quote_in_source, quote_in_table_text
 from app.features.scholarships import rules
-from app.features.scholarships.schemas import ScholarshipDraft
+from app.features.scholarships.schemas import ScholarshipDraft, WindowDraft
 
-PROMPT_VERSION = "verify-4"  # 改提示詞就要改版本號
+PROMPT_VERSION = "verify-5"  # 改提示詞就要改版本號
 
 # 每個欄位的結果：
 # supported 有依據；empty 沒抽到值（沒有要核對的）；no_evidence 有值但沒附引用；
@@ -29,11 +29,12 @@ Status = Literal[
     "conflict",
     "year_not_in_quote",
     "degree_not_in_quote",
+    "incomplete",  # 截止日的年月日不齊全，不能建成申請期
 ]
 
 PROMPT = """你是查核員。下面每一項是從獎學金原文抽出的值，以及抽取時附上的原文引用。
 只根據引用本身判斷它是否支持這個值；引用沒寫到、寫得模糊、或要靠推測才成立，都算不支持。
-- deadline 的引用必須寫出那個日期（包括年份）；民國年加 1911 就是西元年，例如 115 年＝2026 年
+- deadline:N 的引用必須寫出那個日期（包括年份），而且適用對象（國籍、獎學金或自費）要和引用一致；民國年加 1911 就是西元年，例如 115 年＝2026 年
 - nationality 是 all 時，引用必須明確寫出開放所有國籍；listed 或 excluded 時，引用必須寫出那些國家
 
 {claims}
@@ -45,26 +46,47 @@ class Verdict(BaseModel):
     reason: str = Field(description="一句話說明")
 
 
+class ClaimVerdict(BaseModel):
+    claim: str = Field(description="要判斷的項目代號，照抄，例如 nationality、deadline:0")
+    supported: bool = Field(description="引用是否足以支持這個值")
+    reason: str = Field(description="一句話說明")
+
+
 class Verdicts(BaseModel):
-    nationality: Verdict
-    degrees: Verdict
+    verdicts: list[ClaimVerdict]
+
+
+def window_value(window: WindowDraft) -> str | None:
+    """截止日的年月日都有才組成要核對的值，附上適用對象；不齊全回傳 None。"""
+    if not (window.closes_year and window.closes_month and window.closes_day):
+        return None
+    date = f"{window.closes_year:04d}-{window.closes_month:02d}-{window.closes_day:02d}"
+    who = f"{window.nationality_scope} {', '.join(window.nationalities)}".strip()
+    return f"{date}（適用國籍：{who}；申請類型：{window.funding}）"
 
 
 def claims(draft: ScholarshipDraft) -> dict[str, tuple[Any, str | None]]:
-    """要核對的欄位：（值, 引用）。"""
+    """要核對的項目：（值, 引用）。每個申請窗口各一項（ADR-047）。"""
     nationality = (
         None
         if draft.nationality_scope == "unclear"
         else f"{draft.nationality_scope} {', '.join(draft.nationalities)}".strip()
     )
-    return {
+    found: dict[str, tuple[Any, str | None]] = {
         "nationality": (nationality, draft.nationality_evidence),
         "degrees": (draft.degrees, draft.degrees_evidence),
     }
+    for index, window in enumerate(draft.windows):
+        found[f"deadline:{index}"] = (window_value(window), window.evidence)
+    return found
 
 
 def rule_status(field: str, draft: ScholarshipDraft) -> Status | None:
-    """程式檢查（ADR-045）：學位關鍵字；沒問題回傳 None。"""
+    """程式檢查（ADR-045）：截止日年份要在引用裡、學位關鍵字；沒問題回傳 None。"""
+    if field.startswith("deadline:"):
+        window = draft.windows[int(field.split(":")[1])]
+        if window.closes_year and not rules.deadline_year_in_quote(window.closes_year, window.evidence):
+            return "year_not_in_quote"
     quotes = [draft.degrees_evidence]
     if field == "degrees" and not all(rules.degree_supported(d, quotes) for d in draft.degrees):
         return "degree_not_in_quote"
@@ -113,6 +135,8 @@ def verify(
     for field, (value, evidence) in claims(draft).items():
         if field in conflicts:
             status[field] = "conflict"
+        elif field.startswith("deadline:") and value is None:
+            status[field] = "incomplete"  # 只有月份或沒有年份，不能建成申請期
         elif value in (None, []):
             status[field] = "empty"
         elif not evidence:
@@ -125,20 +149,17 @@ def verify(
         else:
             to_ask[field] = (value, evidence)
     if to_ask:
-        # 第三關：一次問完需要判斷的欄位；不需要判斷的也要填，告訴模型略過
-        lines = [
-            f"- {field}：值 = {to_ask[field][0]}；引用 = 「{to_ask[field][1]}」"
-            if field in to_ask
-            else f"- {field}：（不需判斷，supported 填 true）"
-            for field in claims(draft)
-        ]
+        # 第三關：只把需要判斷的項目一次問完；AI 沒回答到的項目算不支持
+        lines = [f"- {field}：值 = {value}；引用 = 「{evidence}」" for field, (value, evidence) in to_ask.items()]
         verdicts = llm.extract(PROMPT.format(claims="\n".join(lines)), Verdicts)
+        answers = {v.claim: v.supported for v in verdicts.verdicts}
         for field in to_ask:
-            verdict: Verdict = getattr(verdicts, field)
-            status[field] = "supported" if verdict.supported else "not_supported"
+            status[field] = "supported" if answers.get(field) else "not_supported"
     return {
-        **status,
-        "deadlines": [],  # 每個申請窗口的核對結果（下一個紅綠循環補上）
+        "nationality": status["nationality"],
+        "degrees": status["degrees"],
+        # 每個申請窗口的核對結果，順序和 draft.windows 一樣
+        "deadlines": [status[f"deadline:{i}"] for i in range(len(draft.windows))],
         "categories": category_issues(draft, source),
         "issues": other_issues(draft, source),
     }

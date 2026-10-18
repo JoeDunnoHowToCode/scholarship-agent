@@ -70,8 +70,7 @@ def merge_category(
     shared: list[CategoryFact],
     detail: OutlineCategory | None = None,
 ) -> CategoryDraft:
-    """一個類別：明確點名它的規則 > 第一輪讀全文的類別資料 > 「全部」的規則。
-    名額只看只點名這一類的規則與第一輪的資料。"""
+    """一個類別：明確點名它的規則 > 第一輪讀全文的類別資料 > 「全部」的規則。"""
 
     def first[T](items: Iterable[T | None]) -> T | None:
         return next((item for item in items if item is not None), None)
@@ -83,12 +82,28 @@ def merge_category(
             or unique(x for f in shared for x in getattr(f, attr))
         )
 
+    # 名額：只取「只點名這一個類別」的規則（點名多個類別的規則，名額是那幾類的總數），
+    # 沒有才用第一輪的；名額的引用跟著名額從哪裡來
+    quota_facts = [f for f in explicit if len(f.applies_to) == 1 and f.quota is not None]
+    quota, quota_evidence = (
+        (quota_facts[0].quota, quota_facts[0].evidence)
+        if quota_facts
+        else (detail.quota, detail.quota_evidence) if detail else (None, None)
+    )
+    # 學位：明確點名的規則 > 第一輪 > 「全部」的規則；學位的引用與條件跟著學位從哪裡來
+    explicit_degrees = [f for f in explicit if f.degrees]
+    shared_degrees = [f for f in shared if f.degrees]
+    degree_conditions: str | None
+    if explicit_degrees or not (detail and detail.degrees):
+        source = explicit_degrees or shared_degrees
+        degrees_evidence = first(f.evidence for f in source)
+        degree_conditions = "\n".join(unique(f.degree_conditions for f in source if f.degree_conditions))
+    else:
+        degrees_evidence, degree_conditions = detail.degrees_evidence, detail.degree_conditions
+
     return CategoryDraft(
         name=name,
-        # 名額只取「只點名這一個類別」的規則：點名多個類別的規則，名額是那幾類的總數
-        quota=first(
-            [*(f.quota for f in explicit if len(f.applies_to) == 1), detail.quota if detail else None]
-        ),
+        quota=quota,
         degrees=pick_list("degrees"),
         countries=pick_list("countries"),
         amount=first(f.amount for f in explicit) or first(f.amount for f in shared),
@@ -96,11 +111,9 @@ def merge_category(
             unique(f.eligibility for f in explicit + shared if f.eligibility)
         )
         or None,
-        quota_evidence=None,
-        degrees_evidence=first(
-            [*(f.evidence for f in explicit), detail.degrees_evidence if detail else None]
-        ),
-        degree_conditions=None,
+        quota_evidence=quota_evidence,
+        degrees_evidence=degrees_evidence,
+        degree_conditions=degree_conditions or None,
     )
 
 

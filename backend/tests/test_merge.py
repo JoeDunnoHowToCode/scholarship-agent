@@ -264,3 +264,35 @@ def test_group_quota_is_not_copied_to_each_category() -> None:
         ])],
     )
     assert [c.quota for c in result.draft.categories] == [10, 15, 10]
+
+
+def test_evidence_follows_where_quota_and_degrees_come_from() -> None:
+    # ADR-046：名額的引用跟著名額的來源，學位的引用與條件跟著學位的來源
+    # 教育部北歐：名額來自第二輪只點名北歐的規則；學位與條件來自第一輪讀全文
+    outline = Outline(
+        name="GSSA", name_zh=None, provider=None,
+        category_names=["北歐國家", "新南向國家甲"],
+        category_details=[
+            OutlineCategory(
+                name="北歐國家", quota=None, degrees=["phd", "master"], countries=[],
+                degrees_evidence="一般生一律以攻讀博士學位為限",
+                degree_conditions="碩士限藝術學群、建築規劃與設計學群",
+            ),
+            OutlineCategory(name="新南向國家甲", quota=15, degrees=[], countries=[],
+                            quota_evidence="甲、印尼……不丹：15 名"),
+        ],
+    )
+    result = merge.merge_sections(
+        outline,
+        [section(category_facts=[
+            fact(["北歐國家"], quota=10, evidence="(1)北歐國家(丹麥、瑞典、挪威、芬蘭、冰島)：10 名"),
+            fact(["新南向國家甲"], degrees=["master", "phd"], evidence="選送赴特定國家「新南向國家」者，得攻讀碩士或博士學位"),
+        ])],
+    )
+    nordic, south = result.draft.categories
+    assert nordic.quota_evidence == "(1)北歐國家(丹麥、瑞典、挪威、芬蘭、冰島)：10 名"
+    assert nordic.degrees_evidence == "一般生一律以攻讀博士學位為限"
+    assert nordic.degree_conditions == "碩士限藝術學群、建築規劃與設計學群"
+    assert south.quota_evidence == "甲、印尼……不丹：15 名"
+    assert south.degrees_evidence == "選送赴特定國家「新南向國家」者，得攻讀碩士或博士學位"
+    assert south.degree_conditions is None

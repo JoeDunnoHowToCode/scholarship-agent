@@ -19,3 +19,11 @@ def test_to_utc_uses_default_time_2359_when_time_is_missing_or_invalid() -> None
     # 模型寫出不存在的時間（25:99）或亂寫格式，也當成 23:59
     assert cycles.to_utc(2027, 1, 31, "25:99", "Europe/Paris") == expected
     assert cycles.to_utc(2027, 1, 31, "noon", "Europe/Paris") == expected
+
+
+def test_to_utc_assumed_utc_plus_14_when_timezone_is_missing_or_invalid() -> None:
+    # 原文沒寫時區：用全世界最早到的 UTC+14，3 月 1 日 23:59＝UTC 09:59，並標記成「假設的」
+    expected = (datetime(2027, 3, 1, 9, 59, tzinfo=UTC), True)
+    assert cycles.to_utc(2027, 3, 1, None, None) == expected
+    # 模型寫出不存在的時區名稱，時間也寫錯：兩個都用預設值
+    assert cycles.to_utc(2027, 3, 1, "25:99", "Nowhere/City") == expected

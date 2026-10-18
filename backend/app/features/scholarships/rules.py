@@ -2,6 +2,7 @@
 
 import re
 import unicodedata
+from typing import Literal
 
 from app.features.documents.checks import quote_in_source
 
@@ -72,3 +73,29 @@ def quota_sum_mismatch(total: int | None, quotas: list[int | None]) -> bool:
     if total is None or not quotas or any(quota is None for quota in quotas):
         return False
     return sum(quota for quota in quotas if quota is not None) != total
+
+
+# Erasmus+ 的「Programme countries」（現在也寫成「歐盟成員國與關聯第三國」）：歐盟 27 國加 6 個關聯國
+# 「Partner countries」（未關聯的第三國）就是這 33 國以外的國家，台灣屬於這一類
+ERASMUS_PROGRAMME_COUNTRIES = (
+    "Austria", "Belgium", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark",
+    "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Ireland", "Italy",
+    "Latvia", "Lithuania", "Luxembourg", "Malta", "Netherlands", "Poland", "Portugal",
+    "Romania", "Slovakia", "Slovenia", "Spain", "Sweden",
+    "Iceland", "Liechtenstein", "Norway", "North Macedonia", "Serbia", "Turkey",
+)
+NOT_ASSOCIATED = re.compile(r"(not|non-)\s*associated[^,.;]*", re.IGNORECASE)
+PARTNER_WORD = re.compile(r"\bpartner\b", re.IGNORECASE)
+PROGRAMME_WORD = re.compile(r"\bprogram(me)?\b|associated to the", re.IGNORECASE)
+
+
+def erasmus_group(text: str) -> Literal["programme", "partner"] | None:
+    """從截止日的說明判斷是 Erasmus+ 的哪一群申請人；兩群都寫（適用所有人）或都沒寫就回傳 None。"""
+    if not re.search(r"countr|associated", text, re.IGNORECASE):
+        return None  # 沒提到國家（例如「Erasmus Mundus Programme scholarship」），不是在講申請人分群
+    # 「not associated to the Programme」是 partner；先拿掉這段，裡面的 Programme 才不會被當成 programme
+    partner = NOT_ASSOCIATED.search(text) is not None or PARTNER_WORD.search(text) is not None
+    programme = PROGRAMME_WORD.search(NOT_ASSOCIATED.sub("", text)) is not None
+    if partner == programme:
+        return None
+    return "partner" if partner else "programme"

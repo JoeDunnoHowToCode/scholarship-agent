@@ -6,6 +6,7 @@ CLAUDE.local.md
 # 原始快照（ADR-019，定期另外備份）
 backend/data/snapshots/
 backend/data/logs/
+backend/data/backups/
 
 # Python
 __pycache__/

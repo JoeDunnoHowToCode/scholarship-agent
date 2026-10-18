@@ -2,7 +2,8 @@
 # 連接埠只綁 127.0.0.1：只有這台電腦連得到，同一個網路的其他裝置連不進來
 services:
   postgres:
-    image: postgres:17
+    # PostgreSQL 17 加上 pgvector 擴充功能（ADR-050）；用 trixie 版，和原本 postgres:17 的作業系統一致（排序規則版本相同）
+    image: pgvector/pgvector:pg17-trixie
     environment:
       POSTGRES_USER: scholar
       POSTGRES_PASSWORD: scholar

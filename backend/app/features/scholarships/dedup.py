@@ -10,6 +10,7 @@ from urllib.parse import urlsplit, urlunsplit
 from sqlalchemy import select
 
 from app.features.scholarships.models import Scholarship
+from app.features.search.similar import similar_pairs
 from app.shared.db import SessionLocal
 
 
@@ -80,6 +81,9 @@ def find_duplicates(items: list[Candidate]) -> dict[int, int]:
     return {item.id: leader(item.id) for item in items if leader(item.id) != item.id}
 
 
+SIMILAR_THRESHOLD = 0.95  # 向量相似度門檻（第 5 天，實測後再調）
+
+
 def main() -> None:
     """依規則標記重複（ADR-048）：重複的那筆的 duplicate_of 指向代表的那筆。"""
     with SessionLocal() as session, session.begin():
@@ -89,7 +93,14 @@ def main() -> None:
         )
         for row in rows:
             row.duplicate_of = found.get(row.id)
+        # 第 5 天：向量相似度的「可能重複」只列出、不自動標記（docs/day-05.md「Claude 自行決定」第 16 點）
+        vectors = {r.id: list(r.embedding) for r in rows if r.embedding is not None and r.id not in found}
+        names = {r.id: r.name for r in rows}
+        pairs = similar_pairs(vectors, SIMILAR_THRESHOLD)
     print(f"{len(rows)} 筆獎學金，其中 {len(found)} 筆是重複：{found or '無'}")
+    print(f"向量相似度 ≥ {SIMILAR_THRESHOLD} 的可能重複：{len(pairs)} 對")
+    for a, b, similarity in pairs[:20]:
+        print(f"  {similarity:.3f}  {a} {names[a][:40]}  ↔  {b} {names[b][:40]}")
 
 
 if __name__ == "__main__":

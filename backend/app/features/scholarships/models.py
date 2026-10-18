@@ -1,10 +1,20 @@
 """scholarships 資料表（ADR-018 篩選欄位＋JSONB、ADR-024、ADR-025 整數主鍵）。"""
 
 import enum
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Identity, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Identity,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -51,6 +61,10 @@ class Scholarship(Base):
     )
     # 完整抽取結果（ADR-018）。修改時要整個重新指定，不要原地改字典
     extracted: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    # 去重（ADR-048）：這筆是另一筆的重複時，指向代表的那筆；代表的那筆被刪掉就改回空白
+    duplicate_of: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("scholarships.id", ondelete="SET NULL")
+    )
     # 抽自哪個來源；重跑時用它找到同一筆更新（冪等）。跨來源合併是第 4 天的去重
     source_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("sources.id"), unique=True
@@ -95,3 +109,48 @@ class Requirement(Base):
     required: Mapped[bool | None]
     count: Mapped[int | None]
     evidence: Mapped[str | None] = mapped_column(Text)  # 原文出處（逐字引用）
+
+
+class Cycle(Base):
+    """申請期（ADR-047）：某一屆、某一群申請人的開放日與截止日。"""
+
+    __tablename__ = "cycles"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    scholarship_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("scholarships.id", ondelete="CASCADE")
+    )
+    intake: Mapped[str | None] = mapped_column(Text)  # 入學年度，例如 2027/28
+    label: Mapped[str | None] = mapped_column(Text)  # 原文的說明，例如 Partner countries
+    # 時間都以 UTC 存，原始時區另外記（CLAUDE.md 程式規範）
+    opens_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closes_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    timezone: Mapped[str | None] = mapped_column(Text)  # 原文的時區（IANA 名稱）
+    timezone_assumed: Mapped[bool] = mapped_column(server_default=text("false"))
+    # 適用對象：國籍範圍沿用 ADR-043；申請類型：scholarship／self_funded／any
+    nationality_scope: Mapped[str] = mapped_column(String(16), server_default="all")
+    nationalities: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
+    funding: Mapped[str] = mapped_column(String(16), server_default="any")
+    status: Mapped[str] = mapped_column(String(16))  # estimated／upcoming／open／closed
+    estimated: Mapped[bool] = mapped_column(server_default=text("false"))  # 程式預估的下一屆
+    recheck_from: Mapped[date | None] = mapped_column(Date)  # 預估的申請期從哪天開始每週檢查官網
+    evidence: Mapped[str | None] = mapped_column(Text)
+
+
+class Change(Base):
+    """變更紀錄（ADR-020）：重要欄位的舊值與新值，和覆寫在同一個交易裡寫入。"""
+
+    __tablename__ = "changes"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    scholarship_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("scholarships.id", ondelete="CASCADE")
+    )
+    field: Mapped[str] = mapped_column(Text)
+    old_value: Mapped[Any] = mapped_column(JSONB)
+    new_value: Mapped[Any] = mapped_column(JSONB)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # 這次抽取用到的最新一份快照
+    snapshot_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("snapshots.id", ondelete="SET NULL")
+    )

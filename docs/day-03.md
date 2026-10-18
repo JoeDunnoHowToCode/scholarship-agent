@@ -666,8 +666,31 @@ T1–T7 由 sub agent A、T8–T17 由 sub agent B 各自在獨立的 worktree �
 
 ### 檢查清單（補強之二）
 
-- [ ] T33 合併：名額引用、學位引用、學位條件跟著各自的來源 -> verify: `uv run pytest tests/test_merge.py -k evidence_follows`
-- [ ] T34 學位檢查：多個類別時只看自己的學位引用 -> verify: `uv run pytest tests/test_verify.py -k own_degree_quote`
-- [ ] 遷移：degree_conditions -> verify: `uv run alembic upgrade head` 與 `\d scholarship_categories`
-- [ ] 重抽教育部 -> verify: `uv run python -m app.features.scholarships.extract --source 3`，貼出 8 類的學位與條件
-- [ ] 完整檢查、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
+- [x] T33 合併：名額引用、學位引用、學位條件跟著各自的來源 -> verify: `uv run pytest tests/test_merge.py -k evidence_follows`（紅：assert None == '(1)北歐國家…：10 名'，舊的合併把名額那句放進學位引用；綠：69 passed）
+- [x] T33b（執行時新增）類別沿用整個獎學金的學位時，學位引用也一起帶過來 -> verify: `uv run pytest tests/test_merge.py -k inheriting_program`（紅：assert (['master'], None) == …；綠：70 passed）
+- [x] T34 學位檢查：多個類別時只看自己的學位引用 -> verify: `uv run pytest tests/test_verify.py -k own_degree_quote`（紅：assert None == ['degree_not_in_quote:master']；綠：72 passed。只有一個類別的那個測試一開始就通過，它保護的是修改後仍要成立的例外）
+- [x] 遷移：degree_conditions -> verify: `uv run alembic upgrade head` 與 `\d scholarship_categories`
+
+  ```text
+  Running upgrade 38d397472d61 -> b89d21ff718e, degree conditions on categories
+  degree_conditions | text
+  ```
+
+- [x] 重抽教育部 -> verify: `uv run python -m app.features.scholarships.extract --source 3`
+
+  ```text
+  類別 8、文件 14、截止 2026-02-13、國籍 listed｜deadline=supported nationality=supported degrees=degree_not_in_quote；NT$1.1
+  名額：155、10、15、10、10、10、10、5（加總 225，正確）
+  學位：一般學群 {phd}（條件欄是整句學位規則）；其他 7 類 {master,phd}，條件空白
+  程式檢查：8 類都標了 degree_not_in_quote（學位引用是名額那句）
+  ```
+
+- [x] 完整檢查、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`（72 passed、All checks passed、no issues）
+
+### 執行時發現（補強之二）
+
+- 開工時 Docker 沒有在跑（電腦重開過），用 `open -a Docker` 啟動後 `docker compose up -d`
+- 單獨跑第一輪（NT$0.4）：每個類別的學位引用都對了（北歐、新南向是「一般生一律以攻讀博士學位為限，惟……」，特殊生是「……不限學群領域，得攻讀碩士或博士學位」），拆引用有效
+- 但第二輪把學位和名額寫在同一張卡、引用是名額那句；合併規則讓第二輪優先，第一輪正確的引用被蓋掉
+- 模型對例外條款的理解仍然錯：第一輪把北歐、新南向寫成 bachelor/master/phd，北歐的學位條件也沒填；這是模型理解力的問題，程式檢查只能擋住 bachelor（引用裡沒有「學士」），擋不住北歐的碩士（引用裡有「碩士」）
+- 本月 AI 費用估計約 NT$93（每月上限 NT$100），再做實驗要等 11 月

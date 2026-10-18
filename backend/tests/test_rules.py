@@ -56,3 +56,16 @@ def test_english_category_names_are_measured_in_words() -> None:
     long_name = "Internal consortium scholarship for partner country students"  # 剛好 8 個字
     assert rules.category_name_issue(long_name, source) is None
     assert rules.category_name_issue(long_name + " and others", source + " and others") == "name_too_long"
+
+
+def test_erasmus_country_groups_are_read_from_the_label() -> None:
+    # Erasmus+ 的固定用語：Programme countries＝歐盟 27 國加 6 個關聯國；Partner countries＝這 33 國以外
+    # 學程 20 的原文：「Programme Countries: All EU members states + Republic of North Macedonia + Iceland + …」
+    assert rules.erasmus_group("Programme Countries") == "programme"
+    assert rules.erasmus_group("EU Member States and Third Countries associated to the Erasmus+ Programme") == "programme"
+    assert rules.erasmus_group("Partner countries") == "partner"
+    assert rules.erasmus_group("Third Countries not associated to the Programme") == "partner"
+    # 兩種都寫，就是適用所有人；沒寫就判斷不了
+    assert rules.erasmus_group("Partner and programme country students") is None
+    assert rules.erasmus_group("Scholarship applicants") is None
+    assert len(rules.ERASMUS_PROGRAMME_COUNTRIES) == 33

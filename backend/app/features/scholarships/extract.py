@@ -38,9 +38,9 @@ from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
 # 提示詞版本：改了提示詞就要改號碼；和快照雜湊、模型一起決定要不要重抽（ADR-013）
-PROMPT_VERSION = "extract-8"
-OUTLINE_VERSION = "outline-6"
-SECTION_VERSION = "section-8"
+PROMPT_VERSION = "extract-9"
+OUTLINE_VERSION = "outline-7"
+SECTION_VERSION = "section-9"
 # 網頁合併後超過這個長度才切段（docs/day-03.md「Claude 自行決定」第 6 點）
 LONG_TEXT_CHARS = 100_000
 
@@ -48,7 +48,9 @@ RULES = """規則：
 - 只根據原文填寫；原文沒寫的欄位留空，不要推測
 - 國籍資格照原文填 nationality_scope；原文沒寫國籍資格就填 unclear，不要推測
 - 所有 evidence 欄位都要逐字複製原文的句子，不要改寫、不要翻譯
-- 截止日分成年、月、日填；原文沒寫年份就把年份留空，不要自己補；民國年加 1911 換成西元年
+- 截止日寫在申請窗口（windows）裡，年、月、日分開填；原文沒寫年份就把年份留空，不要自己補；民國年加 1911 換成西元年
+- 同一屆對不同申請人有不同截止日時（例如夥伴國與歐盟國、申請獎學金與自費、第一輪與第二輪），每個截止日各寫一個窗口，
+  用 nationality_scope、nationalities、funding 寫清楚適用對象，label 照抄原文的稱呼
 - degrees 是拿這個獎學金去讀的學位，不是申請人已經有的學歷（「需有學士學位」不代表可以讀學士）；原文明確寫可以讀學士才填 bachelor
 - 學位有附加條件時，學位清單列出所有可能讀的學位，條件寫進 degree_conditions。
   例：「一般生以博士為限，惟藝術學群得讀碩士」→ degrees 填 master、phd；degree_conditions 填「碩士限藝術學群」
@@ -58,6 +60,7 @@ EXTRACT_PROMPT = """你是留學獎學金資料的抽取助手。下面是同一
 每頁開頭標著網址。請整理成一筆獎學金資料。
 {rules}
 - 學程本身的獎學金（例如 Erasmus Mundus 獎學金）就是這筆資料的主角
+- 名稱要帶上學程名稱，例如「Erasmus Mundus Scholarship – SuCat」，不要只寫「Erasmus Mundus Scholarships」這種通用名稱
 - 只有一種名額時，categories 填一個、名稱用獎學金名稱
 
 原文：

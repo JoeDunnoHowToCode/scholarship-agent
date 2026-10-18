@@ -96,7 +96,11 @@ def merge_category(
             unique(f.eligibility for f in explicit + shared if f.eligibility)
         )
         or None,
-        evidence=first([*(f.evidence for f in explicit), detail.evidence if detail else None]),
+        quota_evidence=None,
+        degrees_evidence=first(
+            [*(f.evidence for f in explicit), detail.degrees_evidence if detail else None]
+        ),
+        degree_conditions=None,
     )
 
 

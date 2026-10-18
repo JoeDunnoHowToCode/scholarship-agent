@@ -38,7 +38,12 @@ class CategoryDraft(BaseModel):
     countries: list[str] = Field(description="這個類別可以去的國家，用英文國名")
     amount: str | None = Field(description="這個類別的補助金額，照原文寫")
     eligibility: str | None = Field(description="這個類別特有的資格條件")
-    evidence: str | None = Field(description="支持名額與學位的原文句子，逐字引用")
+    # ADR-046：名額和學位各有自己的引用，學位的附加條件另存一欄
+    quota_evidence: str | None = Field(description="寫著這個類別名額的原文句子，逐字引用")
+    degrees_evidence: str | None = Field(description="寫著這個類別可以讀哪些學位的原文句子，逐字引用")
+    degree_conditions: str | None = Field(
+        description="學位的附加條件，例如「碩士限藝術學群、建築規劃與設計學群」；沒有就留空"
+    )
 
 
 class RequirementDraft(BaseModel):
@@ -106,7 +111,13 @@ class OutlineCategory(BaseModel):
     quota: int | None = Field(description="名額，只填數字")
     degrees: list[Degree] = Field(description="這個類別可以讀的學位，套用全文所有相關規則")
     countries: list[str] = Field(description="這個類別可以去的國家，用英文國名；不限就留空清單")
-    evidence: str | None = Field(default=None, description="支持名額與學位的原文句子，逐字引用")
+    quota_evidence: str | None = Field(default=None, description="寫著名額的原文句子，逐字引用")
+    degrees_evidence: str | None = Field(
+        default=None, description="寫著可以讀哪些學位的原文句子，逐字引用"
+    )
+    degree_conditions: str | None = Field(
+        default=None, description="學位的附加條件，例如「碩士限藝術學群」；沒有就留空"
+    )
 
 
 class Outline(BaseModel):
@@ -135,6 +146,9 @@ class CategoryFact(BaseModel):
     countries: list[str] = Field(description="可以去的國家，用英文國名；沒提到就留空清單")
     amount: str | None = Field(description="補助金額，照原文寫")
     eligibility: str | None = Field(description="資格條件")
+    degree_conditions: str | None = Field(
+        default=None, description="學位的附加條件，例如「碩士限藝術學群」；沒有就留空"
+    )
     evidence: str | None = Field(description="這條規則的原文句子，逐字引用")
 
 

@@ -244,7 +244,8 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
         # ADR-040：每個獎學金至少一筆類別；模型漏填時用整個獎學金的資料補一筆
         only = CategoryDraft(
             name=draft.name, quota=None, degrees=draft.degrees, countries=draft.countries,
-            amount=draft.amount, eligibility=None, evidence=None,
+            amount=draft.amount, eligibility=None, quota_evidence=None,
+            degrees_evidence=draft.degrees_evidence, degree_conditions=None,
         )
         draft = draft.model_copy(update={"categories": [only]})
     status = verify.verify(llm, draft, raw, extra.get("conflicts", []))

@@ -99,7 +99,7 @@ def category_issues(draft: ScholarshipDraft, source: str) -> dict[str, list[str]
             issues.append(name_issue)
         if category.quota is not None and not rules.number_in_source(category.quota, source):
             issues.append("quota_not_in_source")
-        quotes = [category.evidence, draft.degrees_evidence]
+        quotes = [category.degrees_evidence, draft.degrees_evidence]
         issues += [
             f"degree_not_in_quote:{d}" for d in category.degrees if not rules.degree_supported(d, quotes)
         ]

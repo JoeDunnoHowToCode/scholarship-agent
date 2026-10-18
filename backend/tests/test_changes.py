@@ -66,3 +66,34 @@ def test_ignores_formatting_only_differences() -> None:
         ],
     }
     assert changes.diff_important(old, new) == []
+
+
+def test_detects_real_changes_in_field_order_with_original_values() -> None:
+    # 主辦單位調高月領金額、截止日從 1/31 提前到 1/15、拿掉成績單；這些都要記下來
+    old_windows = [{"closes_year": 2027, "closes_month": 1, "closes_day": 31, "label": None, "evidence": "31 Jan 2027"}]
+    new_windows = [{"closes_year": 2027, "closes_month": 1, "closes_day": 15, "label": None, "evidence": "15 Jan 2027"}]
+    old_requirements = [
+        {"doc_type": "cv", "details": "max 2 pages", "category": None, "evidence": "CV (max 2 pages)"},
+        {"doc_type": "transcript", "details": None, "category": None, "evidence": "Official transcripts"},
+    ]
+    new_requirements = [
+        {"doc_type": "cv", "details": "max 2 pages", "category": None, "evidence": "CV (max 2 pages)"},
+    ]
+    old = {
+        "amount": "EUR 1,200 per month ",  # 結尾多一個空白：紀錄裡要保留原本的樣子
+        "coverage": "Tuition fees",
+        "windows": old_windows,
+        "requirements": old_requirements,
+    }
+    # 新資料的欄位順序打亂；結果仍要依 IMPORTANT_FIELDS 的順序排
+    new = {
+        "requirements": new_requirements,
+        "windows": new_windows,
+        "coverage": "Tuition fees",
+        "amount": "EUR 1,400 per month",
+    }
+    assert changes.diff_important(old, new) == [
+        changes.Change("amount", "EUR 1,200 per month ", "EUR 1,400 per month"),
+        changes.Change("windows", old_windows, new_windows),
+        changes.Change("requirements", old_requirements, new_requirements),
+    ]

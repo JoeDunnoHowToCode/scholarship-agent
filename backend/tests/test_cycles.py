@@ -27,3 +27,16 @@ def test_to_utc_assumed_utc_plus_14_when_timezone_is_missing_or_invalid() -> Non
     assert cycles.to_utc(2027, 3, 1, None, None) == expected
     # 模型寫出不存在的時區名稱，時間也寫錯：兩個都用預設值
     assert cycles.to_utc(2027, 3, 1, "25:99", "Nowhere/City") == expected
+
+
+def test_cycle_status_gives_all_four_statuses() -> None:
+    # 申請期 2026-11-01 開放、2027-01-31 截止
+    opens = datetime(2026, 11, 1, tzinfo=UTC)
+    closes = datetime(2027, 1, 31, 22, 59, tzinfo=UTC)
+    assert cycles.cycle_status(opens, closes, datetime(2026, 10, 18, tzinfo=UTC), estimated=False) == "upcoming"
+    assert cycles.cycle_status(opens, closes, datetime(2026, 12, 1, tzinfo=UTC), estimated=False) == "open"
+    assert cycles.cycle_status(opens, closes, closes, estimated=False) == "closed"  # 截止那一刻就算截止
+    # 原文沒寫開放日：還沒截止就算開放中
+    assert cycles.cycle_status(None, closes, datetime(2026, 10, 18, tzinfo=UTC), estimated=False) == "open"
+    # 系統自己推估的明年申請期，不管日期都是 estimated
+    assert cycles.cycle_status(opens, closes, datetime(2026, 12, 1, tzinfo=UTC), estimated=True) == "estimated"

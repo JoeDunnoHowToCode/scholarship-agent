@@ -296,3 +296,13 @@ def test_evidence_follows_where_quota_and_degrees_come_from() -> None:
     assert south.quota_evidence == "甲、印尼……不丹：15 名"
     assert south.degrees_evidence == "選送赴特定國家「新南向國家」者，得攻讀碩士或博士學位"
     assert south.degree_conditions is None
+
+
+def test_category_inheriting_program_degrees_also_inherits_the_quote() -> None:
+    # 類別沒有自己的學位規則，學位用整個獎學金的；學位的引用也要一起帶過來，不然學位檢查找不到依據
+    result = merge.merge_sections(
+        OUTLINE,
+        [section(degrees=["master"], degrees_evidence="a two-year Master's programme")],
+    )
+    (only,) = result.draft.categories
+    assert (only.degrees, only.degrees_evidence) == (["master"], "a two-year Master's programme")

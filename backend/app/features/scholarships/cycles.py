@@ -2,7 +2,11 @@
 
 import re
 from datetime import UTC, datetime
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+# 申請期的四種狀態：推估的、還沒開放、開放中、已截止
+Status = Literal["estimated", "upcoming", "open", "closed"]
 
 # 24 小時制的 "HH:MM"：小時 00–23，分鐘 00–59
 TIME_PATTERN = re.compile(r"([01]\d|2[0-3]):([0-5]\d)")
@@ -22,3 +26,14 @@ def to_utc(year: int, month: int, day: int, time: str | None, timezone: str | No
         zone, assumed = EARLIEST_ZONE, True
     local = datetime(year, month, day, hour, minute, tzinfo=zone)
     return local.astimezone(UTC), assumed
+
+
+def cycle_status(opens_at: datetime | None, closes_at: datetime, now: datetime, *, estimated: bool) -> Status:
+    """依日期算出申請期現在的狀態；系統推估的申請期一律是 estimated。"""
+    if estimated:
+        return "estimated"
+    if now >= closes_at:
+        return "closed"
+    if opens_at is not None and now < opens_at:
+        return "upcoming"
+    return "open"

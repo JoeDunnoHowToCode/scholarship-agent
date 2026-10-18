@@ -37,3 +37,22 @@ def cycle_status(opens_at: datetime | None, closes_at: datetime, now: datetime, 
     if opens_at is not None and now < opens_at:
         return "upcoming"
     return "open"
+
+
+# 四位數年份，後面可以接「/」或「-」加兩位數年份（例如 2026/27）
+YEAR_PATTERN = re.compile(r"(?<!\d)(\d{4})(?!\d)(?:([/-])(\d{2})(?!\d))?")
+
+
+def _next_year(match: re.Match[str]) -> str:
+    text = str(int(match[1]) + 1)
+    if match[3]:
+        # 兩位數年份：補零，99 的下一年是 00
+        text += match[2] + f"{(int(match[3]) + 1) % 100:02d}"
+    return text
+
+
+def next_intake(intake: str | None) -> str | None:
+    """入學年度往後推一年（2026/27 → 2027/28）；找不到四位數年份就回傳 None。"""
+    if intake is None or not YEAR_PATTERN.search(intake):
+        return None
+    return YEAR_PATTERN.sub(_next_year, intake)

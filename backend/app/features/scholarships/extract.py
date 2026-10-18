@@ -37,9 +37,9 @@ from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
 # 提示詞版本：改了提示詞就要改號碼；和快照雜湊、模型一起決定要不要重抽（ADR-013）
-PROMPT_VERSION = "extract-6"
-OUTLINE_VERSION = "outline-4"
-SECTION_VERSION = "section-6"
+PROMPT_VERSION = "extract-7"
+OUTLINE_VERSION = "outline-5"
+SECTION_VERSION = "section-7"
 # 網頁合併後超過這個長度才切段（docs/day-03.md「Claude 自行決定」第 6 點）
 LONG_TEXT_CHARS = 100_000
 
@@ -49,6 +49,7 @@ RULES = """規則：
 - 所有 evidence 欄位都要逐字複製原文的句子，不要改寫、不要翻譯
 - 截止日分成年、月、日填；原文沒寫年份就把年份留空，不要自己補；民國年加 1911 換成西元年
 - degrees 是拿這個獎學金去讀的學位，不是申請人已經有的學歷（「需有學士學位」不代表可以讀學士）；原文明確寫可以讀學士才填 bachelor
+- 學位有附加條件時（例如碩士只限某些學群），學位照列，條件寫進 degree_conditions
 """
 
 EXTRACT_PROMPT = """你是留學獎學金資料的抽取助手。下面是同一個獎學金（或學程）網站的頁面文字，
@@ -64,7 +65,8 @@ EXTRACT_PROMPT = """你是留學獎學金資料的抽取助手。下面是同一
 OUTLINE_PROMPT = """下面是一份留學獎學金簡章的全文。只要列出獎學金名稱、提供單位、
 所有名額類別的名稱（取最細的一層，用簡短的名稱，例如「北歐國家」「新南向國家甲」，
 不要把國家清單當成名稱），
-以及總名額（total_quota）和每個類別的名額、可以讀的學位、可以去的國家、原文引用（category_details）。
+以及總名額（total_quota）和每個類別的資料（category_details）：名額與寫著名額的原文、
+可以讀的學位與寫著學位的原文、學位的附加條件（例如碩士只限某些學群）、可以去的國家。
 學位要套用全文所有相關規則，例如別章用統稱（「一般生」）寫的學位限制，也要套到它涵蓋的每個類別。
 degrees 是拿獎學金去讀的學位，不是申請人已經有的學歷；原文明確寫可以讀學士才填 bachelor。
 
@@ -203,6 +205,7 @@ def save(
             countries=c.countries,
             amount=c.amount,
             eligibility=c.eligibility,
+            degree_conditions=c.degree_conditions,
         )
         for c in draft.categories
     ]

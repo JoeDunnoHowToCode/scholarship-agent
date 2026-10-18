@@ -73,6 +73,8 @@ class ScholarshipCategory(Base):
     countries: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
     amount: Mapped[str | None] = mapped_column(Text)
     eligibility: Mapped[str | None] = mapped_column(Text)
+    # 學位的附加條件（ADR-046），例如「碩士限藝術學群」；評分時有條件的學位算待確認
+    degree_conditions: Mapped[str | None] = mapped_column(Text)
 
 
 class Requirement(Base):

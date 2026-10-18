@@ -160,14 +160,14 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
     # 申請窗口（ADR-047）：每一節找到的都收下；日期、適用對象、申請類型都一樣的只留第一筆
     windows: dict[tuple[Any, ...], WindowDraft] = {}
     for w in (w for s in sections for w in s.windows):
-        key = (
+        window_key = (
             (w.opens_year, w.opens_month, w.opens_day),
             (w.closes_year, w.closes_month, w.closes_day),
             w.nationality_scope,
             tuple(sorted(normalized(n) for n in w.nationalities)),
             w.funding,
         )
-        windows.setdefault(key, w)
+        windows.setdefault(window_key, w)
     values["windows"] = list(windows.values())
 
     for name, (evidence, order) in PRIORITY_FIELDS.items():

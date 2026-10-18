@@ -19,8 +19,7 @@ SECTION: dict[str, Any] = {
     "coverage": None, "amount": None, "nationality_scope": "unclear", "nationalities": [],
     "nationality_evidence": None, "nationality_conditions": None,
     "language_requirements": None, "other_eligibility": None, "requires_admission": None,
-    "intake": None, "total_quota": None, "deadline_year": None, "deadline_month": None,
-    "deadline_day": None, "deadline_timezone": None, "deadline_evidence": None,
+    "total_quota": None, "windows": [],
 }
 
 

@@ -26,13 +26,8 @@ EMPTY: dict[str, Any] = {
     "language_requirements": None,
     "other_eligibility": None,
     "requires_admission": None,
-    "intake": None,
     "total_quota": None,
-    "deadline_year": None,
-    "deadline_month": None,
-    "deadline_day": None,
-    "deadline_timezone": None,
-    "deadline_evidence": None,
+    "windows": [],
     "category_facts": [],
     "requirements": [],
 }
@@ -47,22 +42,14 @@ OUTLINE = Outline(name="GSSA", name_zh="留學獎學金", provider="教育部", 
 
 
 def test_first_value_wins_and_a_different_value_is_a_conflict() -> None:
-    # 截止日取第一個有值的；後面出現不同的值，記成衝突，交給驗證者標待確認
+    # 總名額取第一個有值的；後面出現不同的值，記成衝突，交給驗證者標待確認
+    # （ADR-047 之後截止日可以有很多個，不再是「只該有一個值」的欄位，改用總名額當例子）
     result = merge.merge_sections(
         OUTLINE,
-        [
-            section(),
-            section(deadline_year=2027, deadline_month=2, deadline_day=13,
-                    deadline_evidence="2 月 13 日截止"),
-            section(deadline_year=2027, deadline_month=3, deadline_day=16,
-                    deadline_evidence="3 月 16 日截止"),
-        ],
+        [section(), section(total_quota=225), section(total_quota=190)],
     )
-    # 截止日的年、月、日當成一個事實：一起取第一節的，日期不同就是衝突
-    draft = result.draft
-    assert (draft.deadline_year, draft.deadline_month, draft.deadline_day) == (2027, 2, 13)
-    assert draft.deadline_evidence == "2 月 13 日截止"
-    assert result.conflicts == ["deadline"]
+    assert result.draft.total_quota == 225
+    assert result.conflicts == ["total_quota"]
 
 
 def test_lists_are_unioned_and_texts_are_joined() -> None:

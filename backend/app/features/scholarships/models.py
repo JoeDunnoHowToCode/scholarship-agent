@@ -139,6 +139,8 @@ class Cycle(Base):
     estimated: Mapped[bool] = mapped_column(server_default=text("false"))  # 程式預估的下一屆
     recheck_from: Mapped[date | None] = mapped_column(Date)  # 預估的申請期從哪天開始每週檢查官網
     evidence: Mapped[str | None] = mapped_column(Text)
+    # 這個截止日的驗證結果（ADR-008）：supported 以外都算待確認；預估的申請期是空白
+    verification: Mapped[str | None] = mapped_column(String(32))
 
 
 class Change(Base):

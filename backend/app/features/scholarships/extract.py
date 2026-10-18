@@ -1,6 +1,6 @@
 """抽取指令（第 3 天）：把每個來源最新的快照抽成獎學金、類別與文件清單（ADR-008、031、034、037）。
 
-用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N] [--max-cost NT$]
+用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only]
 
 - 網頁：每頁的可見文字合併後整份抽（ADR-034：一般網頁整頁讀）；學程補抓的 PDF 轉錄後當成一頁（ADR-044）
 - PDF 與很長的網頁：切段 → 第一輪列大綱 → 第二輪逐節抽 → 程式合併
@@ -19,7 +19,7 @@ from app.core.fetch.text import decode_snapshot, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
 from app.features.documents.chunking import chunk_html, chunk_transcript, group_sections
 from app.features.documents.transcribe import transcribe
-from app.features.scholarships import changes, cycles, merge, verify
+from app.features.scholarships import changes, cycles, merge, rules, verify
 from app.features.scholarships.models import (
     Change,
     Cycle,
@@ -199,6 +199,13 @@ def save_cycles(
             )
         except ValueError:
             continue  # 不存在的日期（例如 2 月 30 日），不建申請期
+        scope, countries = window.nationality_scope, window.nationalities
+        if scope == "all" or not countries:
+            # Erasmus+ 的固定分群（Programme／Partner countries）用程式補上國家清單，不靠模型猜
+            group = rules.erasmus_group(window.label or window.evidence or "")
+            if group:
+                scope = "listed" if group == "programme" else "excluded"
+                countries = list(rules.ERASMUS_PROGRAMME_COUNTRIES)
         cycle = Cycle(
             scholarship_id=row.id,
             intake=window.intake,
@@ -207,12 +214,13 @@ def save_cycles(
             closes_at=closes_at,
             timezone=window.timezone,
             timezone_assumed=assumed,
-            nationality_scope=window.nationality_scope,
-            nationalities=window.nationalities,
+            nationality_scope=scope,
+            nationalities=countries,
             funding=window.funding,
             status=cycles.cycle_status(opens_at, closes_at, now, estimated=False),
             estimated=False,
             evidence=window.evidence,
+            verification=status,  # 沒通過驗證的照樣保留，但標出來（ADR-008）
         )
         session.add(cycle)
         built.append(cycle)
@@ -359,6 +367,16 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
     )
 
 
+def rebuild_cycles() -> None:
+    """改了申請期的規則後，用已存的抽取結果重建所有申請期（不呼叫 AI、不花錢）。"""
+    with SessionLocal() as session, session.begin():
+        rows = session.scalars(select(Scholarship).where(Scholarship.source_id.is_not(None))).all()
+        for row in rows:
+            windows = [WindowDraft.model_validate(w) for w in row.extracted.get("windows", [])]
+            save_cycles(session, row, windows, row.extracted["verification"]["deadlines"])
+    print(f"已重建 {len(rows)} 筆獎學金的申請期；接著執行 cycles 指令更新狀態與預估")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="把來源快照抽成獎學金資料")
     parser.add_argument("--source", type=int, help="只抽這個來源 id")
@@ -367,7 +385,13 @@ def main() -> None:
     parser.add_argument(
         "--max-cost", type=float, help="這次執行的 AI 費用上限（新台幣），超過就停下"
     )
+    parser.add_argument(
+        "--cycles-only", action="store_true", help="只用已存的抽取結果重建申請期，不呼叫 AI"
+    )
     args = parser.parse_args()
+    if args.cycles_only:
+        rebuild_cycles()
+        return
     try:
         llm = GeminiLLM(
             settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute

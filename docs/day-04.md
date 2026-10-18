@@ -30,6 +30,8 @@
 14. 變更紀錄的「對應快照」記這次抽取用到的最新一份快照
 15. 申請期的「其他里程碑」（面試、放榜）這次不做，等需要時再加
 16. 純函式由兩個 sub agent 平行做（申請期的日期邏輯；去重與變更比對），Claude 做資料表、抽取、驗證、合併與指令
+17. （執行時）驗證沒過的窗口照樣建成申請期，但申請期多一欄「驗證結果」標出來
+18. （執行時）Erasmus+ 的 Programme／Partner countries 用固定的 33 國清單補上
 
 ## 待使用者決策
 
@@ -247,14 +249,47 @@ def diff_important(old: dict, new: dict) -> list[Change]       # 欄位、舊值
   名稱帶學程名稱的提示詞（extract-9）要重抽後才生效
   ```
 
-### 5. 實跑（等 ADR-049 的金額）
+### 5. 實跑
 
-- [ ] 180 筆重抽 -> verify: extract 輸出統計，`--max-cost` 用使用者給的金額
-- [ ] 抽查 10 筆申請期和原網頁比對 -> verify: 貼出比對表（引用看完整，不截斷）
+- [x] 180 筆重抽 -> verify: 4 個 `extract --shard K/4 --max-cost 20` 的輸出統計
+
+  ```text
+  完成 33＋51＋47＋47＝178、沒變 2（教育部、學程 20 稍早已重抽）、失敗 0；約 NT$6.3＋10.5＋9.3＋9.5＝NT$35.6
+  申請窗口共 244 個：有依據 152、日期不完整 49、年份是模型補的 16、不支持 22、引用找不到 5
+  有多個窗口的獎學金 64 筆；沒有任何窗口的 33 筆
+  dedup：180 筆，0 筆重複（名稱帶上學程名稱後，原本的誤判消失）
+  cycles：開放中 59、即將開放 33、已截止 87；封存 51 筆；預估申請期 82 筆
+  ```
+
+- [x] 抽查 10 筆申請期和原網頁比對 -> verify: 比對表（引用看完整，不截斷）
+
+  | 來源 | 存下的截止日 | 完整引用 | 結果 |
+  | --- | --- | --- | --- |
+  | 140 Tropimundo | 2027-04-30（自費第二輪） | The second call for self-funded applicants … is expected to open in February 2027. | **錯**：引用沒有 4/30；驗證者判為不支持，但當時照樣建成申請期、看不出來（已修：申請期加驗證結果欄） |
+  | 140 Tropimundo | 2027-06-20 | … only for self-funded applicants from EU Member States … until 20 June 2027 … | 對；適用國家只列 3 國，不完整 |
+  | 123 LIVE | 2027-01-21 | MyLIVE platform opens from 19 Nov 2026 to 21 Jan 2027 … | 對 |
+  | 62 TERRA | 2026-02-15、04-30、06-15（三輪） | Application deadline: February 15, 2026 …／April 30, 2026／June 15, 2026 | 對（已截止、已封存） |
+  | 103 Flood Risk | 2027-01-03、02-07、03-07、04-15 | … 3 January 2027 (for non-European applicants)／7 February 2027 (for applicants from Europe)／… IPA countries: 7 March 2027／… 15 April 2027, 23:59 CET … | 對；4/15 那筆寫「Partner Countries」卻存成全部（已修：Erasmus 分群規則） |
+  | 87 Social Work | 2023-12-31、2024-01-15、2024-01-31（GMT+2） | Partner Countries: December 31st, 2023 (12:00 (GMT+2)) … | 對（網站還是舊的一屆）；GMT+2 換算正確 |
+  | 36 NOHA | 2026-12-15 23:59 GMT | 15 December 2026, 23.59pm GMT: Deadline for Erasmus Mundus scholarship applications | 對 |
+  | 165 EMECS | 2024-01-31 | The application deadline for the Fall intake 24/25 was January 31, 2024. | 對（舊的一屆，已封存） |
+  | 143 AMASE | 2027-01-15、02-15、03-31、05-31 | LTU 15 January 2027／… 15 February 2027／… 31 March 2027／… 31 May 2027 | 日期對；自費兩筆的國籍範圍是「列出」但國家清單空白 |
+  | 176 MULTIPHASE | 2027-01-31 23:59 巴黎 | January 31, 2027 End of the applications (11:59 PM Paris Time) | 對 |
+  | 173 FilmMemory | 2026-01-20 23:59 CET | The deadline for application is January 20 2026 at 11:59 PM (CET). | 對（已封存） |
+
+  日期 10 筆中 9 筆正確（學程 140 多抽了一筆、而且驗證者有擋）；適用對象有 3 筆不夠精確
+
+- [x] （執行時新增）修正後用已存的抽取結果重建申請期 -> verify: `uv run python -m app.features.scholarships.extract --cycles-only` 與 `cycles`
+
+  ```text
+  已重建 180 筆獎學金的申請期
+  申請期驗證結果：supported 152、not_supported 22、quote_not_found 5
+  「Partner Countries」→ 排除 33 國；「Partner and programme country students」→ 全部（兩群都適用）
+  ```
 
 ### 6. 收尾
 
-- [ ] 完整檢查、更新 progress.md、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
+- [x] 完整檢查、更新 progress.md、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`（89 passed、All checks passed、no issues）
 
 ## 執行時發現
 
@@ -265,3 +300,7 @@ def diff_important(old: dict, new: dict) -> list[Change]       # 欄位、舊值
 - 教育部試跑：「入學許可主動補件期間」也被當成申請窗口，它其實是補交文件的期間，屬於這次不做的「其他里程碑」
 - 重抽時原本只刪抽出來的申請期，預估的留著，結果留下依舊資料算出來的預估；改成重抽時全部刪掉，由 cycles 指令重新產生（bug，已修）
 - 教育部的入學年度第一次抽成「115」（民國年），之後一次抽成「2026/27」；模型每次寫法不同，只有四位數年份時才能推下一屆
+- 抽查發現驗證沒過的窗口照樣建成申請期，而且看不出來；改成申請期加「驗證結果」欄，沒過的保留但標待確認（沿用 ADR-008，「Claude 自行決定」第 17 點）
+- 「Partner Countries」「Programme Countries」是 Erasmus+ 的固定用語，模型常把它存成「全部」；加一條固定規則：Programme＝歐盟 27 國加冰島、列支敦斯登、挪威、北馬其頓、塞爾維亞、土耳其，Partner＝這 33 國以外（T：erasmus，「Claude 自行決定」第 18 點）
+- 加 `extract --cycles-only`：改了申請期的規則後，用已存的抽取結果重建，不呼叫 AI
+- 本月 AI 費用估計約 NT$135（舊上限 NT$100 已改為 NT$7,000，ADR-049）

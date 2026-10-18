@@ -116,34 +116,136 @@ def diff_important(old: dict, new: dict) -> list[Change]       # 欄位、舊值
 
 ### 1. 純函式（sub agent A：申請期）
 
-- [ ] C1 to_utc：IANA 時區換算 -> verify: `uv run pytest tests/test_cycles.py -k iana`
-- [ ] C2 to_utc：沒寫時間當 23:59 -> verify: `uv run pytest tests/test_cycles.py -k default_time`
-- [ ] C3 to_utc：時區沒寫或無效用 UTC+14 並標假設 -> verify: `uv run pytest tests/test_cycles.py -k assumed`
-- [ ] C4 cycle_status 四種狀態 -> verify: `uv run pytest tests/test_cycles.py -k status`
-- [ ] C5 next_intake -> verify: `uv run pytest tests/test_cycles.py -k intake`
-- [ ] C6 estimate_next：加一年、2/29、recheck_from -> verify: `uv run pytest tests/test_cycles.py -k estimate`
-- [ ] C7 should_archive -> verify: `uv run pytest tests/test_cycles.py -k archive`
+- [x] C1 to_utc：IANA 時區換算 -> verify: `uv run pytest tests/test_cycles.py -k iana`
+
+  ```text
+  紅（93a867e）：AttributeError: module 'app.features.scholarships.cycles' has no attribute 'to_utc'
+  綠（f00ba12）：1 passed
+  ```
+
+- [x] C2 to_utc：沒寫時間當 23:59 -> verify: `uv run pytest tests/test_cycles.py -k default_time`
+
+  ```text
+  紅（9b0c083）：ValueError: invalid literal for int() with base 10: ''（C1 的程式不處理沒寫時間）
+  綠（0cbd994）：1 passed
+  ```
+
+- [x] C3 to_utc：時區沒寫或無效用 UTC+14 並標假設 -> verify: `uv run pytest tests/test_cycles.py -k assumed`
+
+  ```text
+  紅（059f931）：ValueError: ZoneInfo keys must be normalized relative paths（C2 的程式不處理沒寫時區）
+  綠（9f57b8e）：1 passed
+  ```
+
+- [x] C4 cycle_status 四種狀態 -> verify: `uv run pytest tests/test_cycles.py -k status`
+
+  ```text
+  紅（cc0e009）：AttributeError: … no attribute 'cycle_status'
+  綠（95c6fa7）：1 passed
+  ```
+
+- [x] C5 next_intake -> verify: `uv run pytest tests/test_cycles.py -k intake`
+
+  ```text
+  紅（49392a2）：AttributeError: … no attribute 'next_intake'
+  綠（143db1e）：1 passed
+  ```
+
+- [x] C6 estimate_next：加一年、2/29、recheck_from -> verify: `uv run pytest tests/test_cycles.py -k estimate`
+
+  ```text
+  紅（f97dfaf）：AttributeError: … no attribute 'estimate_next'
+  綠（13e63b7）：1 passed
+  ```
+
+- [x] C7 should_archive -> verify: `uv run pytest tests/test_cycles.py -k archive`
+
+  ```text
+  紅（0b0f9fd）：AttributeError: … no attribute 'should_archive'
+  綠（6b22ef2）：1 passed
+  ```
 
 ### 2. 純函式（sub agent B：去重與變更）
 
-- [ ] D1 normalize_url -> verify: `uv run pytest tests/test_dedup.py -k url`
-- [ ] D2 normalize_name -> verify: `uv run pytest tests/test_dedup.py -k name`
-- [ ] D3 find_duplicates：網址或提供單位＋名稱相同、代表取 id 最小 -> verify: `uv run pytest tests/test_dedup.py -k duplicates`
-- [ ] D4 diff_important：只差格式不算、順序不同不算 -> verify: `uv run pytest tests/test_changes.py -k ignores`
-- [ ] D5 diff_important：金額、申請期、文件清單的變更 -> verify: `uv run pytest tests/test_changes.py -k detects`
+- [x] D1 normalize_url -> verify: `uv run pytest tests/test_dedup.py -k url`
+
+  ```text
+  紅（3b8c4a9）：AttributeError: module 'app.features.scholarships.dedup' has no attribute 'normalize_url'
+  綠（b10d5c1）：1 passed
+  ```
+
+- [x] D2 normalize_name -> verify: `uv run pytest tests/test_dedup.py -k name`
+
+  ```text
+  紅（d3806bb）：AttributeError: … no attribute 'normalize_name'
+  綠（273ba83）：1 passed
+  ```
+
+- [x] D3 find_duplicates：網址或提供單位＋名稱相同、可傳遞、代表取 id 最小、通用名稱不同提供單位不誤判 -> verify: `uv run pytest tests/test_dedup.py -k duplicates`
+
+  ```text
+  紅（7da70f7）：AttributeError: … no attribute 'Candidate'
+  綠（a72b2d6）：1 passed
+  ```
+
+- [x] D4 diff_important：只差格式、順序、引用不算 -> verify: `uv run pytest tests/test_changes.py -k ignores`
+
+  ```text
+  紅（a4fd0d6）：AttributeError: module 'app.features.scholarships.changes' has no attribute 'diff_important'
+  綠（ae269c4）：1 passed（這一步的實作只是 return []，真正的比對在 D5）
+  ```
+
+- [x] D5 diff_important：金額、申請期、文件清單的變更 -> verify: `uv run pytest tests/test_changes.py -k detects`
+
+  ```text
+  紅（3563d68）：AttributeError: … no attribute 'Change'
+  綠（4fb337a）：1 passed
+  ```
 
 ### 3. 抽取格式、合併、驗證（Claude）
 
-- [ ] 既有測試改成新格式（窗口清單；使用者已同意 ADR-047），單獨一個 commit -> verify: `uv run pytest`
-- [ ] M1 合併：多個窗口取聯集、完全相同的去重 -> verify: `uv run pytest tests/test_merge.py -k windows`
-- [ ] V1 驗證：每個窗口各自檢查年份 -> verify: `uv run pytest tests/test_verify.py -k window_year`
+- [x] 既有測試改成新格式（窗口清單；使用者已同意 ADR-047），單獨一個 commit -> verify: `uv run pytest`
+
+  ```text
+  紅（d0a205c）：17 failed, 56 passed（舊 schema 沒有 windows）
+  綠（b0cd0b3 之前的 feat commit）：73 passed
+  ```
+
+- [x] M1 合併：多個窗口取聯集、完全相同的去重 -> verify: `uv run pytest tests/test_merge.py -k windows`（紅：只剩一個窗口的斷言失敗；綠：74 passed）
+- [x] M2（執行時新增）同一天截止、同樣國籍的窗口算一個，留資訊最完整的 -> verify: `uv run pytest tests/test_merge.py -k same_closing_day`（紅：assert [WindowDraft(...)] == [WindowDraft(...)]；綠：88 passed）
+- [x] V1 驗證：每個窗口各自檢查年份與引用 -> verify: `uv run pytest tests/test_verify.py -k window_year`（紅：assert [] == ['year_not_in…', 'incomplete']；綠：3 passed）
 
 ### 4. 資料表與指令
 
-- [ ] 遷移：cycles、changes、duplicate_of -> verify: `uv run alembic upgrade head` 與 `\d cycles`
-- [ ] extract 寫申請期、變更紀錄、喚回 -> verify: 重抽教育部與學程 20，貼出申請期
-- [ ] cycles 指令 -> verify: `uv run python -m app.features.scholarships.cycles`，貼出各狀態筆數與封存筆數
-- [ ] dedup 指令 -> verify: `uv run python -m app.features.scholarships.dedup`，貼出重複筆數
+- [x] 遷移：cycles、changes、duplicate_of -> verify: `uv run alembic upgrade head` 與 `\d cycles`
+
+  ```text
+  Running upgrade b89d21ff718e -> f53d5aa66447（另外試過 downgrade -1 再 upgrade，兩個方向都成功）
+  cycles：id, scholarship_id, intake, label, opens_at, closes_at, timezone, timezone_assumed, nationality_scope,
+          nationalities, funding, status, estimated, recheck_from, evidence
+  ```
+
+- [x] extract 寫申請期、變更紀錄、喚回 -> verify: 重抽教育部與學程 20
+
+  ```text
+  學程 20：Partner countries 2027-02-28 22:59 UTC（Europe/Paris，排除 33 國）、Programme countries 2027-03-31 21:59 UTC（只限 33 國），兩筆都是即將開放
+  教育部（修正窗口去重後）：2026/27 一筆已截止（2026-02-13 04:00 UTC，Asia/Taipei）
+  ```
+
+- [x] cycles 指令 -> verify: `uv run python -m app.features.scholarships.cycles`
+
+  ```text
+  申請期：開放中 0、即將開放 2、已截止 1、預估 0
+  這次封存 0 筆、喚回 0 筆、新增預估申請期 1 筆（教育部 2027/28，2026-12-16 起重新檢查官網）
+  ```
+
+- [x] dedup 指令 -> verify: `uv run python -m app.features.scholarships.dedup`
+
+  ```text
+  180 筆獎學金，其中 1 筆是重複：{140: 17}
+  誤判：兩個不同學程的獎學金都叫「Erasmus Mundus Scholarships」、提供單位都是 European Commission；
+  名稱帶學程名稱的提示詞（extract-9）要重抽後才生效
+  ```
 
 ### 5. 實跑（等 ADR-049 的金額）
 
@@ -156,4 +258,10 @@ def diff_important(old: dict, new: dict) -> list[Change]       # 欄位、舊值
 
 ## 執行時發現
 
-（實作與實跑中遇到的事）
+- sub agent A 的 C2、C3 紅燈是 ValueError（前一步的程式碰到新情況直接出錯），不是斷言失敗；屬於行為真的不對，接受為紅燈
+- sub agent B 的 D4 綠燈只寫 return []，讓 D5 能真的先紅；兩個 sub agent 的 commit 用 cherry-pick 搬到 main
+- `dedup` 指令單獨執行時找不到 sources 表（外鍵）：獎學金的資料表檔案要先載入 sources 的定義（bug，已修）
+- 教育部試跑：同一個 2/13 截止日從三個章節各抽到一次、寫法不同，原本的去重太嚴；改成「同一天截止、同樣國籍」就算同一筆，留資訊最完整的（M2）
+- 教育部試跑：「入學許可主動補件期間」也被當成申請窗口，它其實是補交文件的期間，屬於這次不做的「其他里程碑」
+- 重抽時原本只刪抽出來的申請期，預估的留著，結果留下依舊資料算出來的預估；改成重抽時全部刪掉，由 cycles 指令重新產生（bug，已修）
+- 教育部的入學年度第一次抽成「115」（民國年），之後一次抽成「2026/27」；模型每次寫法不同，只有四位數年份時才能推下一屆

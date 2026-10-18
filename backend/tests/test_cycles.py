@@ -40,3 +40,18 @@ def test_cycle_status_gives_all_four_statuses() -> None:
     assert cycles.cycle_status(None, closes, datetime(2026, 10, 18, tzinfo=UTC), estimated=False) == "open"
     # 系統自己推估的明年申請期，不管日期都是 estimated
     assert cycles.cycle_status(opens, closes, datetime(2026, 12, 1, tzinfo=UTC), estimated=True) == "estimated"
+
+
+def test_next_intake_adds_one_to_every_year() -> None:
+    # 入學年度的各種寫法：學年、跨年範圍、單一年份
+    assert cycles.next_intake("2026/27") == "2027/28"
+    assert cycles.next_intake("2026-2028") == "2027-2029"
+    assert cycles.next_intake("2026/2027") == "2027/2028"
+    assert cycles.next_intake("2027") == "2028"
+    assert cycles.next_intake("Intake 2026/27") == "Intake 2027/28"  # 年份前後的文字保留
+    # 兩位數的年份要補零，99 的下一年是 00
+    assert cycles.next_intake("2098/99") == "2099/00"
+    assert cycles.next_intake("2099/00") == "2100/01"
+    # 沒有四位數年份就不知道怎麼推
+    assert cycles.next_intake("Fall") is None
+    assert cycles.next_intake(None) is None

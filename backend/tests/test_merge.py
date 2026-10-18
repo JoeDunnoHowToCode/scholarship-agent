@@ -332,8 +332,10 @@ def window(**fields: Any) -> WindowDraft:
 def test_windows_from_all_sections_are_kept_once_each() -> None:
     # 學程 20 的例子：夥伴國 2/28、歐盟國 3/31 兩個截止日都要留下；
     # 另一節又寫了一次夥伴國 2/28（只是引用的句子不同），只留一筆
-    partner = dict(closes_year=2027, closes_month=2, closes_day=28,
-                   nationality_scope="excluded", nationalities=["France"], funding="scholarship")
+    partner: dict[str, Any] = {
+        "closes_year": 2027, "closes_month": 2, "closes_day": 28,
+        "nationality_scope": "excluded", "nationalities": ["France"], "funding": "scholarship",
+    }
     result = merge.merge_sections(
         OUTLINE,
         [

@@ -18,6 +18,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+# 外鍵指向 sources、snapshots：先載入它們的資料表定義，只用到這個檔案的指令（例如 dedup）才不會找不到表
+from app.features.sources import models as _source_models  # noqa: F401
 from app.shared.db import Base
 
 

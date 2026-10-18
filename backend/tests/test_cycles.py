@@ -76,3 +76,14 @@ def test_estimate_next_is_one_year_later() -> None:
         intake=None,
         recheck_from=date(2028, 11, 30),
     )
+
+
+def test_should_archive_only_when_no_cycle_is_still_active() -> None:
+    # 今年截止了、只剩推估的明年：沒有可以申請的申請期，封存
+    assert cycles.should_archive(["closed", "estimated"])
+    assert cycles.should_archive(["closed"])
+    # 還有一個申請期開放中或即將開放，就不封存
+    assert not cycles.should_archive(["closed", "open"])
+    assert not cycles.should_archive(["closed", "upcoming"])
+    # 一個申請期都不知道：不知道截止日，不能封存
+    assert not cycles.should_archive([])

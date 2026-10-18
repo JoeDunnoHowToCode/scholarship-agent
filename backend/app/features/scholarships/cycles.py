@@ -86,3 +86,8 @@ def estimate_next(opens_at: datetime | None, closes_at: datetime, intake: str | 
     else:
         recheck = next_closes - timedelta(days=90)
     return Estimate(next_opens, next_closes, next_intake(intake), recheck.date())
+
+
+def should_archive(statuses: list[Status]) -> bool:
+    """沒有任何申請期還能申請（開放中或即將開放）就封存；一個申請期都沒有時不封存。"""
+    return bool(statuses) and not any(status in ("upcoming", "open") for status in statuses)

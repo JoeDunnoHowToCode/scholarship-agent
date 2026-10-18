@@ -349,3 +349,22 @@ def test_windows_from_all_sections_are_kept_once_each() -> None:
         (2, 28, "excluded"), (3, 31, "listed"),
     ]
     assert result.draft.windows[0].evidence == "Feb 28th 2027"
+
+
+def test_same_closing_day_for_the_same_nationalities_is_one_window() -> None:
+    # 教育部的真實情況：2/13 的截止日在三個章節各抽到一次，寫法不同
+    # （一筆寫了「申請獎學金」和時區、一筆沒寫申請類型、一筆連時區都沒寫）
+    # 截止日同一天、適用國籍一樣，就是同一個窗口：留下資訊最完整的那筆
+    complete = window(closes_year=2026, closes_month=2, closes_day=13, closes_time="12:00",
+                      timezone="Asia/Taipei", funding="scholarship", label="開放網路報名起訖時間")
+    result = merge.merge_sections(
+        OUTLINE,
+        [
+            section(windows=[window(closes_year=2026, closes_month=2, closes_day=13,
+                                    closes_time="12:00")]),
+            section(windows=[complete]),
+            section(windows=[window(closes_year=2026, closes_month=2, closes_day=13,
+                                    timezone="Asia/Taipei")]),
+        ],
+    )
+    assert result.draft.windows == [complete]

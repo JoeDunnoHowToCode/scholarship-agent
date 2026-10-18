@@ -19,11 +19,14 @@ from app.core.fetch.text import decode_snapshot, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
 from app.features.documents.chunking import chunk_html, chunk_transcript, group_sections
 from app.features.documents.transcribe import transcribe
-from app.features.scholarships import merge, verify
+from app.features.scholarships import changes, cycles, merge, verify
 from app.features.scholarships.models import (
+    Change,
+    Cycle,
     Requirement,
     Scholarship,
     ScholarshipCategory,
+    ScholarshipStatus,
 )
 from app.features.scholarships.schemas import (
     CategoryDraft,
@@ -171,14 +174,63 @@ def extract_long(
     }
 
 
+def save_cycles(
+    session: Session, row: Scholarship, windows: list[WindowDraft], statuses: list[str]
+) -> None:
+    """抽出來的申請期整批重寫（ADR-047）；預估的那幾筆留著，除非新的一屆已經出現。"""
+    now = datetime.now(UTC)
+    session.execute(delete(Cycle).where(Cycle.scholarship_id == row.id, Cycle.estimated.is_(False)))
+    built: list[Cycle] = []
+    for window, status in zip(windows, statuses, strict=True):
+        # 年月日不齊全、或年份是模型自己補的，不建申請期（docs/day-04.md「Claude 自行決定」第 4 點）
+        if status in ("incomplete", "year_not_in_quote"):
+            continue
+        assert window.closes_year and window.closes_month and window.closes_day
+        try:
+            closes_at, assumed = cycles.to_utc(
+                window.closes_year, window.closes_month, window.closes_day,
+                window.closes_time, window.timezone,
+            )
+            opens_at = (
+                cycles.to_utc(window.opens_year, window.opens_month, window.opens_day, "00:00", window.timezone)[0]
+                if window.opens_year and window.opens_month and window.opens_day
+                else None
+            )
+        except ValueError:
+            continue  # 不存在的日期（例如 2 月 30 日），不建申請期
+        cycle = Cycle(
+            scholarship_id=row.id,
+            intake=window.intake,
+            label=window.label,
+            opens_at=opens_at,
+            closes_at=closes_at,
+            timezone=window.timezone,
+            timezone_assumed=assumed,
+            nationality_scope=window.nationality_scope,
+            nationalities=window.nationalities,
+            funding=window.funding,
+            status=cycles.cycle_status(opens_at, closes_at, now, estimated=False),
+            estimated=False,
+            evidence=window.evidence,
+        )
+        session.add(cycle)
+        built.append(cycle)
+    # 喚回（「Claude 自行決定」第 7 點）：新的一屆即將開放或開放中，就改回使用中、刪掉預估的申請期
+    if any(c.status in ("upcoming", "open") for c in built):
+        row.status = ScholarshipStatus.ACTIVE
+        session.execute(delete(Cycle).where(Cycle.scholarship_id == row.id, Cycle.estimated.is_(True)))
+
+
 def save(
     session: Session,
     source: Source,
     draft: ScholarshipDraft,
     extracted: dict[str, Any],
+    snapshot_id: int | None,
 ) -> Scholarship:
-    """獎學金以 source_id 找同一筆更新；類別與文件清單整批刪掉重寫（同一個交易）。"""
+    """獎學金以 source_id 找同一筆更新；類別、文件清單、申請期整批重寫，變更紀錄一起寫（同一個交易）。"""
     row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
+    old = dict(row.extracted) if row is not None else None
     if row is None:
         row = Scholarship(source_id=source.id)
         session.add(row)
@@ -200,6 +252,21 @@ def save(
     row.last_verified_at = datetime.now(UTC)
     row.extracted = extracted  # JSONB 整個重新指定
     session.flush()  # 先拿到 id，類別與文件才能指向它
+
+    # 變更紀錄（ADR-020）：原文真的變了才寫；只因提示詞或模型改版而重抽的不寫（「Claude 自行決定」第 12 點）
+    if old is not None and old.get("meta", {}).get("snapshots") != extracted["meta"]["snapshots"]:
+        for change in changes.diff_important(old, extracted):
+            session.add(
+                Change(
+                    scholarship_id=row.id,
+                    field=change.field,
+                    old_value=change.old,
+                    new_value=change.new,
+                    changed_at=datetime.now(UTC),
+                    snapshot_id=snapshot_id,
+                )
+            )
+    save_cycles(session, row, draft.windows, extracted["verification"]["deadlines"])
 
     session.execute(delete(Requirement).where(Requirement.scholarship_id == row.id))
     session.execute(delete(ScholarshipCategory).where(ScholarshipCategory.scholarship_id == row.id))
@@ -279,7 +346,8 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
         **extra,
         "meta": meta,
     }
-    save(session, source, verified, extracted)
+    latest = max(snapshots, key=lambda snap: snap.fetched_at)
+    save(session, source, verified, extracted, latest.id)
     checks = " ".join(f"{f}={status[f]}" for f in ("nationality", "degrees"))
     flagged = len(status["categories"]) + len(status["issues"])
     return (

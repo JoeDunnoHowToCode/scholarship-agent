@@ -16,7 +16,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.db import Base
 
@@ -59,6 +59,8 @@ class Scholarship(Base):
         Enum(ScholarshipStatus, native_enum=False, values_callable=_enum_values, length=16),
         server_default=ScholarshipStatus.ACTIVE.value,
     )
+    # 這筆獎學金的申請期（ADR-047）；列表查詢時用 selectinload 一次載入，避免 N+1
+    cycles: Mapped[list["Cycle"]] = relationship(passive_deletes=True)
     # 完整抽取結果（ADR-018）。修改時要整個重新指定，不要原地改字典
     extracted: Mapped[dict[str, Any]] = mapped_column(JSONB)
     # 去重（ADR-048）：這筆是另一筆的重複時，指向代表的那筆；代表的那筆被刪掉就改回空白

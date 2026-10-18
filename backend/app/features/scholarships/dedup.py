@@ -1,8 +1,16 @@
-"""找出重複的獎學金（ADR-048）：只用規則比對網址、提供者和名稱，不花 AI 費用。"""
+"""找出重複的獎學金（ADR-048）：只用規則比對網址、提供者和名稱，不花 AI 費用。
+
+用法：uv run python -m app.features.scholarships.dedup
+"""
 
 import unicodedata
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
+
+from sqlalchemy import select
+
+from app.features.scholarships.models import Scholarship
+from app.shared.db import SessionLocal
 
 
 def normalize_url(url: str) -> str:
@@ -70,3 +78,19 @@ def find_duplicates(items: list[Candidate]) -> dict[int, int]:
             a, b = leader(first_with_key[key]), leader(item.id)
             parent[max(a, b)] = min(a, b)
     return {item.id: leader(item.id) for item in items if leader(item.id) != item.id}
+
+
+def main() -> None:
+    """依規則標記重複（ADR-048）：重複的那筆的 duplicate_of 指向代表的那筆。"""
+    with SessionLocal() as session, session.begin():
+        rows = session.scalars(select(Scholarship).where(Scholarship.source_id.is_not(None))).all()
+        found = find_duplicates(
+            [Candidate(r.id, r.provider, r.name, r.official_url) for r in rows]
+        )
+        for row in rows:
+            row.duplicate_of = found.get(row.id)
+    print(f"{len(rows)} 筆獎學金，其中 {len(found)} 筆是重複：{found or '無'}")
+
+
+if __name__ == "__main__":
+    main()

@@ -17,6 +17,7 @@ from app.features.scholarships.schemas import (
     RequirementDraft,
     ScholarshipDraft,
     SectionFacts,
+    WindowDraft,
 )
 
 # 「事實」欄位：只該有一個值。取第一個有值的；後面出現不同的值就記成衝突
@@ -156,8 +157,18 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         if len({getattr(s, name) for s in found}) > 1:
             conflicts.append(name)
 
-    # 申請窗口（ADR-047）：每一節找到的都收下
-    values["windows"] = [w for s in sections for w in s.windows]
+    # 申請窗口（ADR-047）：每一節找到的都收下；日期、適用對象、申請類型都一樣的只留第一筆
+    windows: dict[tuple[Any, ...], WindowDraft] = {}
+    for w in (w for s in sections for w in s.windows):
+        key = (
+            (w.opens_year, w.opens_month, w.opens_day),
+            (w.closes_year, w.closes_month, w.closes_day),
+            w.nationality_scope,
+            tuple(sorted(normalized(n) for n in w.nationalities)),
+            w.funding,
+        )
+        windows.setdefault(key, w)
+    values["windows"] = list(windows.values())
 
     for name, (evidence, order) in PRIORITY_FIELDS.items():
         decider = min(

@@ -34,7 +34,9 @@ class CategoryDraft(BaseModel):
 
     name: str = Field(description="類別名稱；整個獎學金只有一種時，填獎學金名稱")
     quota: int | None = Field(description="名額，只填數字；原文沒寫就留空")
-    degrees: list[Degree] = Field(description="這個類別可以讀的學位")
+    degrees: list[Degree] = Field(
+        description="這個類別可以讀的所有學位，包括要符合附加條件才能讀的（條件寫在 degree_conditions）"
+    )
     countries: list[str] = Field(description="這個類別可以去的國家，用英文國名")
     amount: str | None = Field(description="這個類別的補助金額，照原文寫")
     eligibility: str | None = Field(description="這個類別特有的資格條件")
@@ -42,7 +44,7 @@ class CategoryDraft(BaseModel):
     quota_evidence: str | None = Field(description="寫著這個類別名額的原文句子，逐字引用")
     degrees_evidence: str | None = Field(description="寫著這個類別可以讀哪些學位的原文句子，逐字引用")
     degree_conditions: str | None = Field(
-        description="學位的附加條件，例如「碩士限藝術學群、建築規劃與設計學群」；沒有就留空"
+        description="哪個學位要符合什麼條件才能讀，例如「碩士限藝術學群、建築規劃與設計學群」；所有學位都沒有條件就留空"
     )
 
 
@@ -109,14 +111,16 @@ class OutlineCategory(BaseModel):
 
     name: str = Field(description="類別名稱，和 category_names 一致")
     quota: int | None = Field(description="名額，只填數字")
-    degrees: list[Degree] = Field(description="這個類別可以讀的學位，套用全文所有相關規則")
+    degrees: list[Degree] = Field(
+        description="這個類別可以讀的所有學位，套用全文所有相關規則；包括要符合附加條件才能讀的"
+    )
     countries: list[str] = Field(description="這個類別可以去的國家，用英文國名；不限就留空清單")
     quota_evidence: str | None = Field(default=None, description="寫著名額的原文句子，逐字引用")
     degrees_evidence: str | None = Field(
         default=None, description="寫著可以讀哪些學位的原文句子，逐字引用"
     )
     degree_conditions: str | None = Field(
-        default=None, description="學位的附加條件，例如「碩士限藝術學群」；沒有就留空"
+        default=None, description="哪個學位要符合什麼條件才能讀，例如「碩士限藝術學群」；沒有條件就留空"
     )
 
 
@@ -147,7 +151,7 @@ class CategoryFact(BaseModel):
     amount: str | None = Field(description="補助金額，照原文寫")
     eligibility: str | None = Field(description="資格條件")
     degree_conditions: str | None = Field(
-        default=None, description="學位的附加條件，例如「碩士限藝術學群」；沒有就留空"
+        default=None, description="哪個學位要符合什麼條件才能讀，例如「碩士限藝術學群」；沒有條件就留空"
     )
     evidence: str | None = Field(description="這條規則的原文句子，逐字引用")
 

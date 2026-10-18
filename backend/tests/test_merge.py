@@ -143,7 +143,7 @@ def test_category_rules_use_explicit_facts_before_all() -> None:
     )
     general, nordic, special = result.draft.categories
     assert (general.name, general.quota, general.degrees) == ("一般學群", 155, ["phd"])
-    assert general.evidence == "一律以攻讀博士學位為限"
+    assert general.degrees_evidence == "一律以攻讀博士學位為限"  # ADR-046：學位有自己的引用
     assert general.amount == "每年 1 萬 6 千美元"
     assert general.eligibility == "需有入學許可"
     assert (nordic.quota, nordic.countries) == (10, ["Denmark", "Sweden"])

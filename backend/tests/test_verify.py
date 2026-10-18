@@ -3,7 +3,11 @@
 from typing import Any
 
 from app.features.scholarships import verify
-from app.features.scholarships.schemas import CategoryDraft, ScholarshipDraft, WindowDraft
+from app.features.scholarships.schemas import (
+    CategoryDraft,
+    ScholarshipDraft,
+    WindowDraft,
+)
 
 SOURCE = "一般生一律以攻讀博士學位為限。(1)北歐國家：10 名。新南向國家者，得攻讀碩士或博士學位：15 名。"
 

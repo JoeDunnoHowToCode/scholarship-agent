@@ -335,6 +335,8 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
             degrees_evidence=draft.degrees_evidence, degree_conditions=None,
         )
         draft = draft.model_copy(update={"categories": [only]})
+    # 整份抽取的網頁也可能把同一個截止日寫兩次（例如表格和內文各一次），同一個截止日只留一筆
+    draft = draft.model_copy(update={"windows": merge.dedupe_windows(draft.windows)})
     status = verify.verify(llm, draft, raw, extra.get("conflicts", []))
     verified = verify.apply_verification(draft, status)
     deadline = earliest_deadline(verified.windows)

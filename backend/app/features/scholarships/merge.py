@@ -146,6 +146,29 @@ def combine(first: RequirementDraft, second: RequirementDraft) -> RequirementDra
     )
 
 
+def completeness(window: WindowDraft) -> int:
+    """窗口寫了多少資訊：有值的欄位數，加上有寫明的申請類型。"""
+    filled = sum(value not in (None, [], "") for value in window.model_dump().values())
+    return filled + (window.funding != "any")
+
+
+def dedupe_windows(windows: list[WindowDraft]) -> list[WindowDraft]:
+    """截止日同一天、適用國籍一樣，就是同一個窗口：留下資訊最完整的那筆（一樣完整時留先出現的）。
+
+    教育部的例子：2/13 的截止日在三個章節各抽到一次，寫法略有不同。
+    """
+    kept: dict[tuple[Any, ...], WindowDraft] = {}
+    for w in windows:
+        window_key = (
+            (w.closes_year, w.closes_month, w.closes_day),
+            w.nationality_scope,
+            tuple(sorted(normalized(n) for n in w.nationalities)),
+        )
+        if window_key not in kept or completeness(w) > completeness(kept[window_key]):
+            kept[window_key] = w
+    return list(kept.values())
+
+
 def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResult:
     values: dict[str, Any] = {}
     conflicts: list[str] = []
@@ -157,18 +180,8 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         if len({getattr(s, name) for s in found}) > 1:
             conflicts.append(name)
 
-    # 申請窗口（ADR-047）：每一節找到的都收下；日期、適用對象、申請類型都一樣的只留第一筆
-    windows: dict[tuple[Any, ...], WindowDraft] = {}
-    for w in (w for s in sections for w in s.windows):
-        window_key = (
-            (w.opens_year, w.opens_month, w.opens_day),
-            (w.closes_year, w.closes_month, w.closes_day),
-            w.nationality_scope,
-            tuple(sorted(normalized(n) for n in w.nationalities)),
-            w.funding,
-        )
-        windows.setdefault(window_key, w)
-    values["windows"] = list(windows.values())
+    # 申請窗口（ADR-047）：每一節找到的都收下，同一個截止日只留一筆
+    values["windows"] = dedupe_windows([w for s in sections for w in s.windows])
 
     for name, (evidence, order) in PRIORITY_FIELDS.items():
         decider = min(

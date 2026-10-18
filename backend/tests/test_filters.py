@@ -38,7 +38,7 @@ def test_empty_filters_only_drop_duplicates_and_estimates() -> None:
         nationality=None, degree=None, country=None,
         deadline_after=None, deadline_before=None, open_only=False,
     )
-    sql, params = sql_and_params(chosen)
+    sql, _ = sql_and_params(chosen)
     where = sql.split("WHERE", 1)[1]  # 只看篩選條件；SELECT 本來就會列出 nationality_scope 這些欄位
     assert "nationality_scope" not in where
     assert "cycles.status" not in where

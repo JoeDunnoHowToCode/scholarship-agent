@@ -9,6 +9,7 @@ dependencies = [
     "httpx>=0.28.1",
     "langchain-google-genai>=4.4.0",
     "pdfplumber>=0.11.10",
+    "pgvector>=0.5.1",
     "protego>=0.7.0",
     "psycopg[binary]>=3.3.6",
     "pydantic-settings>=2.15.0",

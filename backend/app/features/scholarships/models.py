@@ -4,6 +4,7 @@ import enum
 from datetime import date, datetime
 from typing import Any
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     Date,
@@ -21,6 +22,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 # 外鍵指向 sources、snapshots：先載入它們的資料表定義，只用到這個檔案的指令（例如 dedup）才不會找不到表
 from app.features.sources import models as _source_models  # noqa: F401
 from app.shared.db import Base
+
+EMBEDDING_DIMENSIONS = 1536  # gemini-embedding-2 縮成 1,536 維，低於 pgvector 索引上限 2,000（ADR-050）
 
 
 class ScholarshipStatus(enum.StrEnum):
@@ -69,6 +72,10 @@ class Scholarship(Base):
     duplicate_of: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("scholarships.id", ondelete="SET NULL")
     )
+    # 用一句話搜尋獎學金用的向量（ADR-032、050）；embed_hash 是組成向量的文字的雜湊，沒變就不重算
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIMENSIONS))
+    embed_model: Mapped[str | None] = mapped_column(Text)
+    embed_hash: Mapped[str | None] = mapped_column(String(64))
     # 抽自哪個來源；重跑時用它找到同一筆更新（冪等）。跨來源合併是第 4 天的去重
     source_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("sources.id"), unique=True

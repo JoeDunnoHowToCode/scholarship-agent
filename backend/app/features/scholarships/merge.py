@@ -22,9 +22,7 @@ from app.features.scholarships.schemas import (
 # 「事實」欄位：只該有一個值。取第一個有值的；後面出現不同的值就記成衝突
 # 每個欄位配上它的引用欄位，引用跟著值一起取
 FACT_FIELDS: dict[str, str | None] = {
-    "deadline_timezone": None,
     "total_quota": None,
-    "intake": None,
     "requires_admission": None,
 }
 # 有優先順序的欄位：取排在最前面的答案，引用跟著做出決定的那一節
@@ -158,12 +156,8 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         if len({getattr(s, name) for s in found}) > 1:
             conflicts.append(name)
 
-    # 截止日的年、月、日是一個事實：一起取第一個有年或月的那一節，日期不同就是衝突
-    dated = [s for s in sections if s.deadline_year is not None or s.deadline_month is not None]
-    for part in ("deadline_year", "deadline_month", "deadline_day", "deadline_evidence"):
-        values[part] = getattr(dated[0], part) if dated else None
-    if len({(s.deadline_year, s.deadline_month, s.deadline_day) for s in dated}) > 1:
-        conflicts.insert(0, "deadline")
+    # 申請窗口（ADR-047）：每一節找到的都收下
+    values["windows"] = [w for s in sections for w in s.windows]
 
     for name, (evidence, order) in PRIORITY_FIELDS.items():
         decider = min(

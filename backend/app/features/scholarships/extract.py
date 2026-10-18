@@ -29,6 +29,7 @@ from app.features.scholarships.schemas import (
     CategoryDraft,
     Outline,
     ScholarshipDraft,
+    WindowDraft,
     section_schema,
 )
 from app.features.sources.fetch import SNAPSHOT_DIR, in_shard, latest_snapshot
@@ -230,6 +231,16 @@ def save(
     return row
 
 
+def earliest_deadline(windows: list[WindowDraft]) -> str | None:
+    """年月日齊全的窗口裡，最早的截止日（YYYY-MM-DD）；沒有就回傳 None。"""
+    dates = [
+        f"{w.closes_year:04d}-{w.closes_month:02d}-{w.closes_day:02d}"
+        for w in windows
+        if w.closes_year and w.closes_month and w.closes_day
+    ]
+    return min(dates, default=None)
+
+
 def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
     """抽一個來源，回傳一行摘要；內容和提示詞都沒變就跳過。"""
     snapshots = documents(session, source)
@@ -256,8 +267,7 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
         draft = draft.model_copy(update={"categories": [only]})
     status = verify.verify(llm, draft, raw, extra.get("conflicts", []))
     verified = verify.apply_verification(draft, status)
-    # 年份不在引用裡（模型自己補的）就不組成完整日期（ADR-045）
-    deadline = None if status["deadline"] == "year_not_in_quote" else verify.deadline_text(verified)
+    deadline = earliest_deadline(verified.windows)
     extracted = {
         **verified.model_dump(mode="json"),
         "deadline": deadline,
@@ -267,11 +277,12 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
         "meta": meta,
     }
     save(session, source, verified, extracted)
-    checks = " ".join(f"{f}={status[f]}" for f in ("deadline", "nationality", "degrees"))
+    checks = " ".join(f"{f}={status[f]}" for f in ("nationality", "degrees"))
     flagged = len(status["categories"]) + len(status["issues"])
     return (
         f"類別 {len(verified.categories)}、文件 {len(verified.requirements)}、"
-        f"截止 {deadline}、國籍 {verified.nationality_scope}｜{checks}｜其他待確認 {flagged}"
+        f"窗口 {len(verified.windows)}、最早截止 {deadline}、國籍 {verified.nationality_scope}"
+        f"｜{checks}｜其他待確認 {flagged}"
     )
 
 

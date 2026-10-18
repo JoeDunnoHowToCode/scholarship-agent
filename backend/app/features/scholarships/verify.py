@@ -46,42 +46,25 @@ class Verdict(BaseModel):
 
 
 class Verdicts(BaseModel):
-    deadline: Verdict
     nationality: Verdict
     degrees: Verdict
 
 
-def deadline_text(draft: ScholarshipDraft) -> str | None:
-    """年月日都有才組成 YYYY-MM-DD；缺任何一個就沒有完整的截止日。"""
-    if draft.deadline_year and draft.deadline_month and draft.deadline_day:
-        return f"{draft.deadline_year:04d}-{draft.deadline_month:02d}-{draft.deadline_day:02d}"
-    return None
-
-
 def claims(draft: ScholarshipDraft) -> dict[str, tuple[Any, str | None]]:
-    """要核對的三個欄位：（值, 引用）。"""
-    deadline = None
-    if draft.deadline_year or draft.deadline_month:
-        deadline = deadline_text(draft) or (
-            f"{draft.deadline_year or '????'}-{draft.deadline_month or '??'}-{draft.deadline_day or '??'}"
-        )
+    """要核對的欄位：（值, 引用）。"""
     nationality = (
         None
         if draft.nationality_scope == "unclear"
         else f"{draft.nationality_scope} {', '.join(draft.nationalities)}".strip()
     )
     return {
-        "deadline": (deadline, draft.deadline_evidence),
         "nationality": (nationality, draft.nationality_evidence),
         "degrees": (draft.degrees, draft.degrees_evidence),
     }
 
 
 def rule_status(field: str, draft: ScholarshipDraft) -> Status | None:
-    """程式檢查（ADR-045）：截止日年份、學位關鍵字；沒問題回傳 None。"""
-    year = draft.deadline_year
-    if field == "deadline" and year and not rules.deadline_year_in_quote(year, draft.deadline_evidence):
-        return "year_not_in_quote"
+    """程式檢查（ADR-045）：學位關鍵字；沒問題回傳 None。"""
     quotes = [draft.degrees_evidence]
     if field == "degrees" and not all(rules.degree_supported(d, quotes) for d in draft.degrees):
         return "degree_not_in_quote"
@@ -155,6 +138,7 @@ def verify(
             status[field] = "supported" if verdict.supported else "not_supported"
     return {
         **status,
+        "deadlines": [],  # 每個申請窗口的核對結果（下一個紅綠循環補上）
         "categories": category_issues(draft, source),
         "issues": other_issues(draft, source),
     }

@@ -59,6 +59,39 @@ class RequirementDraft(BaseModel):
     evidence: str | None = Field(description="要求這份文件的原文句子，逐字引用")
 
 
+# 截止日適用哪些申請人（ADR-047）：國籍範圍沿用 ADR-043 的寫法；申請類型分獎學金、自費、不分
+WindowScope = Literal["all", "listed", "excluded"]
+Funding = Literal["scholarship", "self_funded", "any"]
+
+
+class WindowDraft(BaseModel):
+    """一個申請窗口：某一屆、某一群申請人的開放日與截止日（ADR-047）。"""
+
+    label: str | None = Field(
+        description="原文怎麼稱呼這個截止日或它的適用對象，例如 Partner countries、第一輪；沒有就留空"
+    )
+    intake: str | None = Field(description="入學年度，例如 2027/28")
+    opens_year: int | None = Field(description="開放申請日的西元年；沒寫就留空")
+    opens_month: int | None = Field(description="開放申請日的月份；沒寫就留空")
+    opens_day: int | None = Field(description="開放申請日的日；沒寫就留空")
+    # ADR-045：原文沒寫年份時年份必須留空，不能自己補
+    closes_year: int | None = Field(description="截止日的西元年；原文沒寫年份就留空，不要推測")
+    closes_month: int | None = Field(description="截止日的月份 1–12；沒寫就留空")
+    closes_day: int | None = Field(description="截止日的日 1–31；沒寫就留空")
+    closes_time: str | None = Field(description="截止時間，24 小時制 HH:MM；沒寫就留空")
+    timezone: str | None = Field(
+        description="時區，用 IANA 名稱，例如 Europe/Paris、Asia/Taipei；原文寫「Paris time」就填 Europe/Paris；沒寫就留空"
+    )
+    nationality_scope: WindowScope = Field(
+        description="這個截止日適用哪些國籍：不分國籍填 all；只限某些國家填 listed；除了某些國家都適用填 excluded"
+    )
+    nationalities: list[str] = Field(description="listed 或 excluded 時的國家（英文國名）；all 時留空清單")
+    funding: Funding = Field(
+        description="適用申請獎學金的人填 scholarship；適用自費生填 self_funded；不分填 any"
+    )
+    evidence: str | None = Field(description="寫著這個截止日的原文句子，逐字引用")
+
+
 class ProgramFacts(BaseModel):
     """整個獎學金共用的欄位。"""
 
@@ -87,14 +120,10 @@ class ProgramFacts(BaseModel):
     requires_admission: bool | None = Field(
         description="申請獎學金前是否必須先拿到學校的入學許可；原文沒說就留空"
     )
-    intake: str | None = Field(description="入學年度，例如 2027/28")
     total_quota: int | None = Field(description="原文寫的總名額，只填數字；沒寫就留空")
-    # ADR-045：截止日拆成年月日，原文沒寫年份時年份必須留空，不能自己補
-    deadline_year: int | None = Field(description="截止日的西元年；原文沒寫年份就留空，不要推測")
-    deadline_month: int | None = Field(description="截止日的月份 1–12；沒寫就留空")
-    deadline_day: int | None = Field(description="截止日的日 1–31；沒寫就留空")
-    deadline_timezone: str | None = Field(description="截止時間的時區，例如 CET；原文沒寫就留空")
-    deadline_evidence: str | None = Field(description="寫著截止日的原文句子，逐字引用")
+    windows: list[WindowDraft] = Field(
+        description="所有申請窗口；同一屆對不同申請人（國籍、獎學金或自費、第幾輪）有不同截止日時，每個各寫一筆"
+    )
 
 
 class ScholarshipDraft(ProgramFacts):

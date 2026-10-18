@@ -9,6 +9,7 @@ from app.features.scholarships.schemas import (
     OutlineCategory,
     RequirementDraft,
     SectionFacts,
+    WindowDraft,
 )
 
 EMPTY: dict[str, Any] = {
@@ -316,3 +317,33 @@ def test_card_whose_quote_never_mentions_degrees_does_not_set_degrees() -> None:
     assert nordic.degrees == ["master", "phd"]
     assert nordic.degree_conditions == "碩士限藝術學群、建築規劃與設計學群"
     assert nordic.quota == 10
+
+
+def window(**fields: Any) -> WindowDraft:
+    empty: dict[str, Any] = {
+        "label": None, "intake": None, "opens_year": None, "opens_month": None, "opens_day": None,
+        "closes_year": None, "closes_month": None, "closes_day": None, "closes_time": None,
+        "timezone": None, "nationality_scope": "all", "nationalities": [], "funding": "any",
+        "evidence": None,
+    }
+    return WindowDraft(**{**empty, **fields})
+
+
+def test_windows_from_all_sections_are_kept_once_each() -> None:
+    # 學程 20 的例子：夥伴國 2/28、歐盟國 3/31 兩個截止日都要留下；
+    # 另一節又寫了一次夥伴國 2/28（只是引用的句子不同），只留一筆
+    partner = dict(closes_year=2027, closes_month=2, closes_day=28,
+                   nationality_scope="excluded", nationalities=["France"], funding="scholarship")
+    result = merge.merge_sections(
+        OUTLINE,
+        [
+            section(windows=[window(**partner, evidence="Feb 28th 2027"),
+                             window(closes_year=2027, closes_month=3, closes_day=31,
+                                    nationality_scope="listed", nationalities=["France"])]),
+            section(windows=[window(**partner, evidence="Application deadline for Partners Countries")]),
+        ],
+    )
+    assert [(w.closes_month, w.closes_day, w.nationality_scope) for w in result.draft.windows] == [
+        (2, 28, "excluded"), (3, 31, "listed"),
+    ]
+    assert result.draft.windows[0].evidence == "Feb 28th 2027"

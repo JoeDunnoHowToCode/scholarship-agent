@@ -43,3 +43,16 @@ def test_time_check_uses_only_cycles_that_apply_to_the_user() -> None:
     assert checks.time_check([closed, replace(partner, status="estimated", verified=False)], "TW") == "unclear"
     # 適用的申請期都截止了：不符合
     assert checks.time_check([closed, eu], "TW") == "fail"
+
+
+def test_degree_check_marks_degrees_with_conditions_unclear() -> None:
+    # 教育部北歐國家：原則上只能讀博士，碩士限藝術、建築學群（ADR-046）；程式不判斷使用者的學群，只標待確認
+    nordic = "碩士限藝術學群、建築規劃與設計學群"
+    assert checks.degree_check("master", ["master", "phd"], nordic) == "unclear"
+    assert checks.degree_check("phd", ["master", "phd"], nordic) == "pass"  # 條件只講碩士，讀博士不受影響
+    # 沒有附加條件：清單裡有就符合，沒有就不符合
+    assert checks.degree_check("master", ["master", "phd"], None) == "pass"
+    assert checks.degree_check("master", ["master", "phd"], "") == "pass"
+    assert checks.degree_check("bachelor", ["master", "phd"], None) == "fail"
+    # 原文沒寫學位：待確認
+    assert checks.degree_check("master", [], None) == "unclear"

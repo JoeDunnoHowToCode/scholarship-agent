@@ -60,17 +60,11 @@ def time_check(cycles: list[CycleInfo], user: str) -> CheckResult:
     """時間來不來得及：只看還有機會申請的申請期。"""
     if not cycles:
         return "unclear"  # 不知道截止日
-    possible = still_possible(cycles, user)
-    if any(
-        cycle.status in ("open", "upcoming")
-        and cycle.verified
-        and nationality_check(user, cycle.nationality_scope, list(cycle.nationalities)) == "pass"
-        for cycle in possible
-    ):
+    if any(cycle.status in ("open", "upcoming") and cycle.verified for cycle in applicable(cycles, user)):
         return "pass"  # 確定適用你、開放中或即將開放、截止日核對過
     # 截止日沒核對過、只有程式猜的明年日期、或不確定國籍適不適用：待確認
     # 一個都沒有（都截止了、只給自費生、或國籍不符合）：不符合
-    return "unclear" if possible else "fail"
+    return "unclear" if still_possible(cycles, user) else "fail"
 
 
 def degree_check(target: str, degrees: list[str], conditions: str | None) -> CheckResult:

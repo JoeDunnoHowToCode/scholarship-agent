@@ -35,6 +35,7 @@ from app.features.scholarships.schemas import (
     WindowDraft,
     section_schema,
 )
+from app.features.sources.catalogue import CATALOGUE_URL
 from app.features.sources.fetch import SNAPSHOT_DIR, in_shard, latest_snapshot
 from app.features.sources.models import FetchMethod, Snapshot, Source
 from app.shared.db import SessionLocal
@@ -311,6 +312,21 @@ def save(
     return row
 
 
+# EACEA 目錄頁的原文（ADR-053）：全世界的學生都可以申請學程，另有獎學金給優秀的學生
+CATALOGUE_EVIDENCE = (
+    "Master's level students from all over the world can apply. "
+    "Additionally, scholarships are available for outstanding students."
+)
+
+
+def from_catalogue(session: Session, source: Source) -> bool:
+    """這個來源是不是從 EACEA 目錄解析出來的學程網站。"""
+    if source.parent_id is None:
+        return False
+    parent = session.get(Source, source.parent_id)
+    return parent is not None and parent.url == CATALOGUE_URL
+
+
 def earliest_deadline(windows: list[WindowDraft]) -> str | None:
     """年月日齊全的窗口裡，最早的截止日（YYYY-MM-DD）；沒有就回傳 None。"""
     dates = [
@@ -349,6 +365,12 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
     draft = draft.model_copy(update={"windows": merge.dedupe_windows(draft.windows)})
     status = verify.verify(llm, draft, raw, extra.get("conflicts", []))
     verified = verify.apply_verification(draft, status)
+    if verified.nationality_scope == "unclear" and from_catalogue(session, source):
+        # ADR-053：EACEA 學程自己的網站沒寫國籍，用目錄頁的說明當依據，驗證結果記成 catalogue
+        verified = verified.model_copy(
+            update={"nationality_scope": "all", "nationalities": [], "nationality_evidence": CATALOGUE_EVIDENCE}
+        )
+        status["nationality"] = "catalogue"
     deadline = earliest_deadline(verified.windows)
     extracted = {
         **verified.model_dump(mode="json"),

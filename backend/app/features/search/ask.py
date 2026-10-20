@@ -109,6 +109,13 @@ def resolve(
     return None, ranked
 
 
+def nationality_note(status: str | None) -> str:
+    """國籍的驗證結果要怎麼告訴 AI：依據來自 EACEA 目錄頁（ADR-053）、或待確認。"""
+    if status == "catalogue":
+        return "（依據：EACEA 目錄頁的說明，不是學程網站）"
+    return "" if status in ("supported", "empty") else "（待確認）"
+
+
 def facts_of(session: Session, row: Scholarship) -> list[Evidence]:
     """lookup 路線：把一筆獎學金在資料表裡的資料整理成編號資料（引用存好的原文）。"""
     row = session.scalars(
@@ -121,7 +128,7 @@ def facts_of(session: Session, row: Scholarship) -> list[Evidence]:
         f"名稱：{row.name}；提供單位：{row.provider}；金額：{row.amount}；補助內容：{row.coverage}",
         (
             f"國籍資格：{row.nationality_scope} {', '.join(row.nationalities)}"
-            f"{'（待確認）' if verification.get('nationality') not in ('supported', 'empty') else ''}；"
+            f"{nationality_note(verification.get('nationality'))}；"
             f"引用：{extracted.get('nationality_evidence')}"
         ),
     ]

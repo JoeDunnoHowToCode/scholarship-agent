@@ -45,19 +45,32 @@ def applicable(cycles: list[CycleInfo], user: str) -> list[CycleInfo]:
     ]
 
 
+def still_possible(cycles: list[CycleInfo], user: str) -> list[CycleInfo]:
+    """還有機會申請的申請期：給申請獎學金的人、國籍符合或待確認、還沒截止（含程式猜的明年日期）。"""
+    return [
+        cycle
+        for cycle in cycles
+        if cycle.funding in ("scholarship", "any")
+        and cycle.status != "closed"
+        and nationality_check(user, cycle.nationality_scope, list(cycle.nationalities)) != "fail"
+    ]
+
+
 def time_check(cycles: list[CycleInfo], user: str) -> CheckResult:
-    """時間來不來得及：只看這位使用者適用的申請期，由上往下判斷。"""
+    """時間來不來得及：只看還有機會申請的申請期。"""
     if not cycles:
         return "unclear"  # 不知道截止日
-    mine = applicable(cycles, user)
-    if not mine:
-        return "fail"  # 有截止日，但沒有一個是給這位使用者的
-    still_open = [cycle for cycle in mine if cycle.status in ("open", "upcoming")]
-    if any(cycle.verified for cycle in still_open):
-        return "pass"
-    if still_open or any(cycle.status == "estimated" for cycle in mine):
-        return "unclear"  # 截止日沒核對過，或只是程式猜的明年日期
-    return "fail"  # 適用的申請期都截止了
+    possible = still_possible(cycles, user)
+    if any(
+        cycle.status in ("open", "upcoming")
+        and cycle.verified
+        and nationality_check(user, cycle.nationality_scope, list(cycle.nationalities)) == "pass"
+        for cycle in possible
+    ):
+        return "pass"  # 確定適用你、開放中或即將開放、截止日核對過
+    # 截止日沒核對過、只有程式猜的明年日期、或不確定國籍適不適用：待確認
+    # 一個都沒有（都截止了、只給自費生、或國籍不符合）：不符合
+    return "unclear" if possible else "fail"
 
 
 def degree_check(target: str, degrees: list[str], conditions: str | None) -> CheckResult:

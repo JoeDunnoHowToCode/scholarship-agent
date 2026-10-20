@@ -202,13 +202,10 @@ def save_cycles(
             )
         except ValueError:
             continue  # 不存在的日期（例如 2 月 30 日），不建申請期
-        scope, countries = window.nationality_scope, window.nationalities
-        if scope == "all" or not countries:
-            # Erasmus+ 的固定分群（Programme／Partner countries）用程式補上國家清單，不靠模型猜
-            group = rules.erasmus_group(window.label or window.evidence or "")
-            if group:
-                scope = "listed" if group == "programme" else "excluded"
-                countries = list(rules.ERASMUS_PROGRAMME_COUNTRIES)
+        # Erasmus+ 的固定分群（Programme／Partner countries）用程式的國家清單，不靠模型列
+        scope, countries = rules.window_nationality(
+            window.nationality_scope, window.nationalities, window.label or window.evidence or ""
+        )
         cycle = Cycle(
             scholarship_id=row.id,
             intake=window.intake,

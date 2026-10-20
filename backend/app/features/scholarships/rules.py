@@ -97,3 +97,12 @@ def erasmus_group(text: str) -> Literal["programme", "partner"] | None:
     if partner == programme:
         return None
     return "partner" if partner else "programme"
+
+
+def window_nationality(scope: str, countries: list[str], text: str) -> tuple[str, list[str]]:
+    """申請期的國籍範圍：說明寫了 Erasmus+ 的 Programme／Partner countries，就用固定的 33 國清單，
+    不用 AI 列的（AI 把「其他所有國家」列成長清單時會漏國家，例如學程 65 漏了台灣）。"""
+    group = erasmus_group(text)
+    if group is None:
+        return scope, countries
+    return ("listed" if group == "programme" else "excluded"), list(ERASMUS_PROGRAMME_COUNTRIES)

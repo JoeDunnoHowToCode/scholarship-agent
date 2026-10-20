@@ -37,7 +37,7 @@ class CategoryDraft(BaseModel):
     degrees: list[Degree] = Field(
         description="這個類別可以讀的所有學位，包括要符合附加條件才能讀的（條件寫在 degree_conditions）"
     )
-    countries: list[str] = Field(description="這個類別可以去的國家，用英文國名")
+    countries: list[str] = Field(description="這個類別可以去的國家，用 ISO 3166-1 兩碼國碼（例如 FR、DE）")
     amount: str | None = Field(description="這個類別的補助金額，照原文寫")
     eligibility: str | None = Field(description="這個類別特有的資格條件")
     # ADR-046：名額和學位各有自己的引用，學位的附加條件另存一欄
@@ -85,7 +85,9 @@ class WindowDraft(BaseModel):
     nationality_scope: WindowScope = Field(
         description="這個截止日適用哪些國籍：不分國籍填 all；只限某些國家填 listed；除了某些國家都適用填 excluded"
     )
-    nationalities: list[str] = Field(description="listed 或 excluded 時的國家（英文國名）；all 時留空清單")
+    nationalities: list[str] = Field(
+        description="listed 或 excluded 時的國家，用 ISO 3166-1 兩碼國碼（例如台灣 TW、南韓 KR）；all 時留空清單"
+    )
     funding: Funding = Field(
         description="適用申請獎學金的人填 scholarship；適用自費生填 self_funded；不分填 any"
     )
@@ -96,7 +98,7 @@ class ProgramFacts(BaseModel):
     """整個獎學金共用的欄位。"""
 
     provider: str | None = Field(description="提供單位；原文沒寫就留空")
-    countries: list[str] = Field(description="可以去留學的國家，用英文國名")
+    countries: list[str] = Field(description="可以去留學的國家，用 ISO 3166-1 兩碼國碼（例如 FR、DE）")
     degrees: list[Degree] = Field(description="適用的學位")
     degrees_evidence: str | None = Field(description="支持學位的原文句子，逐字引用")
     fields: list[str] = Field(description="適用的領域，用英文；不限領域就留空清單")
@@ -109,7 +111,10 @@ class ProgramFacts(BaseModel):
         )
     )
     nationalities: list[str] = Field(
-        description="listed 或 excluded 時，列出的國家（英文國名，台灣寫 Taiwan）；其他情況留空清單"
+        description=(
+            "listed 或 excluded 時，列出的國家的 ISO 3166-1 兩碼國碼（例如台灣 TW、南韓 KR、北韓 KP）；"
+            "其他情況留空清單"
+        )
     )
     nationality_evidence: str | None = Field(description="描述國籍資格的原文句子，逐字引用")
     nationality_conditions: str | None = Field(
@@ -143,7 +148,7 @@ class OutlineCategory(BaseModel):
     degrees: list[Degree] = Field(
         description="這個類別可以讀的所有學位，套用全文所有相關規則；包括要符合附加條件才能讀的"
     )
-    countries: list[str] = Field(description="這個類別可以去的國家，用英文國名；不限就留空清單")
+    countries: list[str] = Field(description="這個類別可以去的國家，用 ISO 3166-1 兩碼國碼（例如 FR、DE）；不限就留空清單")
     quota_evidence: str | None = Field(default=None, description="寫著名額的原文句子，逐字引用")
     degrees_evidence: str | None = Field(
         default=None, description="寫著可以讀哪些學位的原文句子，逐字引用"
@@ -176,7 +181,7 @@ class CategoryFact(BaseModel):
         description="這一個類別的名額，只填數字；applies_to 有好幾個類別時一律留空（那是總數，不是每類的名額）"
     )
     degrees: list[Degree] = Field(description="可以讀的學位；沒提到就留空清單")
-    countries: list[str] = Field(description="可以去的國家，用英文國名；沒提到就留空清單")
+    countries: list[str] = Field(description="可以去的國家，用 ISO 3166-1 兩碼國碼（例如 FR、DE）；沒提到就留空清單")
     amount: str | None = Field(description="補助金額，照原文寫")
     eligibility: str | None = Field(description="資格條件")
     degree_conditions: str | None = Field(

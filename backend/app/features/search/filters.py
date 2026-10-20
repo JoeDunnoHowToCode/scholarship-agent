@@ -26,9 +26,9 @@ from app.features.scholarships.schemas import Degree
 class Filters(BaseModel):
     """路由問答時，AI 從問題裡抽出的篩選條件；沒提到的留空。"""
 
-    nationality: str | None = Field(description="申請人的國籍，英文國名，例如 Taiwan；沒提到就留空")
+    nationality: str | None = Field(description="申請人的國籍，ISO 3166-1 兩碼國碼，例如台灣 TW；沒提到就留空")
     degree: Degree | None = Field(description="想讀的學位；沒提到就留空")
-    country: str | None = Field(description="想去的國家，英文國名；沒提到就留空")
+    country: str | None = Field(description="想去的國家，ISO 3166-1 兩碼國碼，例如法國 FR；沒提到就留空")
     deadline_after: date | None = Field(description="截止日不早於這天，YYYY-MM-DD；沒提到就留空")
     deadline_before: date | None = Field(description="截止日不晚於這天，YYYY-MM-DD；沒提到就留空")
     open_only: bool = Field(description="只要現在還能申請的（開放中或即將開放）就填 true")

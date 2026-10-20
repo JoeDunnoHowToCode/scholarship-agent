@@ -41,15 +41,17 @@ from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
 # 提示詞版本：改了提示詞就要改號碼；和快照雜湊、模型一起決定要不要重抽（ADR-013）
-PROMPT_VERSION = "extract-9"
-OUTLINE_VERSION = "outline-7"
-SECTION_VERSION = "section-9"
+PROMPT_VERSION = "extract-10"
+OUTLINE_VERSION = "outline-8"
+SECTION_VERSION = "section-10"
 # 網頁合併後超過這個長度才切段（docs/day-03.md「Claude 自行決定」第 6 點）
 LONG_TEXT_CHARS = 100_000
 
 RULES = """規則：
 - 只根據原文填寫；原文沒寫的欄位留空，不要推測
 - 國籍資格照原文填 nationality_scope；原文沒寫國籍資格就填 unclear，不要推測
+- 國家一律填 ISO 3166-1 兩碼國碼（台灣 TW、南韓 KR、北韓 KP、捷克 CZ）；原文只寫「Korea」這種可能指不同國家的名稱，
+  看上下文判斷（例如同一串清單已經有北韓，這個 Korea 就是南韓 KR）
 - 所有 evidence 欄位都要逐字複製原文的句子，不要改寫、不要翻譯
 - 截止日寫在申請窗口（windows）裡，年、月、日分開填；原文沒寫年份就把年份留空，不要自己補；民國年加 1911 換成西元年
 - 同一屆對不同申請人有不同截止日時（例如夥伴國與歐盟國、申請獎學金與自費、第一輪與第二輪），每個截止日各寫一個窗口，

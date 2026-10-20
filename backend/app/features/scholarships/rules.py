@@ -77,12 +77,10 @@ def quota_sum_mismatch(total: int | None, quotas: list[int | None]) -> bool:
 
 # Erasmus+ 的「Programme countries」（現在也寫成「歐盟成員國與關聯第三國」）：歐盟 27 國加 6 個關聯國
 # 「Partner countries」（未關聯的第三國）就是這 33 國以外的國家，台灣屬於這一類
-ERASMUS_PROGRAMME_COUNTRIES = (
-    "Austria", "Belgium", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark",
-    "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Ireland", "Italy",
-    "Latvia", "Lithuania", "Luxembourg", "Malta", "Netherlands", "Poland", "Portugal",
-    "Romania", "Slovakia", "Slovenia", "Spain", "Sweden",
-    "Iceland", "Liechtenstein", "Norway", "North Macedonia", "Serbia", "Turkey",
+ERASMUS_PROGRAMME_COUNTRIES = (  # ISO 3166-1 國碼（ADR-054）
+    "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
+    "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+    "IS", "LI", "NO", "MK", "RS", "TR",
 )
 NOT_ASSOCIATED = re.compile(r"(not|non-)\s*associated[^,.;]*", re.IGNORECASE)
 PARTNER_WORD = re.compile(r"\bpartner\b", re.IGNORECASE)

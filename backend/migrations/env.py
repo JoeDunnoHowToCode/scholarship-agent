@@ -3,6 +3,9 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app.features.matching import models as match_models  # noqa: F401
+from app.features.profiles import models as profile_models  # noqa: F401
+
 # 載入資料表類別，Base.metadata 才認得它們
 from app.features.scholarships import models as scholarship_models  # noqa: F401
 from app.features.search import models as search_models  # noqa: F401

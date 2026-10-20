@@ -31,14 +31,15 @@ from app.features.scholarships.models import Cycle, Scholarship
 from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
-PROMPT_VERSION = "score-2"  # 改提示詞就要改版本號
+PROMPT_VERSION = "score-3"  # 改提示詞就要改版本號
 
 PROMPT = """你是留學獎學金顧問。依下面的資料，替這位申請人對這個獎學金的這個類別打四個分項分數，
-每項 0–10 分，分數越高代表對申請人越有利，各附一句繁體中文理由。只根據資料判斷，資料沒寫就說沒寫，不要推測。
-- field 領域契合：獎學金或學程的領域，和申請人的科系、想讀的領域有多契合；申請人沒有填科系和領域時，score 留空
+每項 0–10 分，分數越高代表對申請人越有利，各附一句繁體中文理由。只根據資料判斷，不要推測；
+資料沒寫或無法判斷時給 5 分，並在理由說明。
+- field 領域契合：獎學金或學程的領域，和申請人的科系、想讀的領域有多契合
 - value 補助價值：補助內容與金額有多完整（學費、生活費、機票、保險……）
-- timing 時程可行：今天是 {today}；距離適用的截止日還有多少準備時間；沒有截止日時給 5 分並說明
-- competition 競爭與名額：名額越多、競爭越小，分數越高；原文沒寫名額或競爭程度就給 5 分並說明
+- timing 時程可行：今天是 {today}；距離適用的截止日還有多少準備時間
+- competition 競爭與名額：名額越多、競爭越小，分數越高
 
 獎學金：
 {scholarship}
@@ -54,7 +55,8 @@ DEGREE_NAMES = {"bachelor": "學士", "master": "碩士", "phd": "博士"}
 
 
 class SubScore(BaseModel):
-    score: float | None = Field(ge=0, le=10, description="0–10 分；無法評分就留空")
+    # 一定要是數字：空白會被加權總分跳過、其他項放大，等於把「不知道」當成「和其他項一樣好」
+    score: float = Field(ge=0, le=10, description="0–10 分；資料沒寫或無法判斷時給 5 分")
     reason: str = Field(description="一句繁體中文理由")
 
 

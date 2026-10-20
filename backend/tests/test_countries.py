@@ -17,3 +17,20 @@ def test_clean_codes_splits_good_and_bad_codes() -> None:
     assert countries.clean_codes(["TW", "tw", "ZZ", "FR", "Korea"]) == (["TW", "FR"], ["ZZ", "Korea"])
     # 無效的也去掉前後空白，重複的只列一次
     assert countries.clean_codes([" Korea", "Korea "]) == ([], ["Korea"])
+
+
+def test_country_names_for_display_and_source_text() -> None:
+    # 網頁顯示常用名稱，不用 ISO 的「Taiwan, Province of China」；原文可能只寫 Korea（學程 221）、舊名或中文名，都要對得上國碼
+    assert countries.display_name("TW") == "Taiwan"
+    assert countries.display_name("XK") == "Kosovo"  # pycountry 沒有 XK
+    assert countries.display_name("VN") == "Vietnam"  # pycountry 的名稱是 Viet Nam，常用名稱是 Vietnam
+    assert countries.display_name("CZ") == "Czechia"  # 沒有常用名稱就用 pycountry 的名稱
+    assert countries.display_name("ZZ") == "ZZ"  # 不認得的代碼直接顯示代碼
+    assert "Korea" in countries.names_for("KR")
+    assert "Democratic People's Republic of Korea" in countries.names_for("KP")
+    assert "Czech Republic" in countries.names_for("CZ")
+    # 先放顯示名稱，再放 pycountry 的寫法，最後是別名；重複的只留一次
+    assert countries.names_for("TW") == [
+        "Taiwan", "Taiwan, Province of China", "Republic of China", "Chinese Taipei", "台灣", "臺灣", "中華民國",
+    ]
+    assert countries.names_for("ZZ") == ["ZZ"]

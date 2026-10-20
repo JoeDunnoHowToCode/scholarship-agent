@@ -69,3 +69,14 @@ def test_erasmus_country_groups_are_read_from_the_label() -> None:
     assert rules.erasmus_group("Partner and programme country students") is None
     assert rules.erasmus_group("Scholarship applicants") is None
     assert len(rules.ERASMUS_PROGRAMME_COUNTRIES) == 33
+
+
+def test_window_nationality_uses_the_fixed_erasmus_lists() -> None:
+    # 學程 65：原文「Partner countries: All other countries」，AI 自己列了 159 國卻漏掉台灣；
+    # 標明 Partner／Programme countries 的申請期一律用程式的 33 國清單，不用 AI 列的
+    programme = list(rules.ERASMUS_PROGRAMME_COUNTRIES)
+    assert rules.window_nationality("listed", ["US", "JP", "KR"], "partner countries") == ("excluded", programme)
+    assert rules.window_nationality("listed", ["FR", "DE"], "programme countries") == ("listed", programme)
+    assert rules.window_nationality("all", [], "Partner Countries") == ("excluded", programme)
+    # 沒提到這兩群：照 AI 抽的
+    assert rules.window_nationality("listed", ["TW"], "Scholarship applicants") == ("listed", ["TW"])

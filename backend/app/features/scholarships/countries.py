@@ -12,3 +12,17 @@ def valid_code(code: str) -> str | None:
     if pycountry.countries.get(alpha_2=cleaned) is not None or cleaned in EXTRA_CODES:
         return cleaned
     return None
+
+
+def clean_codes(codes: list[str]) -> tuple[list[str], list[str]]:
+    """把 AI 填的國碼分成（有效, 無效）兩組：有效的轉大寫，無效的保留原本寫法；重複的只留第一次出現的。"""
+    valid: list[str] = []
+    invalid: list[str] = []
+    for code in codes:
+        cleaned = valid_code(code)
+        if cleaned is None:
+            invalid.append(code.strip())
+        else:
+            valid.append(cleaned)
+    # dict 會記住放入順序，用來去重又保留順序
+    return list(dict.fromkeys(valid)), list(dict.fromkeys(invalid))

@@ -19,7 +19,7 @@ from app.core.fetch.text import decode_snapshot, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
 from app.features.documents.chunking import chunk_html, chunk_transcript, group_sections
 from app.features.documents.transcribe import transcribe
-from app.features.scholarships import changes, cycles, merge, rules, verify
+from app.features.scholarships import changes, countries, cycles, merge, rules, verify
 from app.features.scholarships.models import (
     Change,
     Cycle,
@@ -319,6 +319,28 @@ CATALOGUE_EVIDENCE = (
 )
 
 
+def clean_country_codes(draft: ScholarshipDraft) -> tuple[ScholarshipDraft, list[str]]:
+    """AI 填的國碼用套件檢查（ADR-054）：不存在的丟掉，回傳（清理後的初稿, 不存在的代碼）。"""
+    invalid: list[str] = []
+
+    def clean(codes: list[str]) -> list[str]:
+        valid, wrong = countries.clean_codes(codes)
+        invalid.extend(code for code in wrong if code not in invalid)
+        return valid
+
+    categories = [c.model_copy(update={"countries": clean(c.countries)}) for c in draft.categories]
+    windows = [w.model_copy(update={"nationalities": clean(w.nationalities)}) for w in draft.windows]
+    cleaned = draft.model_copy(
+        update={
+            "countries": clean(draft.countries),
+            "nationalities": clean(draft.nationalities),
+            "categories": categories,
+            "windows": windows,
+        }
+    )
+    return cleaned, invalid
+
+
 def from_catalogue(session: Session, source: Source) -> bool:
     """這個來源是不是從 EACEA 目錄解析出來的學程網站。"""
     if source.parent_id is None:
@@ -363,7 +385,9 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
         draft = draft.model_copy(update={"categories": [only]})
     # 整份抽取的網頁也可能把同一個截止日寫兩次（例如表格和內文各一次），同一個截止日只留一筆
     draft = draft.model_copy(update={"windows": merge.dedupe_windows(draft.windows)})
+    draft, invalid_codes = clean_country_codes(draft)
     status = verify.verify(llm, draft, raw, extra.get("conflicts", []))
+    status["issues"] += [f"invalid_country_code:{code}" for code in invalid_codes]
     verified = verify.apply_verification(draft, status)
     if verified.nationality_scope == "unclear" and from_catalogue(session, source):
         # ADR-053：EACEA 學程自己的網站沒寫國籍，用目錄頁的說明當依據，驗證結果記成 catalogue

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from app.core.llm.base import StructuredLLM
 from app.features.documents.checks import quote_in_source, quote_in_table_text
-from app.features.scholarships import rules
+from app.features.scholarships import countries, rules
 from app.features.scholarships.schemas import ScholarshipDraft, WindowDraft
 
 PROMPT_VERSION = "verify-5"  # 改提示詞就要改版本號
@@ -119,10 +119,11 @@ def other_issues(draft: ScholarshipDraft, source: str) -> list[str]:
     issues = []
     if rules.quota_sum_mismatch(draft.total_quota, [c.quota for c in draft.categories]):
         issues.append("quota_sum_mismatch")
+    # 國碼對應的任一常見名稱出現在原文就算（ADR-054，例如 KR 對應 Korea、South Korea）
     issues += [
         f"nationality_not_in_source:{n}"
         for n in draft.nationalities
-        if not rules.name_in_source(n, source)
+        if not any(rules.name_in_source(name, source) for name in countries.names_for(n))
     ]
     return issues
 

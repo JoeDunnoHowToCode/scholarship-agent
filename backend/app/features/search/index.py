@@ -18,6 +18,7 @@ from app.core.llm.gemini import GeminiEmbedder, GeminiLLM, LLMError, MissingApiK
 from app.features.documents.chunking import Chunk as Piece
 from app.features.documents.chunking import chunk_html, chunk_transcript
 from app.features.documents.transcribe import cache_path
+from app.features.scholarships import countries
 from app.features.scholarships.extract import documents
 from app.features.scholarships.models import EMBEDDING_DIMENSIONS, Scholarship
 from app.features.search import plan, text
@@ -168,7 +169,9 @@ def index_scholarship(session: Session, embedder: GeminiEmbedder, source: Source
         return False
     profile = text.scholarship_profile(
         {
-            "name": row.name, "provider": row.provider, "countries": row.countries,
+            # 國家存的是國碼（ADR-054），組向量文字時換成國名，意思才看得懂
+            "name": row.name, "provider": row.provider,
+            "countries": [countries.display_name(c) for c in row.countries],
             "degrees": row.degrees, "fields": row.fields, "coverage": row.coverage,
             "amount": row.amount, "other_eligibility": row.other_eligibility,
             "language_requirements": row.language_requirements,

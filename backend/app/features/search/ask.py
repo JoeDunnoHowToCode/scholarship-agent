@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.llm.base import Embedder, StructuredLLM
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM, MissingApiKeyError
+from app.features.scholarships import countries
 from app.features.scholarships.dedup import normalize_name
 from app.features.scholarships.models import EMBEDDING_DIMENSIONS, Scholarship
 from app.features.search import citations, filters
@@ -127,7 +128,7 @@ def facts_of(session: Session, row: Scholarship) -> list[Evidence]:
     items: list[str] = [
         f"名稱：{row.name}；提供單位：{row.provider}；金額：{row.amount}；補助內容：{row.coverage}",
         (
-            f"國籍資格：{row.nationality_scope} {', '.join(row.nationalities)}"
+            f"國籍資格：{row.nationality_scope} {', '.join(countries.display_name(c) for c in row.nationalities)}"
             f"{nationality_note(verification.get('nationality'))}；"
             f"引用：{extracted.get('nationality_evidence')}"
         ),

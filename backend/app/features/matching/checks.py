@@ -7,6 +7,7 @@
 from dataclasses import dataclass
 
 from app.features.matching.scoring import CheckResult
+from app.features.scholarships import rules
 
 
 def nationality_check(user: str, scope: str, codes: list[str]) -> CheckResult:
@@ -55,3 +56,15 @@ def time_check(cycles: list[CycleInfo], user: str) -> CheckResult:
     if still_open or any(cycle.status == "estimated" for cycle in mine):
         return "unclear"  # 截止日沒核對過，或只是程式猜的明年日期
     return "fail"  # 適用的申請期都截止了
+
+
+def degree_check(target: str, degrees: list[str], conditions: str | None) -> CheckResult:
+    """使用者想讀的學位符不符合（ADR-046）：附加條件提到這個學位時，程式判斷不了，標待確認。"""
+    if not degrees:
+        return "unclear"  # 原文沒寫學位
+    if target not in degrees:
+        return "fail"
+    # 沿用抽取檢查的學位關鍵字（例如碩士／master），看條件裡有沒有提到這個學位
+    if rules.degree_supported(target, [conditions]):
+        return "unclear"
+    return "pass"

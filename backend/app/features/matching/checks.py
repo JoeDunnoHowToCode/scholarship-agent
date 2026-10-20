@@ -68,3 +68,18 @@ def degree_check(target: str, degrees: list[str], conditions: str | None) -> Che
     if rules.degree_supported(target, [conditions]):
         return "unclear"
     return "pass"
+
+
+# AI 分項的權重：原本五項拿掉「條件達成度」（25%）後，其他四項依比例放大（ADR-055），
+# 例如領域契合 30% ÷ 75% = 0.40；四項加起來是 1
+WEIGHTS = {"field": 0.40, "value": 0.27, "timing": 0.20, "competition": 0.13}
+
+
+def weighted_total(scores: dict[str, float | None]) -> float:
+    """把 0–10 分的分項加權成 0–100 的總分；沒有分數（None）的項目不算，其他項目的權重按比例放大。"""
+    # 只留 WEIGHTS 裡有、而且有分數的項目
+    used = {key: score for key, score in scores.items() if key in WEIGHTS and score is not None}
+    if not used:
+        return 0.0
+    total = sum(WEIGHTS[key] * score for key, score in used.items())
+    return round(10 * total / sum(WEIGHTS[key] for key in used), 1)

@@ -83,3 +83,10 @@ def test_rule_order_guards_found_by_mutation_testing() -> None:
     assert checks.time_check([replace(partner, status="estimated", verified=False), partner], "TW") == "pass"
     # 想讀的學位不在清單裡就是不符合，就算條件文字有提到這個學位
     assert checks.degree_check("master", ["phd"], "碩士限藝術學群") == "fail"
+
+
+def test_nationality_check_without_a_country_list_is_unclear() -> None:
+    # 有國籍限制、但 AI 沒列出是哪些國家（學程 78「for non-European applicants」、學程 15「African Union 會員國」）：
+    # 不知道台灣在不在裡面，不能判不符合，也不能判符合
+    assert checks.nationality_check("TW", "listed", []) == "unclear"
+    assert checks.nationality_check("TW", "excluded", []) == "unclear"

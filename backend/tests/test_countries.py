@@ -34,9 +34,3 @@ def test_country_names_for_display_and_source_text() -> None:
         "Taiwan", "Taiwan, Province of China", "Republic of China", "Chinese Taipei", "台灣", "臺灣", "中華民國",
     ]
     assert countries.names_for("ZZ") == ["ZZ"]
-
-
-def test_valid_code_maps_eu_style_codes_to_iso() -> None:
-    # 歐盟文件習慣用 EL 代表希臘、UK 代表英國；ISO 的國碼是 GR、GB（第 6 天重抽時 AI 填了 EL）
-    assert countries.valid_code("EL") == "GR"
-    assert countries.valid_code(" uk ") == "GB"

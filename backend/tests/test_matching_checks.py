@@ -56,3 +56,15 @@ def test_degree_check_marks_degrees_with_conditions_unclear() -> None:
     assert checks.degree_check("bachelor", ["master", "phd"], None) == "fail"
     # 原文沒寫學位：待確認
     assert checks.degree_check("master", [], None) == "unclear"
+
+
+def test_weighted_total_rescales_over_the_scored_items() -> None:
+    # AI 給四項 0–10 分（ADR-055 拿掉「條件達成度」後的權重）：全部滿分是 100，只有領域滿分是 40
+    assert checks.weighted_total({"field": 10, "value": 10, "timing": 10, "competition": 10}) == 100.0
+    assert checks.weighted_total({"field": 10, "value": 0, "timing": 0, "competition": 0}) == 40.0
+    # AI 沒給領域分數：只用其他三項的權重換算，10 ×（0.27×10 + 0.20×0 + 0.13×10）÷ 0.60 ≈ 66.7
+    assert checks.weighted_total({"field": None, "value": 10, "timing": 0, "competition": 10}) == 66.7
+    # 拿掉的「條件達成度」就算還有分數也不算；一項分數都沒有就是 0
+    assert checks.weighted_total({"field": 8, "conditions": 10}) == 80.0
+    assert checks.weighted_total({"field": None}) == 0.0
+    assert checks.weighted_total({}) == 0.0

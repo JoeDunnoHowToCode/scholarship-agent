@@ -90,3 +90,13 @@ def test_nationality_check_without_a_country_list_is_unclear() -> None:
     # 不知道台灣在不在裡面，不能判不符合，也不能判符合
     assert checks.nationality_check("TW", "listed", []) == "unclear"
     assert checks.nationality_check("TW", "excluded", []) == "unclear"
+
+
+def test_time_check_counts_cycles_with_unknown_nationality_as_unclear() -> None:
+    # 學程 78：「3 January 2027 (for non-European applicants)」被抽成只限列出的國家、卻沒有清單；
+    # 台灣人可能適用，所以是待確認，不是不符合；那一期截止了就還是不符合
+    unknown = checks.CycleInfo(
+        status="open", nationality_scope="listed", nationalities=(), funding="scholarship", verified=True,
+    )
+    assert checks.time_check([unknown], "TW") == "unclear"
+    assert checks.time_check([replace(unknown, status="closed")], "TW") == "fail"

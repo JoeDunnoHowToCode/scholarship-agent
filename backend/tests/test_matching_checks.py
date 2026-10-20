@@ -68,3 +68,18 @@ def test_weighted_total_rescales_over_the_scored_items() -> None:
     assert checks.weighted_total({"field": 8, "conditions": 10}) == 80.0
     assert checks.weighted_total({"field": None}) == 0.0
     assert checks.weighted_total({}) == 0.0
+
+
+def test_rule_order_guards_found_by_mutation_testing() -> None:
+    # sub agent 故意把規則改錯 11 種方式，其中 4 種原本的測試抓不到；這些斷言把順序與大小寫固定下來
+    # 國碼清單是小寫也要比得到
+    assert checks.nationality_check("TW", "listed", ["tw"]) == "pass"
+    # 有一個驗證通過、還能申請的申請期就算符合，不會被另一個沒驗證或預估的申請期拉成待確認
+    partner = checks.CycleInfo(
+        status="open", nationality_scope="excluded", nationalities=("FR", "DE", "IT"),
+        funding="scholarship", verified=True,
+    )
+    assert checks.time_check([replace(partner, verified=False), partner], "TW") == "pass"
+    assert checks.time_check([replace(partner, status="estimated", verified=False), partner], "TW") == "pass"
+    # 想讀的學位不在清單裡就是不符合，就算條件文字有提到這個學位
+    assert checks.degree_check("master", ["phd"], "碩士限藝術學群") == "fail"

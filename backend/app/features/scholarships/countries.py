@@ -3,11 +3,13 @@
 import pycountry  # ISO 3166 的國家資料（國碼、正式名稱、常用名稱）
 
 EXTRA_CODES = {"XK": "Kosovo"}  # ISO 沒有列、但我們接受的代碼（Kosovo 沒有正式國碼，慣例用 XK）
+EU_STYLE_CODES = {"EL": "GR", "UK": "GB"}  # 歐盟文件的寫法：希臘寫 EL、英國寫 UK，換成 ISO 國碼
 
 
 def valid_code(code: str) -> str | None:
-    """把 AI 填的國碼整理成大寫（" tw " → "TW"）；不存在的代碼回傳 None。"""
+    """把 AI 填的國碼整理成大寫（" tw " → "TW"、"EL" → "GR"）；不存在的代碼回傳 None。"""
     cleaned = code.strip().upper()
+    cleaned = EU_STYLE_CODES.get(cleaned, cleaned)
     # pycountry 和 EXTRA_CODES 裡都只有兩個字母的代碼，所以國名（例如 Taiwan）一定查不到
     if pycountry.countries.get(alpha_2=cleaned) is not None or cleaned in EXTRA_CODES:
         return cleaned

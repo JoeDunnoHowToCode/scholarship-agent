@@ -14,6 +14,8 @@ def nationality_check(user: str, scope: str, codes: list[str]) -> CheckResult:
     """使用者的國籍符不符合國籍範圍（ADR-043）；國碼（例如 TW）不分大小寫比對。"""
     if scope == "all":
         return "pass"
+    if scope in ("listed", "excluded") and not codes:
+        return "unclear"  # 有限制，但不知道是哪些國家（例如只寫「African Union 會員國」）
     in_list = user.upper() in [code.upper() for code in codes]
     if scope == "listed":
         return "pass" if in_list else "fail"  # 只限列出的國家

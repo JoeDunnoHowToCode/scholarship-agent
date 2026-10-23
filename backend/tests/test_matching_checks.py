@@ -100,3 +100,13 @@ def test_time_check_counts_cycles_with_unknown_nationality_as_unclear() -> None:
     )
     assert checks.time_check([unknown], "TW") == "unclear"
     assert checks.time_check([replace(unknown, status="closed")], "TW") == "fail"
+
+
+def test_country_score_matches_target_countries() -> None:
+    # 想去的國家（ADR-060）：留學國家和你想去的國家有交集 10 分、沒有交集 0 分；國碼不分大小寫
+    assert checks.country_score(["SE", "dk"], ["FR", "DK"]) == 10.0
+    assert checks.country_score(["SE"], ["FR", "IT", "DE"]) == 0.0
+    # 獎學金沒寫留學國家：不知道，給 5 分（資料沒寫給 5 分）
+    assert checks.country_score(["SE"], []) == 5.0
+    # 你沒填想去的國家：不評
+    assert checks.country_score([], ["FR"]) is None

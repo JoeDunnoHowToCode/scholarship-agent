@@ -90,16 +90,17 @@ def country_score(targets: list[str], countries: list[str]) -> float | None:
     wanted = {code.upper() for code in targets}
     return 10.0 if any(code.upper() in wanted for code in countries) else 0.0
 
-# AI 分項的權重：原本五項拿掉「條件達成度」（25%）後，其他四項依比例放大（ADR-055），
-# 例如領域契合 30% ÷ 75% = 0.40；四項加起來是 1
-WEIGHTS = {"field": 0.40, "value": 0.27, "timing": 0.20, "competition": 0.13}
+
+# 適配度分項的權重（ADR-059、060）：領域契合由 AI 評，想去的國家由程式比對；兩項加起來是 1
+WEIGHTS = {"field": 0.70, "country": 0.30}
 
 
 def weighted_total(scores: dict[str, float | None]) -> float:
-    """把 0–10 分的分項加權成 0–100 的總分；沒有分數（None）的項目不算，其他項目的權重按比例放大。"""
+    """把 0–10 分的分項加權成 0–100 的總分；沒有分數（None）的項目不算，其他項目的權重按比例放大。
+    一項分數都沒有（科系、領域、想去的國家都沒填）時給 100 分，只看硬性條件的上限（ADR-060）。"""
     # 只留 WEIGHTS 裡有、而且有分數的項目
     used = {key: score for key, score in scores.items() if key in WEIGHTS and score is not None}
     if not used:
-        return 0.0
+        return 100.0
     total = sum(WEIGHTS[key] * score for key, score in used.items())
     return round(10 * total / sum(WEIGHTS[key] for key in used), 1)

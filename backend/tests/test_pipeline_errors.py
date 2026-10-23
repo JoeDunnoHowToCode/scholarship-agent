@@ -5,7 +5,7 @@ import pytest
 from google.genai.errors import ClientError, ServerError
 
 from app.core.fetch.base import BlockedError
-from app.core.llm.gemini import ExtractionError, LLMError
+from app.core.llm.gemini import ExtractionError, LLMError, MissingApiKeyError
 from app.features.pipeline import errors
 
 
@@ -114,3 +114,23 @@ def test_skip_errors_that_will_not_fix_themselves(error: BaseException) -> None:
 def test_skip_outer_error_wins_over_a_temporary_cause(error: BaseException) -> None:
     # 由外往內看，第一個認得的例外就決定結果：外層已經判斷成「再試也沒用」，就不管裡面的連線錯誤
     assert errors.classify(error) == "skip"
+
+
+@pytest.mark.parametrize("code", [402, 401, 403], ids=["gemini_402", "gemini_401", "gemini_403"])
+def test_pause_ai_when_the_gemini_account_has_a_problem(code: int) -> None:
+    # 額度用完（402）或金鑰有問題（401、403）：之後每件 AI 工作都會失敗，要整個暫停，等你處理
+    gemini = ClientError(code, {"error": {"code": code, "message": "測試用的錯誤"}})
+    assert errors.classify(caused_by(LLMError(f"ClientError: {code}"), gemini)) == "pause_ai"
+    # LangChain 可能在中間再包一層（例如 ChatGoogleGenerativeAIError），一樣要認得出來
+    middle = caused_by(RuntimeError("LangChain 包的錯誤"), gemini)
+    assert errors.classify(caused_by(LLMError(f"ClientError: {code}"), middle)) == "pause_ai"
+
+
+def test_pause_ai_when_the_api_key_is_missing() -> None:
+    # 沒設定 Gemini 金鑰：每件 AI 工作都會失敗
+    assert errors.classify(MissingApiKeyError("沒有 Gemini 金鑰")) == "pause_ai"
+
+
+def test_pause_ai_when_the_cost_limit_is_reached() -> None:
+    # 這件工作的 AI 費用超過上限：暫停所有 AI 工作，避免超出預算（ADR-013）
+    assert errors.classify(errors.CostLimitError("超過這次執行的上限 US$1.00")) == "pause_ai"

@@ -18,7 +18,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.fetch.base import BlockedError, Fetcher, FetchResult
+from app.core.fetch.base import BlockedError, Fetcher, FetchResult, TemporaryFetchError
 from app.core.fetch.http import HttpFetcher
 from app.core.fetch.text import content_hash, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
@@ -102,11 +102,11 @@ def fetch_source(
             status = error.response.status_code
             report("error", str(status), url)
             if status >= 500:
-                return  # 伺服器出錯：這次跳過這個來源，下次再試
+                raise  # 伺服器出錯：交給呼叫的人決定，背景工作會稍後重試（ADR-056）
             continue  # 例如某一頁消失了（404）：繼續檢查下一頁
         except httpx.HTTPError as error:
             report("error", type(error).__name__, url)
-            return  # 網路錯誤：這次跳過這個來源，下次再試
+            raise  # 網路錯誤或逾時：交給呼叫的人決定，背景工作會稍後重試（ADR-056）
 
         checked += 1
         if result.status == 304:
@@ -219,6 +219,9 @@ def main() -> None:
                     session.rollback()
                     report("error", "挑連結失敗", f"{source.url} {error}")
                     continue
+                except (httpx.HTTPError, TemporaryFetchError) as error:
+                    # 伺服器出錯、網路錯誤或 robots.txt 暫時讀不到：這次跳過，已抓到的頁面照樣存，下次再試
+                    report("skip", type(error).__name__, source.url)
                 session.commit()  # 每個來源各自一個交易：一個出錯不影響其他已存的快照
     finally:
         fetcher.close()

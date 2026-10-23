@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 import httpx
 from protego import Protego
 
-from app.core.fetch.base import BlockedError, FetchResult
+from app.core.fetch.base import BlockedError, FetchResult, TemporaryFetchError
 from app.core.fetch.etiquette import detect_block, robots_allows
 
 
@@ -43,7 +43,8 @@ class HttpFetcher:
         robots_status, robots_txt = self._robots_for(url)
         if not robots_allows(robots_status, robots_txt, url, self.user_agent):
             if robots_status >= 500:
-                raise BlockedError(f"robots.txt 無法讀取（{robots_status}）")
+                # 照 RFC 9309 這次不能抓；但這是對方伺服器暫時出錯，不是被擋，稍後再試（ADR-056）
+                raise TemporaryFetchError(f"robots.txt 暫時無法讀取（{robots_status}）")
             raise BlockedError("robots.txt 禁止")
 
         # 條件式請求：把上次的 ETag／Last-Modified 帶給伺服器，沒更新它會回 304

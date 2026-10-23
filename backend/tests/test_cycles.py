@@ -121,3 +121,15 @@ def test_estimate_after_adds_years_until_closing_is_today_or_later() -> None:
     # 預估的截止日剛好是今天：不算過去，保留，不再加一年
     on_today = cycles.estimate_after(None, datetime(2025, 10, 23, 22, 59, tzinfo=UTC), None, today)
     assert on_today.closes_at == datetime(2026, 10, 23, 22, 59, tzinfo=UTC)
+
+
+def test_is_stale_only_when_latest_close_is_over_730_days_ago() -> None:
+    today = date(2026, 10, 23)
+    # 最近一次真的截止日是 2022-05-14：距今 1623 天，超過 730 天（24 個月），資料過舊
+    assert cycles.is_stale(datetime(2022, 5, 14, 23, 59, tzinfo=UTC), today)
+    # 2025-02-09：距今 621 天，不算過舊
+    assert not cycles.is_stale(datetime(2025, 2, 9, 23, 59, tzinfo=UTC), today)
+    # 2024-10-23 剛好是 730 天前（2025、2026 年都不是閏年，兩年是 365 × 2 天）：還不算過舊
+    assert not cycles.is_stale(datetime(2024, 10, 23, 23, 59, tzinfo=UTC), today)
+    # 再早一天，731 天前：資料過舊
+    assert cycles.is_stale(datetime(2024, 10, 22, 23, 59, tzinfo=UTC), today)

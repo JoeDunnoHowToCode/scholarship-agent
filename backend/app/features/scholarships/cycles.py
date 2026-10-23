@@ -98,6 +98,15 @@ def estimate_next(opens_at: datetime | None, closes_at: datetime, intake: str | 
     return Estimate(next_opens, next_closes, next_intake(intake), recheck.date())
 
 
+def estimate_after(opens_at: datetime | None, closes_at: datetime, intake: str | None, today: date) -> Estimate:
+    """預估下一屆（ADR-058）：先照 estimate_next 加一年；預估的截止日還在今天以前，就再加一年，直到截止日是今天或以後。"""
+    estimate = estimate_next(opens_at, closes_at, intake)
+    # 最新資料可能是好幾年前的，加一年還在過去：拿上一次的預估再加一年（入學年度也跟著加）
+    while estimate.closes_at.date() < today:
+        estimate = estimate_next(estimate.opens_at, estimate.closes_at, estimate.intake)
+    return estimate
+
+
 def should_archive(statuses: list[Status]) -> bool:
     """沒有任何申請期還能申請（開放中或即將開放）就封存；一個申請期都沒有時不封存。"""
     return bool(statuses) and not any(status in ("upcoming", "open") for status in statuses)

@@ -59,15 +59,18 @@ def test_degree_check_marks_degrees_with_conditions_unclear() -> None:
 
 
 def test_weighted_total_rescales_over_the_scored_items() -> None:
-    # AI 給四項 0–10 分（ADR-055 拿掉「條件達成度」後的權重）：全部滿分是 100，只有領域滿分是 40
-    assert checks.weighted_total({"field": 10, "value": 10, "timing": 10, "competition": 10}) == 100.0
-    assert checks.weighted_total({"field": 10, "value": 0, "timing": 0, "competition": 0}) == 40.0
-    # AI 沒給領域分數：只用其他三項的權重換算，10 ×（0.27×10 + 0.20×0 + 0.13×10）÷ 0.60 ≈ 66.7
-    assert checks.weighted_total({"field": None, "value": 10, "timing": 0, "competition": 10}) == 66.7
-    # 拿掉的「條件達成度」就算還有分數也不算；一項分數都沒有就是 0
-    assert checks.weighted_total({"field": 8, "conditions": 10}) == 80.0
-    assert checks.weighted_total({"field": None}) == 0.0
-    assert checks.weighted_total({}) == 0.0
+    # 評分只算適配度（ADR-059、060）：領域契合 70%、想去的國家 30%；全部滿分是 100
+    assert checks.weighted_total({"field": 10, "country": 10}) == 100.0
+    assert checks.weighted_total({"field": 10, "country": 0}) == 70.0  # 領域滿分、不在你想去的國家
+    assert checks.weighted_total({"field": 3, "country": 10}) == 51.0  # 國家對了、領域只有 3 分
+    # 只填了其中一項：只用那一項，權重依比例放大
+    assert checks.weighted_total({"field": 8, "country": None}) == 80.0
+    assert checks.weighted_total({"field": None, "country": 10}) == 100.0
+    # 不在權重裡的項目（拿掉的補助、時程、名額）就算有分數也不算
+    assert checks.weighted_total({"field": 8, "value": 10}) == 80.0
+    # 兩項都沒填：只看硬性條件，先給 100 分，再由上限壓下來
+    assert checks.weighted_total({"field": None, "country": None}) == 100.0
+    assert checks.weighted_total({}) == 100.0
 
 
 def test_rule_order_guards_found_by_mutation_testing() -> None:

@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     embedding_model: str = "gemini-embedding-2"
     # 同一個網站兩次請求至少間隔幾秒（ADR-028）；robots.txt 的 Crawl-delay 更長就照它
     fetch_min_interval_seconds: float = 5.0
+    # 背景工作的佇列（ADR-004、006）：Docker 裡的 Redis，只綁本機
+    redis_url: str = "redis://localhost:6379/0"
 
 
 settings = Settings()

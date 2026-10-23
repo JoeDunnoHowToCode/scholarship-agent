@@ -4,6 +4,8 @@ services:
   postgres:
     # PostgreSQL 17 加上 pgvector 擴充功能（ADR-050）；用 trixie 版，和原本 postgres:17 的作業系統一致（排序規則版本相同）
     image: pgvector/pgvector:pg17-trixie
+    # 登入後 Docker Desktop 啟動時自動跑起來（ADR-061）；手動 docker compose stop 的不會自己起來
+    restart: unless-stopped
     environment:
       POSTGRES_USER: scholar
       POSTGRES_PASSWORD: scholar
@@ -17,6 +19,7 @@ services:
       retries: 15
   redis:
     image: redis:7
+    restart: unless-stopped
     ports: ["127.0.0.1:6379:6379"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]

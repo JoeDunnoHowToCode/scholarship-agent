@@ -22,6 +22,10 @@ class BlockedError(Exception):
         self.reason = reason
 
 
+class TemporaryFetchError(Exception):
+    """網站暫時讀不到（例如 robots.txt 回 5xx）：這次不能抓，但不是被擋，稍後再試（ADR-056）。"""
+
+
 class Fetcher(Protocol):
     def get(
         self, url: str, *, etag: str | None = None, last_modified: str | None = None

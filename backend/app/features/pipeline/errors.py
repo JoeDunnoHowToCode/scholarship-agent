@@ -5,7 +5,7 @@ from typing import Literal
 import httpx
 from google.genai.errors import APIError
 
-from app.core.fetch.base import BlockedError
+from app.core.fetch.base import BlockedError, TemporaryFetchError
 from app.core.llm.gemini import ExtractionError, MissingApiKeyError
 
 Kind = Literal["retry", "skip", "pause_ai"]
@@ -49,6 +49,8 @@ def _kind_of(error: BaseException) -> Kind | None:
         return "retry"  # Gemini 限速（429）或 Google 那邊暫時出錯（5xx）
     if isinstance(error, (httpx.TimeoutException, httpx.NetworkError)):
         return "retry"  # 逾時或連不上（ConnectError 也算 NetworkError）
+    if isinstance(error, TemporaryFetchError):
+        return "retry"  # 網站暫時讀不到，例如 robots.txt 回 5xx
     if isinstance(error, httpx.HTTPStatusError):  # 官網回錯誤狀態碼
         if error.response.status_code >= 500:
             return "retry"  # 官網暫時出錯

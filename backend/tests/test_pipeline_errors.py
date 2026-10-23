@@ -134,3 +134,21 @@ def test_pause_ai_when_the_api_key_is_missing() -> None:
 def test_pause_ai_when_the_cost_limit_is_reached() -> None:
     # 這件工作的 AI 費用超過上限：暫停所有 AI 工作，避免超出預算（ADR-013）
     assert errors.classify(errors.CostLimitError("超過這次執行的上限 US$1.00")) == "pause_ai"
+
+
+def test_pause_ai_when_the_key_is_invalid_or_the_model_does_not_exist() -> None:
+    # 金鑰無效時 Gemini 常回 400、內容寫 API_KEY_INVALID（不一定是 401）；模型名稱打錯回 404
+    # 兩種都是設定問題，之後每件 AI 工作都會失敗：整個暫停（ADR-056「金鑰有問題」）
+    bad_key = ClientError(
+        400,
+        {"error": {"code": 400, "message": "API key not valid. Please pass a valid API key.",
+                   "status": "INVALID_ARGUMENT", "details": [{"reason": "API_KEY_INVALID"}]}},
+    )
+    assert errors.classify(caused_by(LLMError("ClientError: 400"), bad_key)) == "pause_ai"
+    no_model = ClientError(404, {"error": {"code": 404, "message": "models/gemini-x is not found", "status": "NOT_FOUND"}})
+    assert errors.classify(caused_by(LLMError("ClientError: 404"), no_model)) == "pause_ai"
+    # 其他的 400（例如這一次送出去的內容太大）只影響這一件：跳過
+    too_big = ClientError(
+        400, {"error": {"code": 400, "message": "Request payload size exceeds the limit", "status": "INVALID_ARGUMENT"}}
+    )
+    assert errors.classify(caused_by(LLMError("ClientError: 400"), too_big)) == "skip"

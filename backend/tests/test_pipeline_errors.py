@@ -4,6 +4,7 @@ import httpx
 import pytest
 from google.genai.errors import ClientError, ServerError
 
+from app.core.fetch import base
 from app.core.fetch.base import BlockedError
 from app.core.llm.gemini import ExtractionError, LLMError, MissingApiKeyError
 from app.features.pipeline import errors
@@ -152,3 +153,9 @@ def test_pause_ai_when_the_key_is_invalid_or_the_model_does_not_exist() -> None:
         400, {"error": {"code": 400, "message": "Request payload size exceeds the limit", "status": "INVALID_ARGUMENT"}}
     )
     assert errors.classify(caused_by(LLMError("ClientError: 400"), too_big)) == "skip"
+
+
+def test_retry_when_robots_txt_is_temporarily_unreadable() -> None:
+    # robots.txt 回 5xx：照 RFC 9309 這次不能抓，但這是對方伺服器暫時出錯，不是被擋；
+    # 稍後重試，不標需人工（之前有 4 個來源因此被永遠跳過）
+    assert errors.classify(base.TemporaryFetchError("robots.txt 暫時無法讀取（503）")) == "retry"

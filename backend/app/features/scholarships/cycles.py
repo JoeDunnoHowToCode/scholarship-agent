@@ -107,6 +107,15 @@ def estimate_after(opens_at: datetime | None, closes_at: datetime, intake: str |
     return estimate
 
 
+STALE_AFTER_DAYS = 730  # 最近一次真的截止日超過 24 個月就算資料過舊（ADR-058）
+
+
+def is_stale(latest_close: datetime, today: date) -> bool:
+    """最近一次真的截止日，距離今天超過 730 天就算資料過舊。"""
+    # 只比日期：今天減掉截止那天，得到相隔幾天
+    return (today - latest_close.date()).days > STALE_AFTER_DAYS
+
+
 def should_archive(statuses: list[Status]) -> bool:
     """沒有任何申請期還能申請（開放中或即將開放）就封存；一個申請期都沒有時不封存。"""
     return bool(statuses) and not any(status in ("upcoming", "open") for status in statuses)

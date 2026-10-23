@@ -79,6 +79,17 @@ def degree_check(target: str, degrees: list[str], conditions: str | None) -> Che
     return "pass"
 
 
+
+def country_score(targets: list[str], countries: list[str]) -> float | None:
+    """想去的國家（ADR-060）：留學國家和你想去的國家有交集 10 分、沒有交集 0 分；
+    獎學金沒寫留學國家給 5 分（不知道）；你沒填想去的國家就不評（None）。"""
+    if not targets:
+        return None
+    if not countries:
+        return 5.0
+    wanted = {code.upper() for code in targets}
+    return 10.0 if any(code.upper() in wanted for code in countries) else 0.0
+
 # AI 分項的權重：原本五項拿掉「條件達成度」（25%）後，其他四項依比例放大（ADR-055），
 # 例如領域契合 30% ÷ 75% = 0.40；四項加起來是 1
 WEIGHTS = {"field": 0.40, "value": 0.27, "timing": 0.20, "competition": 0.13}

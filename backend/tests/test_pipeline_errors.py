@@ -4,7 +4,8 @@ import httpx
 import pytest
 from google.genai.errors import ClientError, ServerError
 
-from app.core.llm.gemini import LLMError
+from app.core.fetch.base import BlockedError
+from app.core.llm.gemini import ExtractionError, LLMError
 from app.features.pipeline import errors
 
 
@@ -83,3 +84,33 @@ def test_retry_search_stops_on_a_looping_chain() -> None:
     second = caused_by(RuntimeError("第二個"), first)
     caused_by(first, second)
     assert errors.classify(first) == "skip"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        BlockedError("captcha"),
+        website_error(404),
+        ExtractionError("重試 2 次仍不符合 ScholarshipExtraction"),
+        KeyError("deadline"),
+    ],
+    ids=["blocked", "website_404", "ai_output_invalid", "unknown"],
+)
+def test_skip_errors_that_will_not_fix_themselves(error: BaseException) -> None:
+    # 被擋（抓取程式已標需人工，ADR-028）、頁面不存在、AI 重試後資料仍驗證不過、程式沒料到的錯誤：
+    # 再試也一樣，記下原因就好
+    assert errors.classify(error) == "skip"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        caused_by(BlockedError("captcha"), httpx.ConnectError("連不上網站")),
+        caused_by(website_error(404), httpx.ConnectError("連不上網站")),
+        caused_by(ExtractionError("重試 2 次仍不符合"), httpx.ConnectError("連不上網站")),
+    ],
+    ids=["blocked", "website_404", "ai_output_invalid"],
+)
+def test_skip_outer_error_wins_over_a_temporary_cause(error: BaseException) -> None:
+    # 由外往內看，第一個認得的例外就決定結果：外層已經判斷成「再試也沒用」，就不管裡面的連線錯誤
+    assert errors.classify(error) == "skip"

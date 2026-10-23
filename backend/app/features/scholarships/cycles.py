@@ -134,23 +134,33 @@ def refresh(session: Session, now: datetime) -> Counter[str]:
             if row.status == ScholarshipStatus.ACTIVE:
                 row.status = ScholarshipStatus.ARCHIVED
                 counts["archived"] += 1
-            if not any(c.estimated for c in row.cycles):
-                counts["estimated_new"] += add_estimates(session, row)
+            estimates = [c for c in row.cycles if c.estimated]
+            # 還沒有預估、或預估的截止日也過了：依最近一次真的申請期重新產生（ADR-058）
+            if not estimates or any(c.closes_at < now for c in estimates):
+                for cycle in estimates:
+                    session.delete(cycle)
+                counts["estimated_new"] += add_estimates(session, row, now.date())
+            latest = max((c.closes_at for c in row.cycles if not c.estimated), default=None)
+            if latest is not None and is_stale(latest, now.date()):
+                counts["stale"] += 1
         elif row.status == ScholarshipStatus.ARCHIVED:
             row.status = ScholarshipStatus.ACTIVE  # 有開放中或即將開放的申請期：喚回
             counts["recalled"] += 1
     return counts
 
 
-def add_estimates(session: Session, row: Scholarship) -> int:
-    """依最近一屆已截止的申請期，產生下一屆的預估申請期（同一屆有好幾個截止日就各產生一筆）。"""
+def add_estimates(session: Session, row: Scholarship, today: date) -> int:
+    """依最近一屆已截止的申請期，產生下一屆的預估申請期（同一屆有好幾個截止日就各產生一筆）。
+    預估往後推到今天以後；最近一次截止超過 24 個月就不預估，算資料過舊（ADR-058）。"""
     closed = [c for c in row.cycles if c.status == "closed"]
     if not closed:
         return 0
     latest = max(closed, key=lambda c: c.closes_at)
+    if is_stale(latest.closes_at, today):
+        return 0
     same_intake = [c for c in closed if latest.intake is not None and c.intake == latest.intake] or [latest]
     for cycle in same_intake:
-        estimate = estimate_next(cycle.opens_at, cycle.closes_at, cycle.intake)
+        estimate = estimate_after(cycle.opens_at, cycle.closes_at, cycle.intake, today)
         session.add(
             Cycle(
                 scholarship_id=row.id,
@@ -166,7 +176,7 @@ def add_estimates(session: Session, row: Scholarship) -> int:
                 status="estimated",
                 estimated=True,
                 recheck_from=estimate.recheck_from,
-                evidence=None,  # 預估的沒有原文
+                evidence=f"依 {cycle.closes_at:%Y} 年的日期推估",  # 預估的沒有原文，改記推估的依據（ADR-058）
             )
         )
     return len(same_intake)
@@ -181,7 +191,7 @@ def main() -> None:
     )
     print(
         f"這次封存 {counts['archived']} 筆、喚回 {counts['recalled']} 筆、"
-        f"新增預估申請期 {counts['estimated_new']} 筆"
+        f"新增預估申請期 {counts['estimated_new']} 筆；資料過舊 {counts['stale']} 筆"
     )
 
 

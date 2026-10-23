@@ -46,3 +46,10 @@ def test_weekly_waits_until_recheck_from() -> None:
     assert due.is_due("weekly", None, today, recheck_from=today) is True
     assert due.is_due("weekly", date(2026, 10, 16), today, recheck_from=date(2026, 10, 1)) is True
     assert due.is_due("weekly", date(2026, 10, 20), today, recheck_from=date(2026, 10, 1)) is False
+
+
+def test_monthly_due_every_thirty_days() -> None:
+    today = date(2026, 10, 23)
+    assert due.is_due("monthly", None, today) is True  # 從沒檢查過
+    assert due.is_due("monthly", date(2026, 9, 23), today) is True  # 剛好 30 天前看過
+    assert due.is_due("monthly", date(2026, 9, 24), today) is False  # 29 天前看過

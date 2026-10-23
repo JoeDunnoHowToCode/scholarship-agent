@@ -13,6 +13,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[3]  # backend/
@@ -20,7 +21,9 @@ LOGS = BACKEND / "data" / "logs"
 AGENTS = Path.home() / "Library" / "LaunchAgents"
 # 標籤是 launchd 用來辨認程式的名字；後面是要執行的指令（前面會自動加上 uv run）
 JOBS = {
-    "local.scholarship-agent.worker": ["rq", "worker", "-w", "rq.worker.SpawnWorker", "--with-scheduler"],
+    "local.scholarship-agent.worker": [
+        "rq", "worker", "-w", "app.features.pipeline.worker.OnlineSpawnWorker", "--with-scheduler",
+    ],
     "local.scholarship-agent.cron": ["rq", "cron", "app.features.pipeline.schedule"],
 }
 
@@ -45,6 +48,15 @@ def domain() -> str:
     return f"gui/{os.getuid()}"  # 目前登入的這位使用者
 
 
+def wait_until_unloaded(label: str, seconds: int = 60) -> None:
+    """bootout 只送出停止訊號就返回；舊的程式真的結束（launchd 最多等 20 秒就強制結束）才能重新載入。"""
+    for _ in range(seconds):
+        if subprocess.run(["launchctl", "print", f"{domain()}/{label}"], capture_output=True, check=False).returncode != 0:
+            return  # 已經不在了
+        time.sleep(1)
+    sys.exit(f"{label} 在 {seconds} 秒內沒有停下來，請稍後再執行 install")
+
+
 def install() -> None:
     uv = shutil.which("uv")
     if uv is None:
@@ -54,8 +66,10 @@ def install() -> None:
     for label, command in JOBS.items():
         path = AGENTS / f"{label}.plist"
         if path.exists():
-            # 已經裝過：先停掉舊的，再用新的設定啟動
-            subprocess.run(["launchctl", "bootout", f"{domain()}/{label}"], check=False)
+            # 已經裝過：先停掉舊的，等它真的結束，再用新的設定啟動
+            # 沒在跑的話 bootout 會抱怨「No such process」，那不是錯誤，不顯示出來
+            subprocess.run(["launchctl", "bootout", f"{domain()}/{label}"], check=False, capture_output=True)
+            wait_until_unloaded(label)
         with path.open("wb") as file:
             plistlib.dump(plist_for(label, command, uv), file)
         subprocess.run(["launchctl", "bootstrap", domain(), str(path)], check=True)

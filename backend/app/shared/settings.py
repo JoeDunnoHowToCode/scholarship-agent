@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     fetch_min_interval_seconds: float = 5.0
     # 背景工作的佇列（ADR-004、006）：Docker 裡的 Redis，只綁本機
     redis_url: str = "redis://localhost:6379/0"
+    # 檢查有沒有網路用的網址（ADR-057）：macOS 自己檢查網路用的；測試時可以換成連不到的網址
+    online_check_url: str = "http://captive.apple.com"
 
 
 settings = Settings()

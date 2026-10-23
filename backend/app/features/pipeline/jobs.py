@@ -47,7 +47,6 @@ RESULT_TTL = 2 * 24 * 3600  # 工作的結果留 2 天，收尾時才讀得到�
 SOURCE_MAX_COST_NTD = 5.0  # 一個來源平常不到 NT$1（第 6 天重抽 180 筆約 NT$34）；超過代表有異常
 SCORE_MAX_COST_NTD = 20.0
 NTD_PER_USD = 32  # 和其他指令一樣的粗估匯率
-ONLINE_CHECK_URL = "http://captive.apple.com"  # macOS 自己檢查網路用的網址
 
 
 def queue() -> Queue:
@@ -57,7 +56,7 @@ def queue() -> Queue:
 def online() -> bool:
     """連得到外面的網路嗎（ADR-057：電腦白天常常沒連網）。"""
     try:
-        httpx.head(ONLINE_CHECK_URL, timeout=5)
+        httpx.head(settings.online_check_url, timeout=5)
     except httpx.HTTPError:
         return False
     return True

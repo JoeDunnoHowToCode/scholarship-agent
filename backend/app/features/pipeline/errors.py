@@ -41,8 +41,10 @@ def _kind_of(error: BaseException) -> Kind | None:
     # 下面三種情況，之後每件 AI 工作都會失敗：打開斷路器，暫停所有 AI 工作，等你處理
     if isinstance(error, (CostLimitError, MissingApiKeyError)):
         return "pause_ai"  # 費用超過上限、沒設定金鑰
-    if isinstance(error, APIError) and error.code in (401, 402, 403):
-        return "pause_ai"  # Gemini 金鑰有問題（401、403）或額度用完（402）
+    if isinstance(error, APIError) and error.code in (401, 402, 403, 404):
+        return "pause_ai"  # Gemini 金鑰有問題（401、403）、額度用完（402）、模型名稱錯（404）
+    if isinstance(error, APIError) and error.code == 400 and "API_KEY_INVALID" in str(error):
+        return "pause_ai"  # 金鑰無效時 Gemini 常回 400，內容寫 API_KEY_INVALID
     if isinstance(error, APIError) and (error.code == 429 or error.code >= 500):
         return "retry"  # Gemini 限速（429）或 Google 那邊暫時出錯（5xx）
     if isinstance(error, (httpx.TimeoutException, httpx.NetworkError)):

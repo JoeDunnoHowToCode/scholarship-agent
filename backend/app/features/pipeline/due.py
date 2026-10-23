@@ -1,9 +1,10 @@
 """檢查頻率（ADR-058）：每個來源多久回官網看一次；日期都用台灣時間的日期。"""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal
 
 Frequency = Literal["daily", "weekly", "monthly"]
+WEEKLY_DAYS = 7
 
 
 def frequency_for(status: str | None, stale: bool) -> Frequency:
@@ -24,4 +25,8 @@ def is_due(
 
     recheck_from：封存的獎學金從這天（預估開放前一個月）起才開始每週看。
     """
+    if frequency == "weekly":
+        if recheck_from is not None and today < recheck_from:
+            return False  # 還沒到開始檢查的日子，就算從沒檢查過也不看
+        return last_checked is None or today >= last_checked + timedelta(days=WEEKLY_DAYS)
     return last_checked is None or last_checked < today  # 每天：今天還沒看過就到期

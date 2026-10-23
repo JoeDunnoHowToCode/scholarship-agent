@@ -5,6 +5,9 @@ from typing import Literal
 import httpx
 from google.genai.errors import APIError
 
+from app.core.fetch.base import BlockedError
+from app.core.llm.gemini import ExtractionError
+
 Kind = Literal["retry", "skip", "pause_ai"]
 
 # 最多往裡面看幾個例外（含最外層）；例外互相指向（循環）時，也會在這裡停下來
@@ -35,6 +38,13 @@ def _kind_of(error: BaseException) -> Kind | None:
         return "retry"  # Gemini 限速（429）或 Google 那邊暫時出錯（5xx）
     if isinstance(error, (httpx.TimeoutException, httpx.NetworkError)):
         return "retry"  # 逾時或連不上（ConnectError 也算 NetworkError）
-    if isinstance(error, httpx.HTTPStatusError) and error.response.status_code >= 500:
-        return "retry"  # 官網暫時出錯
+    if isinstance(error, httpx.HTTPStatusError):  # 官網回錯誤狀態碼
+        if error.response.status_code >= 500:
+            return "retry"  # 官網暫時出錯
+        if error.response.status_code >= 400:
+            return "skip"  # 例如 404 頁面不存在：再試也一樣
+    if isinstance(error, (BlockedError, ExtractionError)):
+        # 被擋：抓取程式已經把來源標成需人工（ADR-028）
+        # ExtractionError：AI 重試後抽出的資料仍然驗證不過
+        return "skip"
     return None

@@ -6,12 +6,16 @@ import httpx
 from google.genai.errors import APIError
 
 from app.core.fetch.base import BlockedError
-from app.core.llm.gemini import ExtractionError
+from app.core.llm.gemini import ExtractionError, MissingApiKeyError
 
 Kind = Literal["retry", "skip", "pause_ai"]
 
 # 最多往裡面看幾個例外（含最外層）；例外互相指向（循環）時，也會在這裡停下來
 MAX_LINKS = 10
+
+
+class CostLimitError(RuntimeError):
+    """這件工作的 AI 費用超過上限。"""
 
 
 def classify(error: BaseException) -> Kind:
@@ -34,6 +38,11 @@ def classify(error: BaseException) -> Kind:
 
 def _kind_of(error: BaseException) -> Kind | None:
     """只看這一個例外：認得就回傳處理方式，認不得回傳 None，讓 classify 繼續往裡面找。"""
+    # 下面三種情況，之後每件 AI 工作都會失敗：打開斷路器，暫停所有 AI 工作，等你處理
+    if isinstance(error, (CostLimitError, MissingApiKeyError)):
+        return "pause_ai"  # 費用超過上限、沒設定金鑰
+    if isinstance(error, APIError) and error.code in (401, 402, 403):
+        return "pause_ai"  # Gemini 金鑰有問題（401、403）或額度用完（402）
     if isinstance(error, APIError) and (error.code == 429 or error.code >= 500):
         return "retry"  # Gemini 限速（429）或 Google 那邊暫時出錯（5xx）
     if isinstance(error, (httpx.TimeoutException, httpx.NetworkError)):

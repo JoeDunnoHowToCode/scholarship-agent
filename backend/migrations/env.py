@@ -4,6 +4,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.features.matching import models as match_models  # noqa: F401
+from app.features.pipeline import models as pipeline_models  # noqa: F401
 from app.features.profiles import models as profile_models  # noqa: F401
 
 # 載入資料表類別，Base.metadata 才認得它們

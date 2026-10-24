@@ -130,7 +130,7 @@ def generate(session: Session, user_id: int, now: datetime) -> dict[str, int]:
         changed = by_id.get(change.scholarship_id)
         if changed is None or score is None or score < threshold:
             continue
-        text = describe_change(change.field, change.old_value, change.new_value)
+        text = describe_change(change.field, change.old_value, change.new_value, today=today)
         if text is not None:
             # 標題直接帶變更內容：合併成摘要時只列標題，也看得懂變了什麼
             writer.add(

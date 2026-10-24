@@ -50,8 +50,10 @@ def quote_in_table_text(quote: str, source: str) -> bool:
         region = normalized_source[position:] if first else normalized_source[
             position : position + FRAGMENT_WINDOW + len(remaining)
         ]
-        # 從最長的開頭往短的試，找到最長、而且原文裡有的那一截
-        shortest = min(MIN_FRAGMENT, len(remaining))
+        # 從最長的開頭往短的試，找到最長、而且原文裡有的那一截。
+        # 每一截至少 6 個字；只有第一截在整句不到 6 個字時例外。最後剩不到 6 個字就算找不到，
+        # 不然「15」的「5」只要附近有別的「5」就會被當成找到（第 8 天發現）
+        shortest = min(MIN_FRAGMENT, len(remaining)) if first else MIN_FRAGMENT
         for length in range(len(remaining), shortest - 1, -1):
             found = region.find(remaining[:length])
             if found != -1 and (first or found <= FRAGMENT_WINDOW):

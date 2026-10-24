@@ -80,6 +80,8 @@ def describe_change(field: str, old: Any, new: Any) -> str | None:
         # 空值或不認得的值（舊資料）：比不出來，不通知
         if old == new or old not in SCOPE_NAMES or new not in SCOPE_NAMES:
             return None
+        if new == "unclear":
+            return None  # 變成「原文沒寫」：官網沒改，只是 AI 這次沒抽到（ADR-064）
         return f"國籍資格：{SCOPE_NAMES[old]} → {SCOPE_NAMES[new]}"
     if field == "nationalities":
         # 國碼不分大小寫

@@ -90,7 +90,8 @@ def describe_change(field: str, old: Any, new: Any) -> str | None:
         new_dates = sorted(date for year in changed for date in new_by_year[year])
         return f"截止日：{'、'.join(old_dates)} → {'、'.join(new_dates)}"
     if field == "nationality_scope":
-        if old == new:
+        # 空值或不認得的值（舊資料）：比不出來，不通知
+        if old == new or old not in SCOPE_NAMES or new not in SCOPE_NAMES:
             return None
         return f"國籍資格：{SCOPE_NAMES[old]} → {SCOPE_NAMES[new]}"
     if field == "nationalities":
@@ -117,6 +118,8 @@ def describe_change(field: str, old: Any, new: Any) -> str | None:
         return f"金額：{old[:60]} → {new[:60]}"  # 原文太長只留前 60 個字
     if field == "requirements":
         # 只通知新增的文件種類；變少或變空白，多半是 AI 這次沒抽到
+        if not old:
+            return None  # 舊的是空的：多半是之前漏抽，不能把全部文件都當成新增
         added = {item["doc_type"] for item in new} - {item["doc_type"] for item in old}
         if not added:
             return None

@@ -75,58 +75,6 @@ def test_eligibility_and_deadline_changes_compare_normalized_values() -> None:
     assert rules.describe_change("coverage", "學費", "學費、生活費") is None
 
 
-def test_amount_change_compares_the_numbers_in_the_text() -> None:
-    # 金額裡的數字：千分位的逗號拿掉；點後面剛好三位數也是千分位（歐洲寫法），其他的點是小數點
-    assert rules.amount_numbers("€1,400 per month") == {"1400"}
-    assert rules.amount_numbers("EUR 1.400 pro Monat") == {"1400"}
-    assert rules.amount_numbers("€2.5 million in total, 1.200.000 per year") == {"2.5", "1200000"}
-    assert rules.amount_numbers("全額補助") == set()
-    assert rules.amount_numbers(None) == set()
-    # 換個寫法、數字一樣（AI 重抽常這樣）：不通知
-    assert rules.describe_change("amount", "€1,400 per month", "1400 EUR monthly") is None
-    # 數字變了：通知，前後照原文寫
-    assert (
-        rules.describe_change("amount", "€1,400 per month", "€1,500 per month")
-        == "金額：€1,400 per month → €1,500 per month"
-    )
-    # 有一邊沒有數字（原文沒寫數字或 AI 漏抽）：比不出來，不通知
-    assert rules.describe_change("amount", None, "€1,500 per month") is None
-    assert rules.describe_change("amount", "€1,400 per month", "全額補助") is None
-    # 原文太長時只留前 60 個字
-    long_text = "EUR 1,400 per month " + "plus travel costs " * 5
-    assert (
-        rules.describe_change("amount", long_text, "EUR 1,500")
-        == "金額：EUR 1,400 per month plus travel costs plus travel costs plus → EUR 1,500"
-    )
-
-
-def test_documents_change_reports_only_added_document_types() -> None:
-    old = [
-        {"doc_type": "cv", "details": "Europass 格式", "evidence": "CV in Europass format"},
-        {"doc_type": "transcript", "details": None, "evidence": "Transcript of records"},
-    ]
-    # 多了研究計畫和語言證明：通知，代號排序後用「、」連接；舊的文件說明換了說法不算
-    added = [
-        {"doc_type": "transcript", "details": "英文版", "evidence": "Official transcript in English"},
-        {"doc_type": "research_proposal", "details": None, "evidence": "A research proposal"},
-        {"doc_type": "cv", "details": None, "evidence": "Curriculum vitae"},
-        {"doc_type": "language_test", "details": "IELTS 6.5", "evidence": "IELTS 6.5 or equivalent"},
-    ]
-    assert (
-        rules.describe_change("requirements", old, added) == "新增文件要求：language_test、research_proposal"
-    )
-    # 有新增也有減少：只講新增的
-    swapped = [
-        {"doc_type": "cv", "details": None, "evidence": "CV"},
-        {"doc_type": "portfolio", "details": None, "evidence": "Portfolio of recent work"},
-    ]
-    assert rules.describe_change("requirements", old, swapped) == "新增文件要求：portfolio"
-    # 只是變少、或整個變空白（多半是 AI 這次沒抽到）：不通知
-    fewer = [{"doc_type": "cv", "details": None, "evidence": "CV"}]
-    assert rules.describe_change("requirements", old, fewer) is None
-    assert rules.describe_change("requirements", old, []) is None
-
-
 def test_bundle_merges_more_than_five_into_a_digest_grouped_by_kind() -> None:
     breaker = Notification(kind="system", title="斷路器打開：暫停抓取網頁")
     change = Notification(
@@ -185,3 +133,12 @@ def test_changes_the_ai_probably_missed_are_not_reported() -> None:
     # 國籍資格是空值或不認得的值（舊資料）：不通知，也不會出錯
     assert rules.describe_change("nationality_scope", None, "all") is None
     assert rules.describe_change("nationality_scope", "all", "everyone") is None
+
+
+def test_amount_and_document_changes_are_not_notified() -> None:
+    # ADR-064（使用者第 8 天的決定）：金額不影響能不能申請；文件要求公告後很少改、
+    # 系統偵測到的多半是 AI 每次抽取不同 → 兩種都不推播，點進詳細頁就看得到
+    assert rules.describe_change("amount", "€1,400 per month", "€1,500 per month") is None
+    before = [{"doc_type": "cv"}]
+    after = [{"doc_type": "cv"}, {"doc_type": "language_test"}]
+    assert rules.describe_change("requirements", before, after) is None

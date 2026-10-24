@@ -36,3 +36,37 @@ def test_to_html_bolds_the_title_escapes_text_and_ends_with_the_link() -> None:
     # 沒有內容行、也沒有連結：只有粗體標題
     notification = Notification(kind="system", title="斷路器打開")
     assert telegram.to_html(notification) == "<b>斷路器打開</b>"
+
+
+def test_split_message_cuts_at_line_breaks_within_the_limit() -> None:
+    # 先用上限 10 個字，例子比較好讀
+    # 沒超過上限就原樣回傳一則（剛好 10 個字也算沒超過）
+    assert telegram.split_message("abcd\nefghi", limit=10) == ["abcd\nefghi"]
+
+    # 超過了：只在換行處切，整行裝進同一則；行跟行中間的換行也算一個字
+    # 4 + 1 + 5 = 10，剛好裝得下
+    assert telegram.split_message("abcd\nefghi\njk", limit=10) == ["abcd\nefghi", "jk"]
+    # 5 + 1 + 5 = 11，裝不下，第二行換到下一則
+    assert telegram.split_message("abcde\nfghij\nk", limit=10) == ["abcde", "fghij\nk"]
+
+    # 一行就超過上限：只好每 10 個字硬切，最後一段比較短，後面的行照樣接上去
+    assert telegram.split_message("ab\n" + "x" * 25 + "\ncd", limit=10) == [
+        "ab",
+        "x" * 10,
+        "x" * 10,
+        "xxxxx\ncd",
+    ]
+
+    # 切點剛好在空行：不會多出空的一則（Telegram 不收空訊息）
+    assert telegram.split_message("abcdefghij\n\nklmnopqrst", limit=10) == [
+        "abcdefghij",
+        "klmnopqrst",
+    ]
+
+    # 實際的長度：300 行，每行 20 個字（例如「000 獎學金截止 2027-01-15」），用預設上限 4096
+    # 一則最多裝 195 行（195 × 20 + 194 個換行 = 4094 字），所以切成 2 則
+    text = "\n".join(f"{i:03d} 獎學金截止 2027-01-15" for i in range(300))
+    chunks = telegram.split_message(text)
+    assert len(chunks) == 2
+    assert all(len(chunk) <= 4096 for chunk in chunks)
+    assert "\n".join(chunks) == text

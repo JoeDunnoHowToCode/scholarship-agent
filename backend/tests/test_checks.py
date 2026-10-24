@@ -47,3 +47,14 @@ def test_quote_in_table_text_rejects_a_changed_date() -> None:
     # 把截止日改成 3 月 13 日：拼得出「115年3月」和「13日(五)中午12:00截止」，但順序不對
     quote = "【開放網路報名起訖時間】115 年 1 月 16 日(五)上午 8:30 起至115 年 3 月 13 日(五)中午 12:00 截止"
     assert not checks.quote_in_table_text(quote, TABLE_RAW)
+
+
+def test_quote_in_table_text_rejects_a_changed_last_digit() -> None:
+    # 第 8 天發現：引用只有最後一個數字和原文不同（16 日寫成 15 日、2027 寫成 2026），
+    # 最後不到 6 個字的那一小段在附近隨便找到一個「5」「6」就算找到，驗證者會判定「有依據」
+    assert not checks.quote_in_table_text(
+        "Deadline: January 15", "Deadline: January 16, 2027. Interviews: January 16-25, 2027."
+    )
+    assert not checks.quote_in_table_text(
+        "Deadline: 15 January 2026", "Deadline: 15 January 2027. Interviews start 16 February."
+    )

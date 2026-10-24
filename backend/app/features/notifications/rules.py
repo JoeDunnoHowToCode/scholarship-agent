@@ -4,6 +4,8 @@
 AI 重抽同一頁常會換個說法或漏抽，所以變更只比整理過的值（日期、數字、代號），不比原文。
 """
 
+from typing import Any
+
 # 截止前幾天提醒（docs/day-08.md「Claude 自行決定」第 6 點），由大到小
 REMINDER_DAYS = (30, 14, 7, 3, 1)
 
@@ -19,3 +21,64 @@ def reminder_bucket(days_left: int, sent: set[int]) -> int | None:
     # 現在這一格：天數還沒低於它的格子裡最小的，例如剩 12 天是「14 天」那格
     bucket = min(day for day in REMINDER_DAYS if day >= days_left)
     return None if bucket in sent else bucket
+
+
+# 國籍資格的代號換成中文（ADR-043）
+SCOPE_NAMES = {
+    "all": "不限國籍",
+    "listed": "只限列出的國家",
+    "excluded": "列出的國家以外都可以",
+    "unclear": "原文沒寫",
+}
+# 學位的代號換成中文；寫出來時照這個順序
+DEGREE_NAMES = {"bachelor": "學士", "master": "碩士", "phd": "博士"}
+
+
+def _closing_dates(windows: list[dict[str, Any]]) -> set[str]:
+    """申請窗口裡年、月、日都有的截止日，寫成 2027-01-15；標籤或引用換了說法不影響。"""
+    return {
+        f"{w['closes_year']:04d}-{w['closes_month']:02d}-{w['closes_day']:02d}"
+        for w in windows
+        if w["closes_year"] and w["closes_month"] and w["closes_day"]
+    }
+
+
+def _degree_names(degrees: list[str]) -> str:
+    """學位代號換成中文，照學士、碩士、博士的順序；空清單寫「原文沒寫」。"""
+    return "、".join(name for code, name in DEGREE_NAMES.items() if code in degrees) or "原文沒寫"
+
+
+def describe_change(field: str, old: Any, new: Any) -> str | None:
+    """一筆變更值不值得通知：值得就回傳一句中文說明，不值得就回傳 None。
+
+    old、new 是變更紀錄裡原本的值（changes.Change）。只比整理過的值：
+    AI 換了說法不算變更；有一邊變成空的，多半是 AI 這次漏抽，也不通知。
+    """
+    if field == "windows":
+        # 舊資料可能還沒有申請窗口這個欄位（None），當成沒有截止日
+        before, after = _closing_dates(old or []), _closing_dates(new or [])
+        # 舊的沒有截止日是新的一屆（另外通知）；新的沒有多半是 AI 漏抽
+        if not before or not after or before == after:
+            return None
+        return f"截止日：{'、'.join(sorted(before))} → {'、'.join(sorted(after))}"
+    if field == "nationality_scope":
+        if old == new:
+            return None
+        return f"國籍資格：{SCOPE_NAMES[old]} → {SCOPE_NAMES[new]}"
+    if field == "nationalities":
+        # 國碼不分大小寫
+        before, after = {code.upper() for code in old}, {code.upper() for code in new}
+        # 有一邊是空清單：AI 有時沒把 EU 這種集合展開成國碼（docs/adr.md 待決定 #52）
+        if not before or not after or before == after:
+            return None
+        parts: list[str] = []
+        if after - before:
+            parts.append(f"新增 {'、'.join(sorted(after - before))}")
+        if before - after:
+            parts.append(f"移除 {'、'.join(sorted(before - after))}")
+        return f"國籍清單：{'；'.join(parts)}"
+    if field == "degrees":
+        if not new or set(old) == set(new):
+            return None  # 新的是空清單：多半是 AI 漏抽
+        return f"可讀學位：{_degree_names(old)} → {_degree_names(new)}"
+    return None  # 其他欄位不通知

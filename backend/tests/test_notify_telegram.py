@@ -70,3 +70,11 @@ def test_split_message_cuts_at_line_breaks_within_the_limit() -> None:
     assert len(chunks) == 2
     assert all(len(chunk) <= 4096 for chunk in chunks)
     assert "\n".join(chunks) == text
+
+
+def test_split_message_keeps_blank_lines_inside_a_chunk() -> None:
+    # 空行也是一行（例如摘要裡分隔各組的空行），切段時要留著，不能被吃掉
+    assert telegram.split_message("ab\n\ncd\nefghijklmn", limit=10) == [
+        "ab\n\ncd",
+        "efghijklmn",
+    ]

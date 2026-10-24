@@ -162,3 +162,17 @@ def test_bundle_merges_more_than_five_into_a_digest_grouped_by_kind() -> None:
             url=None,
         ),
     ]
+
+
+def test_deadline_changes_compare_only_within_the_same_intake() -> None:
+    # 官網把上一屆換成下一屆（2026 → 2027）：那是新年度開放（另外通知），不是截止日變更（子 agent 提出）
+    last = [{"intake": None, "closes_year": 2026, "closes_month": 1, "closes_day": 15}]
+    next_year = [{"intake": None, "closes_year": 2027, "closes_month": 1, "closes_day": 15}]
+    assert rules.describe_change("windows", last, next_year) is None
+    # 同一屆（入學年度寫 2027/28）從 2026-12-15 改到 2027-01-10：跨了年，還是同一屆，要通知
+    december = [{"intake": "2027/28", "closes_year": 2026, "closes_month": 12, "closes_day": 15}]
+    january = [{"intake": "2027/2028", "closes_year": 2027, "closes_month": 1, "closes_day": 10}]
+    assert rules.describe_change("windows", december, january) == "截止日：2026-12-15 → 2027-01-10"
+    # 哪一屆：入學年度裡第一個四位數年份；沒寫入學年度就用截止的年份
+    assert rules.cycle_year("2027-2029 cohort", 2026) == 2027
+    assert rules.cycle_year(None, 2026) == 2026

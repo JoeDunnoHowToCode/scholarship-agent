@@ -1,5 +1,6 @@
 """通知判斷規則的單元測試（ADR-062、063）：截止提醒的格子、變更判斷、合併成摘要。"""
 
+from app.core.notify.base import Notification
 from app.features.notifications import rules
 
 
@@ -124,3 +125,40 @@ def test_documents_change_reports_only_added_document_types() -> None:
     fewer = [{"doc_type": "cv", "details": None, "evidence": "CV"}]
     assert rules.describe_change("requirements", old, fewer) is None
     assert rules.describe_change("requirements", old, []) is None
+
+
+def test_bundle_merges_more_than_five_into_a_digest_grouped_by_kind() -> None:
+    breaker = Notification(kind="system", title="斷路器打開：暫停抓取網頁")
+    change = Notification(
+        kind="change", title="DAAD 資料變更", lines=("金額：€934 → €992",), url="https://example.org/daad"
+    )
+    first = Notification(
+        kind="deadline", title="學程 20 剩 7 天截止", lines=("截止日：2027-01-15",), url="https://example.org/20"
+    )
+    new = Notification(kind="new_scholarship", title="新獎學金：Eiffel 獎學金", url="https://example.org/eiffel")
+    unknown = Notification(kind="unknown", title="沒有分組的類型")
+    cycle = Notification(kind="new_cycle", title="學程 35 新年度開放", url="https://example.org/35")
+    second = Notification(kind="deadline", title="教育部留學獎學金剩 14 天截止", url="https://example.org/moe")
+
+    # 沒有通知：什麼都不送
+    assert rules.bundle([]) == []
+    # 5 則以內（系統通知不算）：照原樣各送各的，系統通知排最前面
+    assert rules.bundle([change, first, breaker, new, cycle, second]) == [
+        breaker, change, first, new, cycle, second,
+    ]
+    # 超過 5 則：合併成一則摘要，依類型分組、每組先寫標題，同一組照原本的順序；系統通知照樣單獨送
+    assert rules.bundle([change, first, breaker, new, unknown, cycle, second]) == [
+        breaker,
+        Notification(
+            kind="digest",
+            title="今天有 6 則獎學金通知",
+            lines=(
+                "【截止提醒】", "學程 20 剩 7 天截止", "教育部留學獎學金剩 14 天截止",
+                "【新年度開放】", "學程 35 新年度開放",
+                "【新獎學金】", "新獎學金：Eiffel 獎學金",
+                "【資料變更】", "DAAD 資料變更",
+                "【其他】", "沒有分組的類型",
+            ),
+            url=None,
+        ),
+    ]

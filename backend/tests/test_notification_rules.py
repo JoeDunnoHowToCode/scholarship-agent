@@ -1,5 +1,7 @@
 """通知判斷規則的單元測試（ADR-062、063）：截止提醒的格子、變更判斷、合併成摘要。"""
 
+from datetime import date
+
 from app.core.notify.base import Notification
 from app.features.notifications import rules
 
@@ -140,3 +142,20 @@ def test_amount_and_document_changes_are_not_notified() -> None:
     before = [{"doc_type": "cv"}]
     after = [{"doc_type": "cv"}, {"doc_type": "language_test"}]
     assert rules.describe_change("requirements", before, after) is None
+
+
+def test_a_deadline_moved_to_a_date_already_past_is_not_notified() -> None:
+    # ADR-065（ReSound）：官網改寫了 2027 屆那句，AI 卻抽到同一頁 2025/26 屆的句子、標成 2027 屆
+    # → 新的截止日已經過去，多半是抽錯，不通知
+    today = date(2026, 10, 24)
+    old = [{"intake": "2027", "closes_year": 2027, "closes_month": 1, "closes_day": 12}]
+    old_cycle_picked = [{"intake": "2027", "closes_year": 2026, "closes_month": 1, "closes_day": 20}]
+    assert rules.describe_change("windows", old, old_cycle_picked, today=today) is None
+    # 新的截止日還沒到：照樣通知；今天截止的不算過去
+    moved = [{"intake": "2027", "closes_year": 2027, "closes_month": 1, "closes_day": 20}]
+    assert rules.describe_change("windows", old, moved, today=today) == "截止日：2027-01-12 → 2027-01-20"
+    due_today = [{"intake": "2027", "closes_year": 2026, "closes_month": 10, "closes_day": 24}]
+    assert rules.describe_change("windows", old, due_today, today=today) == "截止日：2027-01-12 → 2026-10-24"
+    # 同一屆有好幾個新的截止日：全部都過去才不通知
+    mixed = old_cycle_picked + [{"intake": "2027", "closes_year": 2027, "closes_month": 2, "closes_day": 1}]
+    assert rules.describe_change("windows", old, mixed, today=today) == "截止日：2027-01-12 → 2026-01-20、2027-02-01"

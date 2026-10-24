@@ -97,3 +97,65 @@ def test_detects_real_changes_in_field_order_with_original_values() -> None:
         changes.Change("windows", old_windows, new_windows),
         changes.Change("requirements", old_requirements, new_requirements),
     ]
+
+
+def test_only_a_sentence_found_in_just_one_version_of_the_website_is_a_change() -> None:
+    # ADR-064：官網真的改了才算。old_page、new_page 是新舊兩版網頁的原文（可見文字）
+    old_page = "Last updated: 23 October 2026\nApplication deadline: 15 January 2027\nInterviews: 20 January 2027"
+    old = {
+        "windows": [
+            {"closes_year": 2027, "closes_month": 1, "closes_day": 15,
+             "evidence": "Application deadline: 15 January 2027"},
+        ]
+    }
+    # 官網只有更新時間變了（每天都會變的動態內容），AI 這次挑了面試日期那一句：兩句新舊兩版都有，不算
+    same_page = "Last updated: 24 October 2026\nApplication deadline: 15 January 2027\nInterviews: 20 January 2027"
+    picked_other = {
+        "windows": [
+            {"closes_year": 2027, "closes_month": 1, "closes_day": 20, "evidence": "Interviews: 20 January 2027"},
+        ]
+    }
+    assert changes.website_changed("windows", old, picked_other, old_page, same_page) is False
+    # 截止日延長：新的引用只在新版網頁出現 → 官網真的改了
+    extended_page = (
+        "Last updated: 24 October 2026\nApplication deadline extended to 31 January 2027\nInterviews: 20 January 2027"
+    )
+    extended = {
+        "windows": [
+            {"closes_year": 2027, "closes_month": 1, "closes_day": 31,
+             "evidence": "Application deadline extended to 31 January 2027"},
+        ]
+    }
+    assert changes.website_changed("windows", old, extended, old_page, extended_page) is True
+
+    # 官網刪掉第二輪：新的引用舊版也有，但第二輪那句只在舊版出現 → 也算官網改了
+    two_rounds = "Round 1 deadline: 15 January 2027\nRound 2 deadline: 1 March 2027"
+    one_round = "Round 1 deadline: 15 January 2027"
+    old_rounds = {
+        "windows": [
+            {"closes_year": 2027, "closes_month": 1, "closes_day": 15, "evidence": "Round 1 deadline: 15 January 2027"},
+            {"closes_year": 2027, "closes_month": 3, "closes_day": 1, "evidence": "Round 2 deadline: 1 March 2027"},
+        ]
+    }
+    new_rounds = {
+        "windows": [
+            {"closes_year": 2027, "closes_month": 1, "closes_day": 15, "evidence": "Round 1 deadline: 15 January 2027"},
+        ]
+    }
+    assert changes.website_changed("windows", old_rounds, new_rounds, two_rounds, one_round) is True
+
+    # 國籍資格、國家清單看 nationality_evidence；學位看 degrees_evidence
+    all_open = {"nationality_evidence": "Open to students of all nationalities."}
+    eu_only = {"nationality_evidence": "Only EU citizens are eligible."}
+    assert changes.website_changed(
+        "nationality_scope", all_open, eu_only, "Open to students of all nationalities.", "Only EU citizens are eligible."
+    ) is True
+    # 同一頁兩句都有，AI 只是這次挑了另一句：不算
+    both = "Open to students of all nationalities. Only EU citizens are eligible."
+    assert changes.website_changed("nationalities", all_open, eu_only, both, both) is False
+    master = {"degrees_evidence": "This is a two-year Master programme."}
+    master_and_phd = {"degrees_evidence": "PhD candidates may also apply."}
+    assert changes.website_changed(
+        "degrees", master, master_and_phd,
+        "This is a two-year Master programme.", "This is a two-year Master programme. PhD candidates may also apply.",
+    ) is True

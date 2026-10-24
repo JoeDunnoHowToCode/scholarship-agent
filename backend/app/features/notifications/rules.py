@@ -4,6 +4,7 @@
 AI 重抽同一頁常會換個說法或漏抽，所以變更只比整理過的值（日期、數字、代號），不比原文。
 """
 
+import re
 from typing import Any
 
 # 截止前幾天提醒（docs/day-08.md「Claude 自行決定」第 6 點），由大到小
@@ -48,6 +49,19 @@ def _degree_names(degrees: list[str]) -> str:
     return "、".join(name for code, name in DEGREE_NAMES.items() if code in degrees) or "原文沒寫"
 
 
+def amount_numbers(text: str | None) -> set[str]:
+    """金額文字裡的數字，例如「€1,400 per month」→ {"1400"}；只比數字，換個寫法不算變更。
+
+    千分位的逗號拿掉；點後面剛好三位數也當千分位（歐洲寫法 1.400 → 1400），其他的點是小數點（2.5 照舊）。
+    """
+    return {
+        # \.(?=\d{3}(?!\d))：後面剛好接三位數（第四個字不是數字）的點
+        re.sub(r"\.(?=\d{3}(?!\d))", "", number.replace(",", ""))
+        # \d+(?:[.,]\d+)*：一串數字，中間可以夾逗號或點，例如 1,400、1.200.000、2.5
+        for number in re.findall(r"\d+(?:[.,]\d+)*", text or "")
+    }
+
+
 def describe_change(field: str, old: Any, new: Any) -> str | None:
     """一筆變更值不值得通知：值得就回傳一句中文說明，不值得就回傳 None。
 
@@ -81,4 +95,10 @@ def describe_change(field: str, old: Any, new: Any) -> str | None:
         if not new or set(old) == set(new):
             return None  # 新的是空清單：多半是 AI 漏抽
         return f"可讀學位：{_degree_names(old)} → {_degree_names(new)}"
+    if field == "amount":
+        before, after = amount_numbers(old), amount_numbers(new)
+        # 有一邊沒有數字（例如「全額補助」、或 AI 漏抽）：比不出來，不通知
+        if not before or not after or before == after:
+            return None
+        return f"金額：{old[:60]} → {new[:60]}"  # 原文太長只留前 60 個字
     return None  # 其他欄位不通知

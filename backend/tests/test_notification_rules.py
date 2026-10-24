@@ -49,10 +49,8 @@ def test_eligibility_and_deadline_changes_compare_normalized_values() -> None:
 
     # 國籍資格的範圍變了：用中文寫出前後
     assert rules.describe_change("nationality_scope", "all", "listed") == "國籍資格：不限國籍 → 只限列出的國家"
-    assert (
-        rules.describe_change("nationality_scope", "excluded", "unclear")
-        == "國籍資格：列出的國家以外都可以 → 原文沒寫"
-    )
+    # 變成「原文沒寫」：官網沒改，只是 AI 這次沒抽到（ADR-064）→ 不通知
+    assert rules.describe_change("nationality_scope", "excluded", "unclear") is None
     assert rules.describe_change("nationality_scope", "listed", "listed") is None
 
     # 國家清單：國碼不分大小寫、不管順序；只寫有變的部分，國碼排序

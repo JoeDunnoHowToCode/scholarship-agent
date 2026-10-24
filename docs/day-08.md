@@ -10,6 +10,7 @@
 - 通知插座收結構化通知，Telegram 轉接頭負責排版、轉義與切段（ADR-063、ADR-005）
 - 門檻 60 分指的是適配度（ADR-059、060）；events 表有 user_id（ADR-021）
 - 斷路器打開時要通知（ADR-013、056）
+- 執行中決定：通知只看可能影響能不能申請的變更（截止日、國籍資格、可讀學位），官網真的改了才算變更（ADR-064）
 
 ## Claude 自行決定（小問題，請事後檢查）
 
@@ -26,6 +27,7 @@
    - 金額：金額文字裡的數字變了
    - 文件要求：只通知新增的文件種類；變少或變空白不通知，那多半是 AI 這次沒抽到
    - 依據：第 7 天同一天有 49 筆獎學金記了變更，抽看大多是 AI 換了說法、或這次沒抽到
+   - 執行中依 ADR-064 改了：金額與文件要求不通知；國籍資格變成「原文沒寫」不通知；另外加上核對原文（第 28–31 點）
 9. 合併：一次要送的待送事件超過 5 則，就合成一則摘要（依類型分組）；5 則以內就各送一則
 10. 送出時機：每天的收尾工作最後產生事件，接著放一件 send_events 工作；另外有手動送出的指令
 11. Telegram 轉接頭：用 HTML（標題粗體、連結），轉義 `<`、`>`、`&`；超過 4096 字就依行切成好幾則。遇到錯誤時：
@@ -49,13 +51,15 @@
 25. 舊的文件清單是空的、國籍資格是空值或不認得的值：不通知、不出錯（子 agent 提出）
 26. 斷路器打開時通知，去重鍵用打開的時間（同一次只通知一次）；用指令手動打開也會通知
 27. 設定加上 `hide_input_in_errors`：設定出錯時，錯誤訊息不印出輸入的值（執行時發現第 1 點）
+28. 核對原文（ADR-064 的做法）：會推播的欄位（截止日、國籍範圍、國家清單、學位），要有一句引用「只出現在新版網頁」或「只出現在舊版網頁」，才記成變更。ADR-064 寫的是前者；我加上後者，才抓得到官網刪掉一輪截止日這種改動（新的引用都是舊版就有的句子）
+29. 引用不在自己那一版原文裡（AI 改寫過），不能當證據，略過；找引用的方式和驗證者一樣（全形轉半形、不管空白、刪節號、表格切段）
+30. 新舊兩版原文：用抽取結果記下的快照雜湊（`meta.snapshots`）找回快照檔，用同一個函式轉成文字（網頁取可見文字、PDF 用 pdfplumber），和抽取時核對用的原文一樣
+31. 其他欄位（金額、補助內容、語言、其他資格、類別、文件要求）不通知，照舊記變更紀錄；網頁要不要顯示這些紀錄，第 9 天做網頁時再看（和 #55 有關）
 
 ## 待使用者決策
 
-1. 改兩個既有測試（Gate 2 要你同意）：子 agent 照我給的規格寫的測試，釘住了兩個我現在認為不對的行為
-   - 國籍資格變成「原文沒寫」也會通知 → 想改成不通知（多半是 AI 漏抽，和第 25 點同一個理由）
-   - 新增的文件顯示英文代號（例如 `language_test`）→ 想改成中文（語言檢定）
-2. 「金額」與「文件要求」的變更通知雜訊比較多（執行時發現第 5 點）：要照 spec 繼續通知，還是調整
+1. ~~改兩個既有測試~~：已由 ADR-064 決定。國籍資格變成「原文沒寫」不通知；文件要求整個不通知，所以不用改成中文
+2. ~~「金額」與「文件要求」的變更通知~~：已由 ADR-064 決定，兩種都不通知
 
 ## 設計草圖
 
@@ -96,8 +100,11 @@ class TelegramNotifier: ...
 REMINDER_DAYS = (30, 14, 7, 3, 1)
 def reminder_bucket(days_left: int, sent: set[int]) -> int | None
 def cycle_year(intake: str | None, closes_year: int) -> int            # 哪一屆
-def amount_numbers(text: str | None) -> set[str]
-def describe_change(field: str, old: Any, new: Any) -> str | None      # 截止日、資格、金額、文件
+def describe_change(field: str, old: Any, new: Any) -> str | None      # 截止日、資格（ADR-064 拿掉金額、文件）
+
+# features/scholarships/changes.py（ADR-064 核對原文）
+QUOTE_KEYS = {"nationality_scope": ..., "nationalities": ..., "degrees": ..., "windows": ...}  # 欄位 → 引用
+def website_changed(field, old, new, old_text, new_text) -> bool    # 有引用只在新版或只在舊版出現
 def bundle(notifications: list[Notification]) -> list[Notification]   # 超過 5 則合併成摘要
 ```
 
@@ -115,7 +122,8 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
 
 | 檔案 | 行為 |
 | --- | --- |
-| test_notification_rules.py | 截止提醒的格子（含錯過的格子）；截止日與資格的變更；金額數字的變更；新增的文件；超過 5 則合併 |
+| test_notification_rules.py | 截止提醒的格子（含錯過的格子）；截止日與資格的變更；~~金額數字的變更；新增的文件~~（ADR-064 改成不通知）；超過 5 則合併 |
+| test_changes.py | ADR-064：引用只在新版或只在舊版網頁出現才算官網改了；AI 改寫過的引用不算證據 |
 | test_notify_telegram.py | 轉成 HTML 並轉義；超過 4096 字依行切段；實作時補：每個標籤都在同一行 |
 | test_notify_setup.py | 實作時補：改寫 .env 只動一個鍵 |
 
@@ -173,6 +181,22 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
   ```
   1 passed in 0.02s
   ```
+
+執行中依 ADR-064 調整（使用者的決定，也就是同意改既有測試；改測試各自一個紅色 commit）：
+
+- [x] R7 金額與文件要求的變更不通知 -> verify: `uv run pytest tests/test_notification_rules.py -k not_notified`
+
+  ```
+  1 passed, 5 deselected in 0.03s   ← 取代原本 R3 的兩個測試
+  ```
+- [x] R8 國籍資格變成「原文沒寫」不通知 -> verify: `uv run pytest tests/test_notification_rules.py -k eligibility`
+
+  ```
+  1 passed, 5 deselected in 0.03s   ← R2 裡那一行改成不通知
+  ```
+- [ ] C1 有一句引用只出現在新版或只出現在舊版網頁，才算官網改了 -> verify: `uv run pytest tests/test_changes.py -k one_version`
+- [ ] C2 AI 改寫過的引用不算證據 -> verify: `uv run pytest tests/test_changes.py -k rewrote`
+- [ ] C3 抽取時，會推播的欄位只記官網真的改了的變更 -> verify: 用 10-23、10-24 的截止日變更紀錄回測（貼出核對前後的筆數），再實跑一個每天都會重抽的來源
 
 ### 2. 資料表與產生事件（Claude）
 

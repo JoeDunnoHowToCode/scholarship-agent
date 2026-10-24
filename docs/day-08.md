@@ -216,8 +216,19 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
   ```
   1 passed, 4 deselected in 0.02s
   ```
-- [ ] R9 截止日改到已經過去的日期不通知（ADR-065） -> verify: `uv run pytest tests/test_notification_rules.py -k already_past`
-- [ ] R9 接進每天產生事件 -> verify: 在交易裡重播 `generate()`（最後還原）：ReSound 的變更 #66 不產生事件
+- [x] R9 截止日改到已經過去的日期不通知（ADR-065） -> verify: `uv run pytest tests/test_notification_rules.py -k already_past`
+
+  ```
+  1 passed, 6 deselected in 0.03s
+  ```
+- [x] R9 接進每天產生事件 -> verify: 在交易裡重播 `generate()`（最後還原）：ReSound 的變更 #66 不產生事件
+
+  ```
+  兩筆的適配度都是 0 分，所以重播時只在記憶體裡把門檻設成 0
+  ReSound 變更 #66 產生事件： 沒有
+  Master LIVE 變更 #400 產生事件： 資料變更：Erasmus Mundus Joint Master in International Vaccinology – LIVE｜截止日：2027-01-21 → 2027-01-20
+  事件筆數：重播前 34 → 還原後 34
+  ```
 - [x] C3 抽取時，會推播的欄位只記官網真的改了的變更 -> verify: 回測已記下的截止日變更；再用真的 `save()` 重播（交易最後還原，不花 AI 費用）。原本打算實跑一個來源，改成重播：實跑要等網頁剛好又變了才會重抽，重播可以指定真的變更和雜訊各測一次
 
   ```
@@ -262,26 +273,26 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
 
 ### 3. Telegram（要先有 token）
 
-- [ ] setup：找到聊天 ID、寫進 .env、送測試訊息 -> verify: 你收到測試訊息；`.env` 有 `TELEGRAM_CHAT_ID`（只看有沒有）
+- [x] setup：找到聊天 ID、寫進 .env、送測試訊息 -> verify: 你收到測試訊息；`.env` 有 `TELEGRAM_CHAT_ID`（只看有沒有）
 
   ```
-  token 有設定: True ｜聊天 ID 有設定: True      ← 你在自己的終端機跑完 setup；等你確認收到測試訊息
+  token 有設定: True ｜聊天 ID 有設定: True      ← 你在自己的終端機跑完 setup；你確認收到測試訊息
   ```
-- [ ] send_events：待送變已送，再送一次是 0 則 -> verify: 貼出筆數，你收到訊息
+- [x] send_events：待送變已送，再送一次是 0 則 -> verify: 貼出筆數，你收到訊息
 
   ```
   21:22:47 worker 執行 send_events：事件 32 new_scholarship（DEAI，100 分）pending → sent，嘗試 1 次、沒有錯誤
   $ uv run python -m app.features.notifications.send
-  {}                                             ← 再送一次是 0 則；等你確認收到 DEAI 那則
+  {}                                             ← 再送一次是 0 則；你確認收到 DEAI 那則
   ```
-- [ ] 斷路器打開時通知 -> verify: 手動打開斷路器，你收到通知；之後恢復
+- [x] 斷路器打開時通知 -> verify: 手動打開斷路器，你收到通知；之後恢復
 
   ```
   $ uv run python -m app.features.pipeline.breaker --open "第 8 天測試：手動打開斷路器"
   斷路器打開中（2026-10-24 14:21 UTC）：第 8 天測試：手動打開斷路器
   事件 34 system sent：建立 14:21:49 UTC、送出 14:21:50 UTC，嘗試 1 次、沒有錯誤
   $ uv run python -m app.features.pipeline.breaker --reset
-  斷路器關著：AI 步驟照常執行                       ← 等你確認收到「斷路器打開」那則
+  斷路器關著：AI 步驟照常執行                       ← 你確認收到「斷路器打開」那則
   ```
 
 ### 4. 串進每天的流程
@@ -300,7 +311,13 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
 
 ### 5. 收尾
 
-- [ ] 完整檢查、更新 progress.md、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
+- [x] 完整檢查、更新 progress.md、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`
+
+  ```
+  158 passed in 1.31s
+  All checks passed!
+  Success: no issues found in 82 source files
+  ```
 
 ## 執行時發現
 
@@ -312,6 +329,6 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
 6. 雜訊的根本原因（使用者要求先找源頭）：抓網頁時，雜湊算的是整頁可見文字，頁面上每天會變的東西（更新時間、新聞列表）讓雜湊每天都變 → 整頁重抽 → AI 每次抽的結果略有不同 → 新舊兩份 AI 結果的差異被記成變更。核對原文（第 28–33 點）處理了「記成變更」這一段；整頁每天重抽（10-23 有 49 筆、10-24 有 35 筆獎學金重抽）還是會花 AI 費用，另外處理
 7. ReSound（獎學金 87）目前的資料是錯的：官網寫「Applications for ReSound 2027 are now open and will close on Tuesday 12th January 2027」，AI 這次卻抽了同一頁上 2025/26 那一屆的句子（2026-01-20 截止），還標成 2027 屆，所以現在顯示已截止。核對原文擋不住這種情況（官網那句確實改寫過），通知會寫「截止日：2027-01-12 → 2026-01-20」
 8. 驗證者的寬鬆找法有同樣的漏洞（第 32 點）：AI 的引用如果只有最後一兩個字和原文不同（例如把 16 日寫成 15 日），附近剛好有那個數字就會被當成找到，接著 AI 查核員看的是引用本身，也會判定「有依據」。第 3 天起就是這樣，今天沒改，列入報告
-9. 10-20 的 7 筆變更紀錄（PIONEER，獎學金 181）是我第 7 天測試時拿掉 meta 造成的，不是官網改的；其中 1 筆已記成基準線事件，沒有送出。要刪掉請你決定
+9. 10-20 的 7 筆變更紀錄（PIONEER，獎學金 181）是我第 7 天測試時拿掉 meta 造成的，不是官網改的；其中 1 筆已記成基準線事件，沒有送出。你決定刪除：已刪 7 筆變更紀錄與 1 筆基準線事件（changes 453 → 446、events 34 → 33）
 10. 早上刪掉紀錄的那一輪（run 3），它排進佇列的工作還在：重試的來源全部結束後，21:21 照樣執行收尾，還產生並送出了第一則真的通知（DEAI）。收尾找不到 run 3 的紀錄就不寫統計，沒有出錯；所以 run 4 記的 events 是空的
 11. 今天這一輪有 19 個來源最後失敗（例如 robots.txt 回 525，對方網站的暫時錯誤），明天會再試；原因還沒逐一看

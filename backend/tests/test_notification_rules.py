@@ -176,3 +176,12 @@ def test_deadline_changes_compare_only_within_the_same_intake() -> None:
     # 哪一屆：入學年度裡第一個四位數年份；沒寫入學年度就用截止的年份
     assert rules.cycle_year("2027-2029 cohort", 2026) == 2027
     assert rules.cycle_year(None, 2026) == 2026
+
+
+def test_changes_the_ai_probably_missed_are_not_reported() -> None:
+    # 舊的文件清單是空的：多半是之前漏抽，不把全部文件都當成新增（子 agent 提出）
+    assert rules.describe_change("requirements", [], [{"doc_type": "cv"}]) is None
+    assert rules.describe_change("requirements", None, [{"doc_type": "cv"}]) is None
+    # 國籍資格是空值或不認得的值（舊資料）：不通知，也不會出錯
+    assert rules.describe_change("nationality_scope", None, "all") is None
+    assert rules.describe_change("nationality_scope", "all", "everyone") is None

@@ -78,3 +78,10 @@ def test_split_message_keeps_blank_lines_inside_a_chunk() -> None:
         "ab\n\ncd",
         "efghijklmn",
     ]
+
+
+def test_html_keeps_each_tag_on_one_line() -> None:
+    # 標題或內容行裡夾著換行時，依行切段可能把 <b>…</b> 切成兩則，Telegram 會拒收（400）；
+    # 換成空格，每個標籤就都在同一行（子 agent 實作時提出的風險）
+    note = Notification(kind="change", title="名稱\n第二行", lines=("金額：\n每月 1,400 歐元",))
+    assert telegram.to_html(note) == "<b>名稱 第二行</b>\n金額： 每月 1,400 歐元"

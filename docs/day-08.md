@@ -62,6 +62,8 @@
 
 1. ~~改兩個既有測試~~：已由 ADR-064 決定。國籍資格變成「原文沒寫」不通知；文件要求整個不通知，所以不用改成中文
 2. ~~「金額」與「文件要求」的變更通知~~：已由 ADR-064 決定，兩種都不通知
+3. 截止日「改到已經過去的日期」要不要通知（執行時發現第 7 點，ReSound）
+4. 刪不刪 PIONEER 那 7 筆測試造成的變更紀錄（執行時發現第 9 點）
 
 ## 設計草圖
 
@@ -256,12 +258,40 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
 ### 3. Telegram（要先有 token）
 
 - [ ] setup：找到聊天 ID、寫進 .env、送測試訊息 -> verify: 你收到測試訊息；`.env` 有 `TELEGRAM_CHAT_ID`（只看有沒有）
+
+  ```
+  token 有設定: True ｜聊天 ID 有設定: True      ← 你在自己的終端機跑完 setup；等你確認收到測試訊息
+  ```
 - [ ] send_events：待送變已送，再送一次是 0 則 -> verify: 貼出筆數，你收到訊息
+
+  ```
+  21:22:47 worker 執行 send_events：事件 32 new_scholarship（DEAI，100 分）pending → sent，嘗試 1 次、沒有錯誤
+  $ uv run python -m app.features.notifications.send
+  {}                                             ← 再送一次是 0 則；等你確認收到 DEAI 那則
+  ```
 - [ ] 斷路器打開時通知 -> verify: 手動打開斷路器，你收到通知；之後恢復
+
+  ```
+  $ uv run python -m app.features.pipeline.breaker --open "第 8 天測試：手動打開斷路器"
+  斷路器打開中（2026-10-24 14:21 UTC）：第 8 天測試：手動打開斷路器
+  事件 34 system sent：建立 14:21:49 UTC、送出 14:21:50 UTC，嘗試 1 次、沒有錯誤
+  $ uv run python -m app.features.pipeline.breaker --reset
+  斷路器關著：AI 步驟照常執行                       ← 等你確認收到「斷路器打開」那則
+  ```
 
 ### 4. 串進每天的流程
 
-- [ ] 收尾最後產生事件、放送出工作 -> verify: `uv run python -m app.features.pipeline.run --source ID`，貼出收尾與送出的結果
+- [x] 收尾最後產生事件、放送出工作 -> verify: `uv run python -m app.features.pipeline.run --source ID`，貼出收尾與送出的結果
+
+  改用今天真的每日檢查當證據（比手動跑一個來源更完整）：
+
+  ```
+  data/logs/worker.log
+  21:21:50 finish_daily_run(3)   ← 早上被刪掉紀錄的那一輪，重試的來源最後都結束了，照樣收尾
+  21:22:47 send_events()          ← 產生 new:188（pending）與 cycle 基準線，送出 1 則
+  21:40:02 finish_daily_run(4)   ← 今天這一輪收尾：runs.counts 的 events 是 {}（沒有新事件）
+  21:40:03 send_events()          ← 沒有待送的
+  ```
 
 ### 5. 收尾
 
@@ -278,3 +308,5 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
 7. ReSound（獎學金 87）目前的資料是錯的：官網寫「Applications for ReSound 2027 are now open and will close on Tuesday 12th January 2027」，AI 這次卻抽了同一頁上 2025/26 那一屆的句子（2026-01-20 截止），還標成 2027 屆，所以現在顯示已截止。核對原文擋不住這種情況（官網那句確實改寫過），通知會寫「截止日：2027-01-12 → 2026-01-20」
 8. 驗證者的寬鬆找法有同樣的漏洞（第 32 點）：AI 的引用如果只有最後一兩個字和原文不同（例如把 16 日寫成 15 日），附近剛好有那個數字就會被當成找到，接著 AI 查核員看的是引用本身，也會判定「有依據」。第 3 天起就是這樣，今天沒改，列入報告
 9. 10-20 的 7 筆變更紀錄（PIONEER，獎學金 181）是我第 7 天測試時拿掉 meta 造成的，不是官網改的；其中 1 筆已記成基準線事件，沒有送出。要刪掉請你決定
+10. 早上刪掉紀錄的那一輪（run 3），它排進佇列的工作還在：重試的來源全部結束後，21:21 照樣執行收尾，還產生並送出了第一則真的通知（DEAI）。收尾找不到 run 3 的紀錄就不寫統計，沒有出錯；所以 run 4 記的 events 是空的
+11. 今天這一輪有 19 個來源最後失敗（例如 robots.txt 回 525，對方網站的暫時錯誤），明天會再試；原因還沒逐一看

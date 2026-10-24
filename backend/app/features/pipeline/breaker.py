@@ -53,6 +53,12 @@ def main() -> None:
             reset(session)
         elif args.open:
             open_breaker(session, args.open)
+    with SessionLocal() as session:
+        if args.open:
+            # 在這裡才 import：jobs 也會 import 這個檔案，放在最上面會互相 import
+            from app.features.pipeline.jobs import notify_breaker
+
+            notify_breaker(session)  # 斷路器打開了：通知你（會自己 commit）
         row = get(session)
         if row is None or row.opened_at is None:
             print("斷路器關著：AI 步驟照常執行")

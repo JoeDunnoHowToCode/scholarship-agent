@@ -21,6 +21,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.fetch.http import HttpFetcher
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM
 from app.features.matching.score import score_all
+from app.features.notifications.generate import add_system_event, generate
+from app.features.notifications.send import send_events
 from app.features.pipeline import breaker
 from app.features.pipeline.due import frequency_for, is_due
 from app.features.pipeline.errors import CostLimitError, classify
@@ -51,6 +53,25 @@ NTD_PER_USD = 32  # 和其他指令一樣的粗估匯率
 
 def queue() -> Queue:
     return Queue(connection=Redis.from_url(settings.redis_url))
+
+
+def notify_soon() -> None:
+    """放一件送出通知的工作（ADR-062）；沒網路時 worker 會等，送失敗依 RETRY 重試。"""
+    queue().enqueue(send_events, retry=RETRY, job_timeout=10 * 60, result_ttl=RESULT_TTL)
+
+
+def notify_breaker(session: Session) -> None:
+    """斷路器打開時通知你（ADR-013、056）；去重鍵用打開的時間，同一次打開只通知一次。"""
+    row = breaker.get(session)
+    if row is None or row.opened_at is None:
+        return
+    add_system_event(
+        session, CURRENT_USER_ID, f"breaker:{row.opened_at.isoformat()}", "斷路器打開：AI 步驟暫停",
+        [(row.reason or "")[:200], "處理好之後執行 uv run python -m app.features.pipeline.breaker --reset"],
+        datetime.now(UTC),
+    )
+    session.commit()
+    notify_soon()
 
 
 def online() -> bool:
@@ -155,6 +176,7 @@ def handle_error(session: Session, source_id: int, error: Exception) -> dict[str
     if kind == "pause_ai":
         breaker.open_breaker(session, detail)
         session.commit()
+        notify_breaker(session)
         print(f"breaker    來源 {source_id} 打開斷路器：{detail}")
         return {"result": "paused", "detail": detail}
     print(f"skipped    來源 {source_id}：{detail}")
@@ -197,12 +219,14 @@ def finish_daily_run(run_id: int) -> str:
     dedup.main()  # 規則去重（ADR-048），自己開交易、印出結果
     scores = score_today()
     with SessionLocal() as session, session.begin():
+        events = generate(session, CURRENT_USER_ID, datetime.now(UTC))  # 通知事件（ADR-062）
         run = session.get(Run, run_id)
         if run is not None:
             run.finished_at = datetime.now(UTC)
             # JSONB 欄位整個重新指定（CLAUDE.md 程式規範）
-            run.counts = {**run.counts, "sources": sources, "cycles": dict(cycles), "scores": scores}
-    return f"收尾完成：來源 {sources}；申請期 {dict(cycles)}；評分 {scores}"
+            run.counts = {**run.counts, "sources": sources, "cycles": dict(cycles), "scores": scores, "events": events}
+    notify_soon()
+    return f"收尾完成：來源 {sources}；申請期 {dict(cycles)}；評分 {scores}；通知事件 {events}"
 
 
 def start_run(session: Session, run: Run, source_ids: list[int]) -> None:

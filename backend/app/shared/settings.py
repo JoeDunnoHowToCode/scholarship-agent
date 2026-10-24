@@ -10,7 +10,8 @@ ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=ENV_FILE)
+    # hide_input_in_errors：設定出錯時，錯誤訊息不印出輸入的值（.env 裡都是秘密，第 8 天 token 因此外洩過）
+    model_config = SettingsConfigDict(env_file=ENV_FILE, hide_input_in_errors=True)
 
     database_url: str = "postgresql+psycopg://scholar:scholar@localhost:5432/scholar"
     # 可以留空：用到 Gemini 時才檢查，不需要金鑰的步驟照常能跑
@@ -27,6 +28,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     # 檢查有沒有網路用的網址（ADR-057）：macOS 自己檢查網路用的；測試時可以換成連不到的網址
     online_check_url: str = "http://captive.apple.com"
+    # Telegram 通知（ADR-062、063）：token 由使用者寫進 .env；聊天 ID 由 notify.setup 指令寫入
+    telegram_bot_token: SecretStr | None = None
+    telegram_chat_id: str | None = None
+    # 通知門檻（spec：預設 60 分，適配度）；第 10 天的設定頁再改成網頁可調
+    notify_threshold: int = 60
 
 
 settings = Settings()

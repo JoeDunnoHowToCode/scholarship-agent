@@ -3,6 +3,8 @@
 import html
 
 from app.core.notify.base import Notification
+from app.core.notify.telegram_api import TelegramError, call
+from app.shared.settings import settings
 
 
 def _one_line(text: str) -> str:
@@ -42,3 +44,29 @@ def split_message(text: str, limit: int = 4096) -> list[str]:
     if current:
         chunks.append(current)
     return chunks
+
+
+class TelegramNotifier:
+    """Telegram 轉接頭（實作 base.Notifier）：排成 HTML、切成 4096 字以內，一段一段送到你的聊天。"""
+
+    def __init__(self, chat_id: str) -> None:
+        self.chat_id = chat_id
+
+    def send(self, notification: Notification) -> None:
+        for chunk in split_message(to_html(notification)):
+            call(
+                "sendMessage",
+                {
+                    "chat_id": self.chat_id,
+                    "text": chunk,
+                    "parse_mode": "HTML",
+                    "link_preview_options": {"is_disabled": True},  # 不顯示網頁預覽，訊息比較精簡
+                },
+            )
+
+
+def notifier_from_settings() -> TelegramNotifier:
+    """用 backend/.env 的設定建立轉接頭；還沒設定聊天 ID 就丟 TelegramError（送出工作會先停下）。"""
+    if not settings.telegram_chat_id:
+        raise TelegramError(404, "backend/.env 沒有 TELEGRAM_CHAT_ID：先執行 uv run python -m app.core.notify.setup")
+    return TelegramNotifier(settings.telegram_chat_id)

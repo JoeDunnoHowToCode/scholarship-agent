@@ -22,7 +22,8 @@ def split_message(text: str, limit: int = 4096) -> list[str]:
     # 先拆成一段一段：通常一行就是一段；一行就超過上限的，只好每 limit 個字硬切
     pieces: list[str] = []
     for line in text.split("\n"):
-        pieces += [line[i : i + limit] for i in range(0, len(line), limit)]
+        # 空行切不出任何一段，補一個空字串，空行才會留著
+        pieces += [line[i : i + limit] for i in range(0, len(line), limit)] or [""]
     chunks: list[str] = []
     current = ""  # 正在裝的這一則
     for piece in pieces:

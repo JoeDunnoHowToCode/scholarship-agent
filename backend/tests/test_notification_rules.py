@@ -72,3 +72,28 @@ def test_eligibility_and_deadline_changes_compare_normalized_values() -> None:
 
     # 其他欄位（例如補助內容）不通知
     assert rules.describe_change("coverage", "學費", "學費、生活費") is None
+
+
+def test_amount_change_compares_the_numbers_in_the_text() -> None:
+    # 金額裡的數字：千分位的逗號拿掉；點後面剛好三位數也是千分位（歐洲寫法），其他的點是小數點
+    assert rules.amount_numbers("€1,400 per month") == {"1400"}
+    assert rules.amount_numbers("EUR 1.400 pro Monat") == {"1400"}
+    assert rules.amount_numbers("€2.5 million in total, 1.200.000 per year") == {"2.5", "1200000"}
+    assert rules.amount_numbers("全額補助") == set()
+    assert rules.amount_numbers(None) == set()
+    # 換個寫法、數字一樣（AI 重抽常這樣）：不通知
+    assert rules.describe_change("amount", "€1,400 per month", "1400 EUR monthly") is None
+    # 數字變了：通知，前後照原文寫
+    assert (
+        rules.describe_change("amount", "€1,400 per month", "€1,500 per month")
+        == "金額：€1,400 per month → €1,500 per month"
+    )
+    # 有一邊沒有數字（原文沒寫數字或 AI 漏抽）：比不出來，不通知
+    assert rules.describe_change("amount", None, "€1,500 per month") is None
+    assert rules.describe_change("amount", "€1,400 per month", "全額補助") is None
+    # 原文太長時只留前 60 個字
+    long_text = "EUR 1,400 per month " + "plus travel costs " * 5
+    assert (
+        rules.describe_change("amount", long_text, "EUR 1,500")
+        == "金額：EUR 1,400 per month plus travel costs plus travel costs plus → EUR 1,500"
+    )

@@ -38,10 +38,24 @@
 14. Telegram 轉接頭要等 `backend/.env` 有 `TELEGRAM_BOT_TOKEN` 才寫（CLAUDE.md：不寫目前無法測試的程式）；在那之前先做 events、規則與預覽
 15. 預覽指令：`uv run python -m app.features.notifications.preview` 列出待送的事件和會組成的訊息，不送出
 16. 純函式（截止提醒的格子、變更判斷、合併、Telegram 排版）由 sub agent 平行做；Claude 做資料表、產生事件、送出工作與實跑
+17. 子 agent 的工作目錄是從「已推上遠端的版本」建立的，所以通知插座先 commit 並推上去，子 agent 才拿得到
+18. 改寫 `.env` 只動一個鍵、其他行原封不動，用測試釘住（.env 裡有 Gemini 金鑰與 token）
+19. Telegram 的 HTTP 呼叫：token 只從設定讀、不印出；網路錯誤改丟不帶原始例外的暫時錯誤（原始訊息可能含有網址，網址含 token）；429 在 60 秒內就照 retry_after 等一次；5xx 算暫時錯誤
+20. 設定指令會印出找到的聊天名稱讓你確認是自己（只出現在你的終端機），以防有別人先傳訊息給機器人
+21. 標題或內容行裡的換行換成空格，每個 HTML 標籤都在同一行，依行切段才不會切斷標籤（子 agent 提出的風險）
+22. 「新年度開放」的去重鍵改成「哪一屆」（入學年度的第一個年份，沒寫就用截止年份），同一屆只通知一次；剛通知過「新獎學金」的，不再另外通知新年度
+23. 「資料變更」的標題直接帶變更內容；摘要只列標題，這樣也看得懂（不用改既有的摘要測試）
+24. 截止日的變更只比同一屆的：官網把上一屆換成下一屆，是新年度開放，不是截止日變更（子 agent 提出）
+25. 舊的文件清單是空的、國籍資格是空值或不認得的值：不通知、不出錯（子 agent 提出）
+26. 斷路器打開時通知，去重鍵用打開的時間（同一次只通知一次）；用指令手動打開也會通知
+27. 設定加上 `hide_input_in_errors`：設定出錯時，錯誤訊息不印出輸入的值（執行時發現第 1 點）
 
 ## 待使用者決策
 
-（目前沒有）
+1. 改兩個既有測試（Gate 2 要你同意）：子 agent 照我給的規格寫的測試，釘住了兩個我現在認為不對的行為
+   - 國籍資格變成「原文沒寫」也會通知 → 想改成不通知（多半是 AI 漏抽，和第 25 點同一個理由）
+   - 新增的文件顯示英文代號（例如 `language_test`）→ 想改成中文（語言檢定）
+2. 「金額」與「文件要求」的變更通知雜訊比較多（執行時發現第 5 點）：要照 spec 繼續通知，還是調整
 
 ## 設計草圖
 
@@ -78,12 +92,12 @@ def to_html(notification: Notification) -> str
 def split_message(text: str, limit: int = 4096) -> list[str]
 class TelegramNotifier: ...
 
-# features/notifications/rules.py（純函式）
+# features/notifications/rules.py（純函式；實作時依子 agent 的寫法調整了名稱）
 REMINDER_DAYS = (30, 14, 7, 3, 1)
 def reminder_bucket(days_left: int, sent: set[int]) -> int | None
-def deadline_or_eligibility_changes(old: dict, new: dict) -> list[str]
-def amount_changed(old: str | None, new: str | None) -> bool
-def added_documents(old: list[str], new: list[str]) -> list[str]
+def cycle_year(intake: str | None, closes_year: int) -> int            # 哪一屆
+def amount_numbers(text: str | None) -> set[str]
+def describe_change(field: str, old: Any, new: Any) -> str | None      # 截止日、資格、金額、文件
 def bundle(notifications: list[Notification]) -> list[Notification]   # 超過 5 則合併成摘要
 ```
 
@@ -102,7 +116,8 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
 | 檔案 | 行為 |
 | --- | --- |
 | test_notification_rules.py | 截止提醒的格子（含錯過的格子）；截止日與資格的變更；金額數字的變更；新增的文件；超過 5 則合併 |
-| test_notify_telegram.py | 轉成 HTML 並轉義；超過 4096 字依行切段 |
+| test_notify_telegram.py | 轉成 HTML 並轉義；超過 4096 字依行切段；實作時補：每個標籤都在同一行 |
+| test_notify_setup.py | 實作時補：改寫 .env 只動一個鍵 |
 
 ## 檢查清單
 
@@ -110,19 +125,81 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
 
 ### 1. 純函式（紅綠循環）
 
-- [ ] R1 截止提醒的格子 -> verify: `uv run pytest tests/test_notification_rules.py -k reminder`
-- [ ] R2 截止日與資格的變更 -> verify: `uv run pytest tests/test_notification_rules.py -k eligibility`
-- [ ] R3 金額數字的變更與新增的文件 -> verify: `uv run pytest tests/test_notification_rules.py -k "amount or documents"`
-- [ ] R4 超過 5 則合併成摘要 -> verify: `uv run pytest tests/test_notification_rules.py -k bundle`
-- [ ] T1 轉成 HTML 並轉義 -> verify: `uv run pytest tests/test_notify_telegram.py -k html`
-- [ ] T2 超過 4096 字依行切段 -> verify: `uv run pytest tests/test_notify_telegram.py -k split`
+- [x] R1 截止提醒的格子 -> verify: `uv run pytest tests/test_notification_rules.py -k reminder`
+
+  ```
+  1 passed, 6 deselected in 0.02s
+  ```
+- [x] R2 截止日與資格的變更 -> verify: `uv run pytest tests/test_notification_rules.py -k eligibility`
+
+  ```
+  1 passed, 6 deselected in 0.02s
+  ```
+- [x] R3 金額數字的變更與新增的文件 -> verify: `uv run pytest tests/test_notification_rules.py -k "amount or documents"`
+
+  ```
+  2 passed, 5 deselected in 0.02s
+  ```
+- [x] R4 超過 5 則合併成摘要 -> verify: `uv run pytest tests/test_notification_rules.py -k bundle`
+
+  ```
+  1 passed, 6 deselected in 0.02s
+  ```
+- [x] T1 轉成 HTML 並轉義 -> verify: `uv run pytest tests/test_notify_telegram.py -k html`
+
+  ```
+  2 passed, 2 deselected in 0.03s   ← 含實作時補的「每個標籤都在同一行」
+  ```
+- [x] T2 超過 4096 字依行切段 -> verify: `uv run pytest tests/test_notify_telegram.py -k split`
+
+  ```
+  2 passed, 2 deselected in 0.02s   ← 子 agent 多補一個「空行要留著」
+  ```
+
+實作時補的規則（「Claude 自行決定」第 18、21、24、25 點），同樣紅綠循環：
+
+- [x] R5 截止日只比同一屆的 -> verify: `uv run pytest tests/test_notification_rules.py -k same_intake`
+
+  ```
+  1 passed, 6 deselected in 0.02s
+  ```
+- [x] R6 AI 多半漏抽的變更不通知 -> verify: `uv run pytest tests/test_notification_rules.py -k missed`
+
+  ```
+  2 passed, 5 deselected in 0.02s   ← 另一個是名稱裡也有 missed 的 R1
+  ```
+- [x] S1 改寫 .env 只動一個鍵 -> verify: `uv run pytest tests/test_notify_setup.py`
+
+  ```
+  1 passed in 0.02s
+  ```
 
 ### 2. 資料表與產生事件（Claude）
 
-- [ ] 遷移：events -> verify: `uv run alembic upgrade head` 與 `\d events`
-- [ ] 第一次產生事件建基準線 -> verify: 貼出 baseline 與 pending（截止提醒）的筆數
-- [ ] 再產生一次不會重複 -> verify: 第二次新增 0 筆
-- [ ] 預覽 -> verify: 貼出預覽的訊息
+- [x] 遷移：events -> verify: `uv run alembic upgrade head` 與 `\d events`
+
+  ```
+  Running upgrade d209140c2cbd -> a5da0858fb77, events   （降級、再升級也跑過）
+  events: id, user_id, kind, scholarship_id (FK cascade), dedup_key, payload jsonb, status default 'pending',
+          created_at, sent_at, attempts default 0, last_error；UNIQUE (user_id, dedup_key)
+  ```
+- [x] 第一次產生事件建基準線 -> verify: 貼出 baseline 與 pending（截止提醒）的筆數
+
+  ```
+  {'new_scholarship:baseline': 21, 'new_cycle:baseline': 5, 'change:baseline': 5}
+  （適配度 60 分以上的 21 筆裡，30 天內沒有截止的，所以沒有截止提醒）
+  ```
+- [x] 再產生一次不會重複 -> verify: 第二次新增 0 筆
+
+  ```
+  新增 0 筆
+  ```
+- [x] 預覽 -> verify: 貼出預覽的訊息
+
+  ```
+  $ uv run python -m app.features.notifications.send --preview
+  待送的訊息 0 則：
+  ```
 
 ### 3. Telegram（要先有 token）
 
@@ -140,4 +217,8 @@ Telegram 互動按鈕與接收指令（v1.1、#29）、網頁的通知歷史（�
 
 ## 執行時發現
 
-（實作與實跑中遇到的事）
+1. token 外洩：你把 `TELEGRAM_BOT_TOKEN` 加進 .env 時，設定類別還沒宣告這個欄位，pydantic 報錯時把值印在錯誤訊息裡；我又用管線把測試輸出接給 tail，沒擋住、也沒發現測試失敗就推上去了。修正：宣告欄位、加 `hide_input_in_errors`、推之前的檢查改用 `set -o pipefail`；token 請你撤銷換新
+2. 同一個原因讓背景工作在 10:16–10:19 一啟動就失敗（日誌記了 408 次），今天那輪檢查刪掉紀錄後重新開始（105 個來源）
+3. 第一次產生事件：新獎學金 21、新年度開放 5、資料變更 5 都記成基準線；再產生一次新增 0
+4. 資料變更的雜訊：基準線裡的 5 筆，PIONEER 的金額從「around 419 euros（德國的交換補助）」變成「5,613.10 EUR（學費）」，是 AI 抽了不同的金額；EDISS 的金額多抽到 800／310€。文件要求也有類似情形。數量不大（只有適配度 60 分以上的才通知）
+5. 送出的實測要等新的 token 與聊天 ID

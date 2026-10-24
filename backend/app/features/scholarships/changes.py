@@ -75,18 +75,22 @@ def _quotes(field: str, extracted: dict[str, Any]) -> list[str]:
     return [quote for quote in found if quote]
 
 
-def _in(quote: str, text: str) -> bool:
-    # 和驗證者一樣：表格的字被交錯排列時，允許引用切成幾截就近出現
-    return quote_in_source(quote, text) or quote_in_table_text(quote, text)
+def _found(quote: str, text: str) -> int:
+    """引用在原文裡找到的程度：2 逐字找到；1 只有用表格的寬鬆找法找到（PDF 表格的字交錯排列）；0 找不到。"""
+    if quote_in_source(quote, text):
+        return 2
+    return 1 if quote_in_table_text(quote, text) else 0
 
 
 def website_changed(field: str, old: dict[str, Any], new: dict[str, Any], old_text: str, new_text: str) -> bool:
-    """官網這部分真的改了沒有（ADR-064）：有一句引用只出現在新版網頁，或只出現在舊版網頁。
+    """官網這部分真的改了沒有（ADR-064）：有一句引用在新舊兩版網頁裡找到的程度不一樣。
 
-    AI 重抽同一份原文時常挑不同的句子；那些句子新舊兩版都有，不算變更。
-    引用不在自己那一版原文裡（AI 改寫過）不能當證據，略過。
+    AI 重抽同一份原文時常挑不同的句子；那些句子新舊兩版都找得到，不算變更。
+    AI 改寫過的引用哪一版都找不到，也不算。寬鬆找法會把只差最後一兩個字的句子
+    （例如 1 月 15 日改成 16 日）也當成找到，所以「逐字找到」和「寬鬆找到」分開看。
     old_text、new_text 是新舊兩版網頁的原文（和抽取時核對用的一樣）。
     """
-    added = any(_in(quote, new_text) and not _in(quote, old_text) for quote in _quotes(field, new))
-    removed = any(_in(quote, old_text) and not _in(quote, new_text) for quote in _quotes(field, old))
-    return added or removed
+    return any(
+        _found(quote, old_text) != _found(quote, new_text)
+        for quote in _quotes(field, old) + _quotes(field, new)
+    )

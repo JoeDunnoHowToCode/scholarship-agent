@@ -5,6 +5,7 @@ AI 重抽同一頁常會換個說法或漏抽，所以變更只比整理過的�
 """
 
 import re
+from datetime import date
 from typing import Any
 
 from app.core.notify.base import Notification
@@ -58,11 +59,12 @@ def _degree_names(degrees: list[str]) -> str:
     return "、".join(name for code, name in DEGREE_NAMES.items() if code in degrees) or "原文沒寫"
 
 
-def describe_change(field: str, old: Any, new: Any) -> str | None:
+def describe_change(field: str, old: Any, new: Any, today: date | None = None) -> str | None:
     """一筆變更值不值得通知：值得就回傳一句中文說明，不值得就回傳 None。
 
     old、new 是變更紀錄裡原本的值（changes.Change）。只比整理過的值：
     AI 換了說法不算變更；有一邊變成空的，多半是 AI 這次漏抽，也不通知。
+    today 是台灣的今天：新的截止日都已經過去就不通知（ADR-065）。每天產生事件時一定會給，只有測試其他規則時省略。
     """
     if field == "windows":
         # 舊資料可能還沒有申請窗口這個欄位（None），當成沒有截止日
@@ -73,8 +75,10 @@ def describe_change(field: str, old: Any, new: Any) -> str | None:
         changed = [year for year in shared if old_by_year[year] != new_by_year[year]]
         if not changed:
             return None
-        old_dates = sorted(date for year in changed for date in old_by_year[year])
-        new_dates = sorted(date for year in changed for date in new_by_year[year])
+        old_dates = sorted(day for year in changed for day in old_by_year[year])
+        new_dates = sorted(day for year in changed for day in new_by_year[year])
+        if today is not None and all(day < today.isoformat() for day in new_dates):
+            return None  # 新的截止日都已經過去：多半是 AI 抽到舊一屆的句子（ADR-065）
         return f"截止日：{'、'.join(old_dates)} → {'、'.join(new_dates)}"
     if field == "nationality_scope":
         # 空值或不認得的值（舊資料）：比不出來，不通知

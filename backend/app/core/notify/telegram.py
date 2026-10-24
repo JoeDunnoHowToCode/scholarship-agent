@@ -15,3 +15,24 @@ def to_html(notification: Notification) -> str:
         # 網址放在 href="..." 的雙引號裡，所以 " 也要換成 &quot;（html.escape 預設會換引號）
         parts.append(f'<a href="{html.escape(notification.url)}">官網連結</a>')
     return "\n".join(parts)
+
+
+def split_message(text: str, limit: int = 4096) -> list[str]:
+    """Telegram 一則訊息最多 4096 字：太長就在換行處切成好幾則，每則盡量多裝幾行。"""
+    # 先拆成一段一段：通常一行就是一段；一行就超過上限的，只好每 limit 個字硬切
+    pieces: list[str] = []
+    for line in text.split("\n"):
+        pieces += [line[i : i + limit] for i in range(0, len(line), limit)]
+    chunks: list[str] = []
+    current = ""  # 正在裝的這一則
+    for piece in pieces:
+        # 裝得下就接在後面；中間的換行也算一個字
+        if current and len(current) + 1 + len(piece) <= limit:
+            current += "\n" + piece
+        else:
+            if current:  # 空的不收（Telegram 不收空訊息）
+                chunks.append(current)
+            current = piece
+    if current:
+        chunks.append(current)
+    return chunks

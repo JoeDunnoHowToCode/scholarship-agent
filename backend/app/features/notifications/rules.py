@@ -101,4 +101,10 @@ def describe_change(field: str, old: Any, new: Any) -> str | None:
         if not before or not after or before == after:
             return None
         return f"金額：{old[:60]} → {new[:60]}"  # 原文太長只留前 60 個字
+    if field == "requirements":
+        # 只通知新增的文件種類；變少或變空白，多半是 AI 這次沒抽到
+        added = {item["doc_type"] for item in new} - {item["doc_type"] for item in old}
+        if not added:
+            return None
+        return f"新增文件要求：{'、'.join(sorted(added))}"
     return None  # 其他欄位不通知

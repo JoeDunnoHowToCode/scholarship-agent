@@ -113,6 +113,22 @@ def documents(session: Session, source: Source) -> list[Snapshot]:
     return list(unique.values())
 
 
+def snapshot_text(session: Session, source_id: int, hashes: list[str]) -> str:
+    """這些內容雜湊（抽取結果的 meta.snapshots）對應的原文：網頁取可見文字、PDF 用 pdfplumber，
+    和抽取時核對用的原文一樣。核對變更時用來找回上一版網頁（ADR-064）。"""
+    texts: list[str] = []
+    for digest in hashes:
+        snapshot = session.scalars(
+            select(Snapshot).where(Snapshot.source_id == source_id, Snapshot.content_hash == digest).limit(1)
+        ).first()
+        if snapshot is None:
+            continue  # 快照紀錄不見了：少了這一頁的原文，那一頁的引用就當成找不到
+        path = SNAPSHOT_DIR / snapshot.file_path
+        data = path.read_bytes()
+        texts.append(pdf_to_text(data) if path.suffix == ".pdf" else html_to_text(decode_snapshot(data)))
+    return "\n\n".join(texts)
+
+
 def extract_web(
     llm: GeminiLLM, snapshots: list[Snapshot]
 ) -> tuple[ScholarshipDraft, str, dict[str, Any]]:
@@ -263,7 +279,14 @@ def save(
 
     # 變更紀錄（ADR-020）：原文真的變了才寫；只因提示詞或模型改版而重抽的不寫（「Claude 自行決定」第 12 點）
     if old is not None and old.get("meta", {}).get("snapshots") != extracted["meta"]["snapshots"]:
+        # ADR-064：會推播的欄位（截止日、國籍、學位）要核對新舊兩版原文，官網真的改了才寫
+        old_text = snapshot_text(session, source.id, old.get("meta", {}).get("snapshots") or [])
+        new_text = snapshot_text(session, source.id, extracted["meta"]["snapshots"])
         for change in changes.diff_important(old, extracted):
+            if change.field in changes.QUOTE_KEYS and not changes.website_changed(
+                change.field, old, extracted, old_text, new_text
+            ):
+                continue  # 只是 AI 這次挑了不同的句子，官網這部分沒改
             session.add(
                 Change(
                     scholarship_id=row.id,

@@ -182,3 +182,21 @@ def test_quotes_the_ai_rewrote_are_not_evidence() -> None:
     # 沒附引用、舊資料沒有申請窗口：沒有證據
     assert changes.website_changed("degrees", {"degrees_evidence": None}, {"degrees_evidence": None}, page, page) is False
     assert changes.website_changed("windows", {}, original, page, page) is False
+
+
+def test_a_change_in_the_last_few_characters_still_counts() -> None:
+    # 截止日只改了最後一個數字（15 → 16）。表格用的寬鬆找法允許最後一小段在附近出現，
+    # 這頁附近剛好有「5」和「6」，只用寬鬆找法的話，兩句在新舊兩版都「找得到」
+    old_page = "Deadline: January 15, 2027. Interviews: January 16-25, 2027."
+    new_page = "Deadline: January 16, 2027. Interviews: January 16-25, 2027."
+    old = {"windows": [{"closes_year": 2027, "closes_month": 1, "closes_day": 15, "evidence": "Deadline: January 15"}]}
+    new = {"windows": [{"closes_year": 2027, "closes_month": 1, "closes_day": 16, "evidence": "Deadline: January 16"}]}
+    assert changes.website_changed("windows", old, new, old_page, new_page) is True
+
+    # PDF 表格的字交錯排列（申請期間和備註兩欄混在一起），引用兩版都只能用寬鬆找法找到；
+    # 官網只改了更新日期：不算
+    quote = "115 年 1 月 16 日(五)上午 8:30 起至 115 年 2 月 13 日(五)中午 12:00 截止"
+    table_old = "更新：10/23\n申請期間 115 年 1 月 16 日(五)上午 8:30 起至 備註 115 年 2 月 13 日(五)中午 12:00 截止"
+    table_new = "更新：10/24\n申請期間 115 年 1 月 16 日(五)上午 8:30 起至 備註 115 年 2 月 13 日(五)中午 12:00 截止"
+    window = {"windows": [{"closes_year": 2026, "closes_month": 2, "closes_day": 13, "evidence": quote}]}
+    assert changes.website_changed("windows", window, window, table_old, table_new) is False

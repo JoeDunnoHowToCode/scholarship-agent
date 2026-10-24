@@ -97,3 +97,30 @@ def test_amount_change_compares_the_numbers_in_the_text() -> None:
         rules.describe_change("amount", long_text, "EUR 1,500")
         == "金額：EUR 1,400 per month plus travel costs plus travel costs plus → EUR 1,500"
     )
+
+
+def test_documents_change_reports_only_added_document_types() -> None:
+    old = [
+        {"doc_type": "cv", "details": "Europass 格式", "evidence": "CV in Europass format"},
+        {"doc_type": "transcript", "details": None, "evidence": "Transcript of records"},
+    ]
+    # 多了研究計畫和語言證明：通知，代號排序後用「、」連接；舊的文件說明換了說法不算
+    added = [
+        {"doc_type": "transcript", "details": "英文版", "evidence": "Official transcript in English"},
+        {"doc_type": "research_proposal", "details": None, "evidence": "A research proposal"},
+        {"doc_type": "cv", "details": None, "evidence": "Curriculum vitae"},
+        {"doc_type": "language_test", "details": "IELTS 6.5", "evidence": "IELTS 6.5 or equivalent"},
+    ]
+    assert (
+        rules.describe_change("requirements", old, added) == "新增文件要求：language_test、research_proposal"
+    )
+    # 有新增也有減少：只講新增的
+    swapped = [
+        {"doc_type": "cv", "details": None, "evidence": "CV"},
+        {"doc_type": "portfolio", "details": None, "evidence": "Portfolio of recent work"},
+    ]
+    assert rules.describe_change("requirements", old, swapped) == "新增文件要求：portfolio"
+    # 只是變少、或整個變空白（多半是 AI 這次沒抽到）：不通知
+    fewer = [{"doc_type": "cv", "details": None, "evidence": "CV"}]
+    assert rules.describe_change("requirements", old, fewer) is None
+    assert rules.describe_change("requirements", old, []) is None

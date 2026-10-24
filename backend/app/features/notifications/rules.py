@@ -7,6 +7,8 @@ AI 重抽同一頁常會換個說法或漏抽，所以變更只比整理過的�
 import re
 from typing import Any
 
+from app.core.notify.base import Notification
+
 # 截止前幾天提醒（docs/day-08.md「Claude 自行決定」第 6 點），由大到小
 REMINDER_DAYS = (30, 14, 7, 3, 1)
 
@@ -108,3 +110,35 @@ def describe_change(field: str, old: Any, new: Any) -> str | None:
             return None
         return f"新增文件要求：{'、'.join(sorted(added))}"
     return None  # 其他欄位不通知
+
+
+BUNDLE_LIMIT = 5  # 一次超過這麼多則就合併成摘要（docs/day-08.md「Claude 自行決定」第 9 點）
+# 摘要裡照這個順序分組，每組先寫標題；不在這裡的類型放最後的【其他】
+DIGEST_HEADERS = {
+    "deadline": "【截止提醒】",
+    "new_cycle": "【新年度開放】",
+    "new_scholarship": "【新獎學金】",
+    "change": "【資料變更】",
+}
+
+
+def bundle(notifications: list[Notification]) -> list[Notification]:
+    """一次要送的通知超過 5 則，就合併成一則摘要，手機才不會一直響。
+
+    系統通知（例如斷路器打開）不合併、排最前面；其他的 5 則以內就照原樣各送各的。
+    """
+    system = [n for n in notifications if n.kind == "system"]
+    others = [n for n in notifications if n.kind != "system"]
+    if len(others) <= BUNDLE_LIMIT:
+        return system + others
+    lines: list[str] = []
+    for kind, header in DIGEST_HEADERS.items():
+        titles = [n.title for n in others if n.kind == kind]  # 同一組裡照原本的順序
+        if titles:
+            lines += [header, *titles]
+    rest = [n.title for n in others if n.kind not in DIGEST_HEADERS]
+    if rest:
+        lines += ["【其他】", *rest]
+    # 摘要只列標題，沒有單一個連結
+    digest = Notification(kind="digest", title=f"今天有 {len(others)} 則獎學金通知", lines=tuple(lines), url=None)
+    return [*system, digest]

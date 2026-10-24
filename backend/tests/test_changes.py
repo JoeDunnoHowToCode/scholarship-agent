@@ -159,3 +159,26 @@ def test_only_a_sentence_found_in_just_one_version_of_the_website_is_a_change() 
         "degrees", master, master_and_phd,
         "This is a two-year Master programme.", "This is a two-year Master programme. PhD candidates may also apply.",
     ) is True
+
+
+def test_quotes_the_ai_rewrote_are_not_evidence() -> None:
+    # 引用要逐字出現在自己那一版的原文裡，才能當證據；AI 改寫過的句子哪一版都找不到
+    page = "Application deadline: 15 January 2027"
+    original = {
+        "windows": [
+            {"closes_year": 2027, "closes_month": 1, "closes_day": 15,
+             "evidence": "Application deadline: 15 January 2027"},
+        ]
+    }
+    rewritten = {
+        "windows": [
+            {"closes_year": 2027, "closes_month": 1, "closes_day": 20, "evidence": "The deadline is 20 January 2027"},
+        ]
+    }
+    # 官網沒變：新的引用是改寫的 → 不能說它是新版才有的句子
+    assert changes.website_changed("windows", original, rewritten, page, page) is False
+    # 舊的引用是改寫的 → 不能說官網刪掉了它
+    assert changes.website_changed("windows", rewritten, original, page, page) is False
+    # 沒附引用、舊資料沒有申請窗口：沒有證據
+    assert changes.website_changed("degrees", {"degrees_evidence": None}, {"degrees_evidence": None}, page, page) is False
+    assert changes.website_changed("windows", {}, original, page, page) is False

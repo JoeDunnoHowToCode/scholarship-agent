@@ -84,8 +84,9 @@ def website_changed(field: str, old: dict[str, Any], new: dict[str, Any], old_te
     """官網這部分真的改了沒有（ADR-064）：有一句引用只出現在新版網頁，或只出現在舊版網頁。
 
     AI 重抽同一份原文時常挑不同的句子；那些句子新舊兩版都有，不算變更。
+    引用不在自己那一版原文裡（AI 改寫過）不能當證據，略過。
     old_text、new_text 是新舊兩版網頁的原文（和抽取時核對用的一樣）。
     """
-    added = any(not _in(quote, old_text) for quote in _quotes(field, new))
-    removed = any(not _in(quote, new_text) for quote in _quotes(field, old))
+    added = any(_in(quote, new_text) and not _in(quote, old_text) for quote in _quotes(field, new))
+    removed = any(_in(quote, old_text) and not _in(quote, new_text) for quote in _quotes(field, old))
     return added or removed

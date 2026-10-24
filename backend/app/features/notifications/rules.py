@@ -37,13 +37,20 @@ SCOPE_NAMES = {
 DEGREE_NAMES = {"bachelor": "學士", "master": "碩士", "phd": "博士"}
 
 
-def _closing_dates(windows: list[dict[str, Any]]) -> set[str]:
-    """申請窗口裡年、月、日都有的截止日，寫成 2027-01-15；標籤或引用換了說法不影響。"""
-    return {
-        f"{w['closes_year']:04d}-{w['closes_month']:02d}-{w['closes_day']:02d}"
-        for w in windows
-        if w["closes_year"] and w["closes_month"] and w["closes_day"]
-    }
+def cycle_year(intake: str | None, closes_year: int) -> int:
+    """這個截止日屬於哪一屆：入學年度裡第一個四位數年份（2027/28 → 2027）；沒寫入學年度就用截止的年份。"""
+    match = re.search(r"\d{4}", intake or "")
+    return int(match[0]) if match else closes_year
+
+
+def _closing_dates(windows: list[dict[str, Any]]) -> dict[int, set[str]]:
+    """依「哪一屆」分組的截止日（年、月、日都有的才算），寫成 2027-01-15；標籤或引用換了說法不影響。"""
+    dates: dict[int, set[str]] = {}
+    for w in windows:
+        if w["closes_year"] and w["closes_month"] and w["closes_day"]:
+            year = cycle_year(w.get("intake"), w["closes_year"])
+            dates.setdefault(year, set()).add(f"{w['closes_year']:04d}-{w['closes_month']:02d}-{w['closes_day']:02d}")
+    return dates
 
 
 def _degree_names(degrees: list[str]) -> str:
@@ -72,11 +79,16 @@ def describe_change(field: str, old: Any, new: Any) -> str | None:
     """
     if field == "windows":
         # 舊資料可能還沒有申請窗口這個欄位（None），當成沒有截止日
-        before, after = _closing_dates(old or []), _closing_dates(new or [])
-        # 舊的沒有截止日是新的一屆（另外通知）；新的沒有多半是 AI 漏抽
-        if not before or not after or before == after:
+        old_by_year, new_by_year = _closing_dates(old or []), _closing_dates(new or [])
+        # 只比兩邊都有的那幾屆：只有新的才有的一屆是新年度開放（另外通知）；
+        # 舊的沒有截止日也一樣；新的沒有多半是 AI 漏抽
+        shared = sorted(set(old_by_year) & set(new_by_year))
+        changed = [year for year in shared if old_by_year[year] != new_by_year[year]]
+        if not changed:
             return None
-        return f"截止日：{'、'.join(sorted(before))} → {'、'.join(sorted(after))}"
+        old_dates = sorted(date for year in changed for date in old_by_year[year])
+        new_dates = sorted(date for year in changed for date in new_by_year[year])
+        return f"截止日：{'、'.join(old_dates)} → {'、'.join(new_dates)}"
     if field == "nationality_scope":
         if old == new:
             return None

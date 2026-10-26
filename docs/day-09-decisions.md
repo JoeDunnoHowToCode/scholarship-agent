@@ -10,9 +10,9 @@
 | --- | --- | --- |
 | #35 前端框架 | A React＋Vite | ADR-066 |
 | #36 型別契約 | B 產生型別（openapi-typescript＋openapi-fetch） | ADR-067 |
-| #37a 資料抓取 | 待確認：C 只適用 Next.js 或 HTMX（見 #37 的追問） | — |
+| #37a 資料抓取 | B TanStack Query | ADR-071 |
 | #37b 元件庫 | A shadcn/ui 複製進專案 | ADR-068 |
-| #43 存取安全 | 待確認（見 #43 的追問：用 Google 登入） | — |
+| #43 存取安全 | 登入（用 Google 登入）等公開版再做；第一版的防護程度待選 | — |
 | #35b 搜尋方式 | D 篩選＋混合搜尋 | ADR-069 |
 | #55 金額 | C 每個金額一筆附引用 | ADR-070 |
 

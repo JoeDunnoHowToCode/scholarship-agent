@@ -4,6 +4,18 @@
 
 資料與實測都是 2026-10-25 查的。
 
+## 你的選擇（2026-10-26）
+
+| 題 | 選擇 | 記錄 |
+| --- | --- | --- |
+| #35 前端框架 | A React＋Vite | ADR-066 |
+| #36 型別契約 | B 產生型別（openapi-typescript＋openapi-fetch） | ADR-067 |
+| #37a 資料抓取 | 待確認：C 只適用 Next.js 或 HTMX（見 #37 的追問） | — |
+| #37b 元件庫 | A shadcn/ui 複製進專案 | ADR-068 |
+| #43 存取安全 | 待確認（見 #43 的追問：用 Google 登入） | — |
+| #35b 搜尋方式 | D 篩選＋混合搜尋 | ADR-069 |
+| #55 金額 | C 每個金額一筆附引用 | ADR-070 |
+
 ## 題目之間的關係
 
 - #36（型別契約）、#37（資料抓取與元件庫）的選項會依 #35（前端框架）不同，表格裡分開寫
@@ -334,6 +346,24 @@
 - 37a A：沒有新套件；B：`package.json` 多 `@tanstack/react-query`（或 Vue 版）；C：沒有新套件
 - 37b A：`components.json`＋`src/components/ui/`（複製進來的元件）＋Tailwind；B：`package.json` 多一個元件庫；C：Tailwind＋daisyUI，或只有自己的 CSS
 
+### 追問：#35 選 A 之後，37a 的選項
+
+37a 的 C「框架內建」原本只寫了 Next.js 和 HTMX；#35 選了 A（React＋Vite）之後，對應的「內建」是**路由內建的資料載入**（2026-10-25 查證）：
+
+- **React Router 8 的 Data mode**：每個頁面可以有 `loader`（進頁面前先抓資料）、`action`（處理表單送出），也有等待中的狀態；用 `createBrowserRouter`，不需要額外的 Vite 外掛（只有 Framework mode 才要）
+- **TanStack Router**：路由的 loader 內建快取（先顯示舊資料、背景重抓）；官方文件寫明它沒有「不同頁面之間共用快取與去除重複請求」，需要的話建議搭配 TanStack Query（FastAPI 官方範本就是兩個一起用）
+
+選 A 之後的 37a：
+
+| | A fetch | B TanStack Query | C 路由內建的 loader |
+| --- | --- | --- | --- |
+| 怎麼運作 | 每頁自己抓、自己記載入中與錯誤 | 用 `useQuery`、`useMutation`，快取與失效內建 | 進頁面前由路由的 loader 抓好資料 |
+| 改完個人資料，回到評分列表 | 要自己記得重抓 | 宣告「評分失效」就自動重抓 | React Router：送出表單（action）後，頁面上的 loader 自動重跑（官方文件）；TanStack Router 這次沒查證 |
+| 不同頁面共用同一份資料 | 自己處理 | 共用快取 | TanStack Router 不共用（官方文件寫的） |
+| 多學的觀念 | 少 | 查詢鍵、失效 | 路由的 loader、action |
+
+來源：React Router「Picking a Mode」（8.5.0）與「Actions」、TanStack Router「Data Loading」（2026-10-25、26 查證）
+
 ## #43 本機網頁的存取安全
 
 ### 1. 這題在決定什麼
@@ -429,6 +459,45 @@
   （前後端分開跑時再加 `CORSMiddleware`，只允許前端的網址）
 - C：B＋`.env` 多一個 `API_TOKEN`，每個 API 檢查 `X-API-Token` 標頭
 - D：B＋`/login` 頁、session cookie、`.env` 多密碼雜湊與簽章金鑰
+
+### 追問：用 Google 登入
+
+你問：能不能直接綁 Google 帳號？搜尋不用登入，個人推薦、通知、agent、申請追蹤才要登入；Google 是怎麼做到防護的，還是這是不一樣的東西？
+
+**可以，做法叫「用 Google 登入」**。技術上是 OpenID Connect（建立在 OAuth 2.0 上的身分驗證標準），Google 的實作通過 OpenID 認證。流程：
+
+1. 你按「用 Google 登入」，瀏覽器跳到 Google 的登入頁；密碼只輸入在 Google
+2. 登入後，Google 帶著一次性的代碼跳回我們事先登記的網址（redirect URI）。Google 規定這個網址要用 HTTPS，但 localhost 例外
+3. FastAPI 用這個代碼加上 client secret（放 `backend/.env`），向 Google 換一張 ID token：Google 簽章過的身分證明，寫著你是誰、你的 email
+4. FastAPI 檢查 ID token：簽章是 Google 的、發行者 `iss` 是 Google、對象 `aud` 是我們的 client ID、還沒過期 `exp`。通過後，發一個**我們自己的** session cookie
+5. 之後每個請求，都靠這個 session cookie 認出你；這一段是我們程式的事，和 Google 無關
+
+FastAPI 可以用 Authlib 這個函式庫做（有 Starlette／FastAPI 的官方範例；它用 SessionMiddleware 暫存登入流程的 `state`）。
+
+**是兩層不一樣的東西**：
+
+- **Google 負責「你是誰」（身分驗證）**：保管密碼、兩步驟驗證、可疑登入偵測。登入流程本身也有防護：代碼只送回事先登記的網址；`state` 防止登入流程被偽造；`nonce` 防止同一張 token 被重複使用；ID token 有 Google 的簽章
+- **#43 的威脅是「這個請求是不是你從自己的網頁送出的」**：CSRF、DNS rebinding、同一個 Wi-Fi 的裝置。登入後，瀏覽器會自動附上 session cookie，所以惡意網站叫你的瀏覽器送出的請求，一樣帶著 cookie。所以登入之後，B 的 Host 檢查與「寫入用 JSON」規則還是需要
+- 登入確實多補了一塊：DNS rebinding 的網頁是另一個網域，瀏覽器不會附上我們的 cookie，所以要登入的 API 它讀不到
+
+**你說的「公開區＋登入區」**：搜尋、列表、詳細頁不用登入；個人資料、評分與推薦理由、通知設定、問答（會花錢）、第 10 天的設定與 agent 要登入。申請追蹤在 spec 排在 v2。
+
+多一個選項 E，和原本的比較：
+
+| | B 不登入 | D B＋自己的密碼登入 | E B＋用 Google 登入（公開區＋登入區） |
+| --- | --- | --- | --- |
+| 誰保管密碼 | 沒有密碼 | 我們（雜湊存在 `.env`） | Google；我們的程式看不到密碼 |
+| 兩步驟驗證、可疑登入偵測 | 無 | 要自己做 | 用 Google 帳號本身的設定 |
+| 沒網路時 | 照常 | 照常 | 已登入的 session 照常；session 過期時要連網才能重新登入（電腦白天常沒網路，ADR-057） |
+| 要設定的 | 1–2 行 middleware | 登入頁、密碼雜湊、session、登出 | Google Cloud 專案、OAuth 同意畫面、OAuth 用戶端、登記 redirect URI、session、登出、驗證 ID token |
+| CSRF、DNS rebinding | B 的防護 | 仍需要 B | 仍需要 B |
+| 之後的公開版（多人） | 要另外做登入 | 要再做註冊、忘記密碼 | 多人登入直接沿用 |
+| 個人資料 | 不涉及 | 不涉及 | 登入時 Google 會知道你在用這個應用程式；你的國籍、科系等不會給 Google；本機資料庫會存你的 Google 帳號 ID 與 email |
+| 工作量（估計） | 約 1 小時 | 約 1 天 | 約 1 天（含 Google Cloud 設定） |
+
+和限制條件「不送可識別個人的資料到雲端」的關係：E 登入時，會和 Google 交換你的身分（Google 帳號 ID、email），這些是 Google 原本就有的資料；獎學金的個人資料（國籍、學位、科系）不會送出。
+
+來源：Google「OpenID Connect」與「Using OAuth 2.0 for Web Server Applications」（redirect URI 規則、client secret 的保管）；Authlib 的 Starlette OAuth Client 文件與 FastAPI Google 登入範例（2026-10-26 查證）
 
 ## #35b 使用者的搜尋方式
 

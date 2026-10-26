@@ -12,7 +12,7 @@
 | #36 型別契約 | B 產生型別（openapi-typescript＋openapi-fetch） | ADR-067 |
 | #37a 資料抓取 | B TanStack Query | ADR-071 |
 | #37b 元件庫 | A shadcn/ui 複製進專案 | ADR-068 |
-| #43 存取安全 | 登入（用 Google 登入）等公開版再做；第一版的防護程度待選 | — |
+| #43 存取安全 | A 維持現況；登入（用 Google 登入）等公開版再做 | ADR-072 |
 | #35b 搜尋方式 | D 篩選＋混合搜尋 | ADR-069 |
 | #55 金額 | C 每個金額一筆附引用 | ADR-070 |
 

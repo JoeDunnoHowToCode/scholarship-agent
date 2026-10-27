@@ -69,7 +69,9 @@ def amount_status(amount: AmountDraft, source: str) -> str:
 
 # 列表上的大概金額先找哪一種用途（docs/day-09.md「Claude 自行決定」第 23 點）
 KIND_ORDER = ("living_allowance", "tuition_coverage", "travel", "other")
-PERIOD_NAMES = {"month": "每月", "year": "每年", "once": "一次", "unclear": ""}
+PERIOD_NAMES = {"month": "每月", "year": "每年", "total": "總額", "once": "一次", "unclear": ""}
+# 同一種用途有好幾種期間時，列表先挑哪一種（字典的順序）：每月最能比較，總額與一次比較難比
+PERIOD_ORDER = list(PERIOD_NAMES)
 
 
 def money(value: float) -> str:
@@ -78,14 +80,15 @@ def money(value: float) -> str:
 
 
 def headline(items: list[dict[str, Any]]) -> str | None:
-    """列表上的大概金額：只看核對通過的；先找生活津貼，再依學費補助、旅費、其他的順序。
-    同用途、同期間、同幣別、只是適用對象不同的，顯示範圍。items 是抽取結果裡的金額加上核對狀態（status）。"""
+    """列表上的大概金額：只看核對通過的；先找生活津貼，再依學費補助、旅費、其他的順序；
+    同一種用途裡先挑每月的，再來是每年、總額、一次。同用途、同期間、同幣別、只是適用對象不同的，顯示範圍。
+    items 是抽取結果裡的金額加上核對狀態（status）。"""
     supported = [item for item in items if item.get("status") == "supported"]
     for kind in KIND_ORDER:
         same_kind = [item for item in supported if item["kind"] == kind]
         if not same_kind:
             continue
-        first = same_kind[0]
+        first = min(same_kind, key=lambda item: PERIOD_ORDER.index(item["period"]))
         values = [
             item["value"] for item in same_kind
             if item["period"] == first["period"] and item["currency"] == first["currency"]

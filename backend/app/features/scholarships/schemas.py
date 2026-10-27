@@ -49,7 +49,7 @@ class CategoryDraft(BaseModel):
 
 
 # 金額的期間與用途（ADR-070）
-AmountPeriod = Literal["month", "year", "once", "unclear"]
+AmountPeriod = Literal["month", "year", "total", "once", "unclear"]
 AmountKind = Literal["living_allowance", "tuition_coverage", "travel", "other"]
 
 
@@ -58,7 +58,9 @@ class AmountDraft(BaseModel):
 
     value: float = Field(description="金額數字，照原文換成阿拉伯數字，例如「1 萬 6 千」填 16000、「1,400」填 1400")
     currency: str = Field(description="ISO 4217 三碼幣別，例如 EUR、USD、TWD、GBP")
-    period: AmountPeriod = Field(description="每月填 month、每年填 year、一次填 once；原文沒說填 unclear")
+    period: AmountPeriod = Field(
+        description="每月填 month、每年填 year、整個學程的總額填 total、一次給的錢（例如安家費）填 once；原文沒說填 unclear"
+    )
     kind: AmountKind = Field(
         description="用途：生活津貼 living_allowance、學費補助或減免 tuition_coverage、旅費 travel、其他 other"
     )

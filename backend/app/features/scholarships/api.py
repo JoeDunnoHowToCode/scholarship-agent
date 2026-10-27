@@ -43,7 +43,7 @@ NOTIFIED_FIELDS = ("windows", "nationality_scope", "nationalities", "degrees")
 
 
 class Country(BaseModel):
-    """國碼與顯示名稱（ADR-054：台灣顯示為「台灣」）。"""
+    """國碼與中文國名（ADR-054：台灣顯示為「台灣」）。"""
 
     code: str
     name: str
@@ -165,7 +165,7 @@ class ScholarshipDetail(BaseModel):
 
 
 def country_list(codes: list[str]) -> list[Country]:
-    return [Country(code=code, name=countries.display_name(code)) for code in codes]
+    return [Country(code=code, name=countries.chinese_name(code)) for code in codes]
 
 
 def stale_of(row: Scholarship, today: date) -> bool:

@@ -1,5 +1,7 @@
 """國家代碼（ADR-054）：國家一律存 ISO 3166-1 兩碼國碼（TW、KR、CZ…）；這裡檢查代碼、給顯示名稱、列出原文可能出現的國名。"""
 
+import gettext
+
 import pycountry  # ISO 3166 的國家資料（國碼、正式名稱、常用名稱）
 
 EXTRA_CODES = {"XK": "Kosovo"}  # ISO 沒有列、但我們接受的代碼（Kosovo 沒有正式國碼，慣例用 XK）
@@ -57,6 +59,21 @@ def display_name(code: str) -> str:
         return code  # 不認得的代碼直接顯示代碼
     # 只有部分國家有常用名稱（例如 Viet Nam 的 Vietnam）；沒有就用名稱
     return getattr(country, "common_name", country.name)
+
+
+# 網頁上的中文國名（第 9 天）：我們自己的名稱優先（ADR-054），其他用 pycountry 附的繁體中文翻譯
+CHINESE_NAMES = {"TW": "台灣", "KR": "南韓", "KP": "北韓", "XK": "科索沃"}
+_ZH_TW = gettext.translation("iso3166-1", pycountry.LOCALES_DIR, languages=["zh_TW"], fallback=True)
+
+
+def chinese_name(code: str) -> str:
+    """網頁顯示的中文國名；pycountry 的翻譯以英文正式名稱為鍵，例如 Finland → 芬蘭。"""
+    if code in CHINESE_NAMES:
+        return CHINESE_NAMES[code]
+    country = pycountry.countries.get(alpha_2=code)
+    if country is None:
+        return code  # 不認得的代碼直接顯示代碼
+    return _ZH_TW.gettext(country.name)
 
 
 def names_for(code: str) -> list[str]:

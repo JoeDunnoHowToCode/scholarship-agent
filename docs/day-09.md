@@ -105,7 +105,7 @@
 ## 待使用者決策
 
 1. ~~網頁伺服器（FastAPI）要不要也由 launchd 登入後自動啟動~~：選 A 手動啟動（ADR-073）
-2. 全部重抽（M7）要不要先加保護：重抽後，原本已核對的國籍、學位可能變成待確認（執行時發現第 6、7 點）
+2. ~~全部重抽（M7）要不要先加保護~~：選 C 只補金額，其他欄位不動（ADR-074）
 3. 每天的檢查一輪疊一輪、通知被延誤（執行時發現第 2 點）要怎麼修
 
 ## 設計草圖
@@ -385,11 +385,11 @@ def list_order(group: str, score: float | None) -> tuple[int, float]
                     重新核對 7 筆獎學金的金額，1 筆的結果有變；四筆都 supported｜列表：每月 310–1,400 EUR；再跑一次：0 筆有變
   M3EP：總額 33,600 € 被當成「一次」→ 第 40 點 → 列表：每月 1,400 EUR
   ```
-- [ ] M7 全部重抽 -> verify: `uv run python -m app.features.scholarships.extract --max-cost 60`，貼出筆數與費用；抽查 5 筆的金額與引用
-
-  ```
-  沒有跑，等你決定（待使用者決策第 2 點）：重抽後國籍、學位的核對結果可能變差（執行時發現第 6、7 點）
-  ```
+- ~~M7 全部重抽~~：改成 ADR-074 的只補金額（M7a–M7d）
+- [ ] M7a 補金額後的抽取結果：金額、核對狀態、文字、提示詞版本改成最新、記下 amounts_from，其他欄位不變（紅綠循環） -> verify: `uv run pytest tests/test_amounts.py -k backfill`
+- [ ] M7b 只抽金額的指令 `extract --backfill-amounts`（讀快照原文） -> verify: 先補 1 筆，貼出金額與核對狀態，確認其他欄位沒變
+- [ ] M7c 從 10-27 22:11 的備份補回「原文沒變、只因改版被整份重抽」的 38 筆 -> verify: 補回後比對備份，國籍、學位、截止日、類別、文件和備份一樣
+- [ ] M7d 全部補金額 -> verify: `uv run python -m app.features.scholarships.extract --backfill-amounts --max-cost 40`，貼出筆數與費用；各版本的筆數都變成最新；再跑一次 0 筆
 - [x] M8 列表與詳細頁顯示金額（核對狀態、引用） -> verify: 瀏覽器預覽，貼截圖
 
   ```

@@ -132,6 +132,26 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AmountOut
+         * @description 獎學金給你的一筆錢與核對結果（ADR-070）。
+         */
+        AmountOut: {
+            /** Value */
+            value: number;
+            /** Currency */
+            currency: string;
+            /** Period */
+            period: string;
+            /** Kind */
+            kind: string;
+            /** Applies To */
+            applies_to: string | null;
+            /** Evidence */
+            evidence: string | null;
+            /** Status */
+            status: string | null;
+        };
         /** AskIn */
         AskIn: {
             /**
@@ -439,6 +459,8 @@ export interface components {
             coverage: string | null;
             /** Amount */
             amount: string | null;
+            /** Amounts */
+            amounts: components["schemas"]["AmountOut"][];
             /** Language Requirements */
             language_requirements: string | null;
             /** Other Eligibility */
@@ -522,6 +544,8 @@ export interface components {
             unclear: string[];
             /** Failed */
             failed: string[];
+            /** Amount Headline */
+            amount_headline: string | null;
             /** Official Url */
             official_url: string | null;
         };

@@ -208,6 +208,7 @@ function ScholarshipCard({ row, showGroup }: { row: Row; showGroup: boolean }) {
           </span>
         </div>
         {row.time_reason && <p>{row.time_reason}</p>}
+        {row.amount_headline && <p>補助：{row.amount_headline}</p>}
         {row.next_deadline && <p className="text-muted-foreground">最近的截止：{taipeiTime(row.next_deadline)}</p>}
         {row.category && row.category !== row.name && (
           <p className="text-muted-foreground">分數來自類別：{row.category}</p>

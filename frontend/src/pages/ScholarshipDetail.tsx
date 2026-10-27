@@ -9,6 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  AMOUNT_KIND_NAMES,
+  AMOUNT_PERIOD_NAMES,
+  AMOUNT_STATUS_NAMES,
   CHECK_NAMES,
   CYCLE_STATUS_NAMES,
   DEGREE_NAMES,
@@ -113,7 +116,40 @@ export default function ScholarshipDetail() {
       </Section>
       <Section title="補助">
         <Fact label="補助內容">{d.coverage ?? "—"}</Fact>
-        <Fact label="金額">{d.amount ?? "—"}</Fact>
+        {d.amounts.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>金額</TableHead>
+                <TableHead>用途</TableHead>
+                <TableHead>核對</TableHead>
+                <TableHead>原文引用</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {d.amounts.map((a, index) => (
+                <TableRow key={index}>
+                  <TableCell className="align-top">
+                    {`${nameOf(AMOUNT_PERIOD_NAMES, a.period)} ${a.value.toLocaleString("en-US")} ${a.currency}`.trim()}
+                  </TableCell>
+                  <TableCell className="align-top whitespace-normal">
+                    {nameOf(AMOUNT_KIND_NAMES, a.kind)}
+                    {a.applies_to && <div className="text-xs text-muted-foreground">{a.applies_to}</div>}
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <Badge variant={a.status === "supported" ? "secondary" : "outline"}>
+                      {nameOf(AMOUNT_STATUS_NAMES, a.status)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="align-top whitespace-normal text-muted-foreground">{a.evidence ?? "—"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          // 第 9 天改版前抽的資料還沒有金額清單，先顯示原本的文字
+          <Fact label="金額">{d.amount ?? "—"}</Fact>
+        )}
       </Section>
       {d.categories.length > 1 && (
         <Section title="名額類別">

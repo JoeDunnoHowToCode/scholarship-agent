@@ -59,6 +59,28 @@ export const DOC_NAMES: Record<string, string> = {
   other: "其他",
 };
 
+// 金額（ADR-070）
+export const AMOUNT_KIND_NAMES: Record<string, string> = {
+  living_allowance: "生活津貼",
+  tuition_coverage: "學費補助",
+  travel: "旅費",
+  other: "其他",
+};
+export const AMOUNT_PERIOD_NAMES: Record<string, string> = {
+  month: "每月",
+  year: "每年",
+  total: "總額",
+  once: "一次",
+  unclear: "",
+};
+export const AMOUNT_STATUS_NAMES: Record<string, string> = {
+  supported: "已核對",
+  no_evidence: "沒附引用",
+  invalid_currency: "幣別代碼不對",
+  quote_not_found: "引用不在原文",
+  number_not_in_quote: "數字不在引用裡",
+};
+
 export const EVENT_KIND_NAMES: Record<string, string> = {
   new_scholarship: "新獎學金",
   new_cycle: "新年度開放",

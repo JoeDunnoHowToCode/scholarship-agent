@@ -4,6 +4,7 @@ from typing import Any
 
 from app.features.scholarships import merge
 from app.features.scholarships.schemas import (
+    AmountDraft,
     CategoryFact,
     Outline,
     OutlineCategory,
@@ -368,3 +369,21 @@ def test_same_closing_day_for_the_same_nationalities_is_one_window() -> None:
         ],
     )
     assert result.draft.windows == [complete]
+
+
+def test_amounts_from_all_sections_are_kept_once_each() -> None:
+    # 教育部簡章：一般生的金額在兩節各抽到一次（寫法、引用不同），勵學優秀生只在第二節
+    general = AmountDraft(
+        value=16000, currency="USD", period="year", kind="living_allowance",
+        applies_to="一般生", evidence="一般生每人每年核發 1 萬 6 千美元",
+    )
+    general_again = AmountDraft(
+        value=16000, currency="usd", period="year", kind="living_allowance",
+        applies_to=" 一般生", evidence="一般生：每年 16,000 美元",
+    )
+    excellent = AmountDraft(
+        value=30000, currency="USD", period="year", kind="living_allowance",
+        applies_to="勵學優秀生", evidence="勵學優秀生每人每年核發 3 萬美元",
+    )
+    # 數字、幣別、期間、用途、適用對象都一樣的，只留第一次出現的那筆與它的引用（幣別不分大小寫、適用對象不管空白）
+    assert merge.merge_amounts([[general], [general_again, excellent]]) == [general, excellent]

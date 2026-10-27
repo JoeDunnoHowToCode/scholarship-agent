@@ -16,7 +16,7 @@ REQUIREMENT: dict[str, Any] = {
 }
 SECTION: dict[str, Any] = {
     "provider": None, "countries": [], "degrees": [], "degrees_evidence": None, "fields": [],
-    "coverage": None, "amount": None, "amounts": [], "nationality_scope": "unclear", "nationalities": [],
+    "coverage": None, "amounts": [], "nationality_scope": "unclear", "nationalities": [],
     "nationality_evidence": None, "nationality_conditions": None,
     "language_requirements": None, "other_eligibility": None, "requires_admission": None,
     "total_quota": None, "windows": [],

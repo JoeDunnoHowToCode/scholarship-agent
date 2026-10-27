@@ -20,7 +20,6 @@ EMPTY: dict[str, Any] = {
     "degrees_evidence": None,
     "fields": [],
     "coverage": None,
-    "amount": None,
     "amounts": [],
     "nationality_scope": "unclear",
     "nationalities": [],

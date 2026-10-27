@@ -114,6 +114,12 @@ class WindowDraft(BaseModel):
     evidence: str | None = Field(description="寫著這個截止日的原文句子，逐字引用")
 
 
+class AmountList(BaseModel):
+    """只補金額時（ADR-074）AI 回傳的格式：只有金額清單。"""
+
+    amounts: list[AmountDraft] = Field(description="獎學金給你的每一筆錢；原文沒寫金額就留空清單")
+
+
 class ProgramFacts(BaseModel):
     """整個獎學金共用的欄位。"""
 

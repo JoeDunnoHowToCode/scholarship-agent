@@ -1,6 +1,6 @@
 """抽取指令（第 3 天）：把每個來源最新的快照抽成獎學金、類別與文件清單（ADR-008、031、034、037）。
 
-用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only] [--amounts-only]
+用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only] [--amounts-only] [--backfill-amounts]
 
 - 網頁：每頁的可見文字合併後整份抽（ADR-034：一般網頁整頁讀）；學程補抓的 PDF 轉錄後當成一頁（ADR-044）
 - PDF 與很長的網頁：切段 → 第一輪列大綱 → 第二輪逐節抽 → 程式合併
@@ -38,6 +38,7 @@ from app.features.scholarships.models import (
 )
 from app.features.scholarships.schemas import (
     AmountDraft,
+    AmountList,
     CategoryDraft,
     Outline,
     ScholarshipDraft,
@@ -54,6 +55,8 @@ from app.shared.settings import settings
 PROMPT_VERSION = "extract-12"
 OUTLINE_VERSION = "outline-8"
 SECTION_VERSION = "section-12"
+# 只補金額的提示詞（ADR-074）；改了提示詞就要改號碼
+AMOUNTS_VERSION = "amounts-1"
 # 網頁合併後超過這個長度才切段（docs/day-03.md「Claude 自行決定」第 6 點）
 LONG_TEXT_CHARS = 100_000
 
@@ -71,6 +74,18 @@ RULES = """規則：
   數字照原文換成阿拉伯數字，附逐字引用；學費、申請費這類要你付的錢不要列；同一筆錢依適用對象不同就分開寫，用 applies_to 寫清楚
 - 學位有附加條件時，學位清單列出所有可能讀的學位，條件寫進 degree_conditions。
   例：「一般生以博士為限，惟藝術學群得讀碩士」→ degrees 填 master、phd；degree_conditions 填「碩士限藝術學群」
+"""
+
+AMOUNTS_PROMPT = """你是留學獎學金資料的抽取助手。下面是同一個獎學金（或學程）網站的原文。
+這次只要找出獎學金給申請人的每一筆錢，其他資料都不用抽：
+- 只列獎學金給你的錢（生活津貼、學費補助或減免、旅費、其他），每個金額一筆，數字照原文換成阿拉伯數字
+- 學費、申請費這類要你付的錢不要列
+- 同一筆錢依適用對象不同就分開寫，用 applies_to 寫清楚；整個學程的總額 period 填 total
+- evidence 逐字複製寫著這個金額的原文句子，不要改寫、不要翻譯
+- 原文沒寫金額就回傳空清單
+
+原文：
+{text}
 """
 
 EXTRACT_PROMPT = """你是留學獎學金資料的抽取助手。下面是同一個獎學金（或學程）網站的頁面文字，
@@ -372,6 +387,11 @@ def clean_country_codes(draft: ScholarshipDraft) -> tuple[ScholarshipDraft, list
     return cleaned, invalid
 
 
+def current_prompts() -> list[str]:
+    """抽取結果記下的提示詞版本（快取鍵的一部分，ADR-013）。"""
+    return [PROMPT_VERSION, OUTLINE_VERSION, SECTION_VERSION, verify.PROMPT_VERSION]
+
+
 def from_catalogue(session: Session, source: Source) -> bool:
     """這個來源是不是從 EACEA 目錄解析出來的學程網站。"""
     if source.parent_id is None:
@@ -395,7 +415,7 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
     snapshots = documents(session, source)
     meta = {
         "snapshots": sorted(s.content_hash for s in snapshots),
-        "prompts": [PROMPT_VERSION, OUTLINE_VERSION, SECTION_VERSION, verify.PROMPT_VERSION],
+        "prompts": current_prompts(),
         "model": settings.llm_model,
     }
     existing = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
@@ -463,6 +483,57 @@ def rebuild_cycles() -> None:
     print(f"已重建 {len(rows)} 筆獎學金的申請期；接著執行 cycles 指令更新狀態與預估")
 
 
+def needs_amounts(row: Scholarship) -> bool:
+    """要不要只補金額（ADR-074）：提示詞版本不是最新、但模型一樣的才補；模型換了要整份重抽。"""
+    meta = row.extracted.get("meta", {})
+    return bool(meta.get("prompts") != current_prompts() and meta.get("model") == settings.llm_model)
+
+
+def backfill_amounts(session: Session, llm: GeminiLLM, row: Scholarship) -> str:
+    """只補金額（ADR-074）：讀這筆抽取用的快照原文（和核對用的一樣，不另外轉錄 PDF），只抽金額清單；
+    其他欄位不動，提示詞版本記成最新，之後原文沒變就不會整份重抽。呼叫的人負責 commit。"""
+    assert row.source_id is not None
+    raw = snapshot_text(session, row.source_id, row.extracted["meta"]["snapshots"])
+    found = llm.extract(AMOUNTS_PROMPT.format(text=raw), AmountList).amounts
+    statuses = [amounts.amount_status(amount, raw) for amount in found]
+    row.extracted = amounts.with_amounts(
+        row.extracted, [a.model_dump(mode="json") for a in found], statuses, current_prompts(), AMOUNTS_VERSION
+    )
+    row.amount = row.extracted["amount"]
+    return f"金額 {len(found)} 筆（核對通過 {statuses.count('supported')}）"
+
+
+def run_backfill(llm: GeminiLLM, source_id: int | None, limit: int | None, max_cost: float | None) -> None:
+    """--backfill-amounts：每筆各自一個交易；鎖住那一列，避免和 worker 同時寫同一筆。"""
+    with SessionLocal() as session:
+        query = select(Scholarship.id).where(Scholarship.source_id.is_not(None)).order_by(Scholarship.id)
+        if source_id:
+            query = query.where(Scholarship.source_id == source_id)
+        ids = list(session.scalars(query))
+    counts = {"ok": 0, "current": 0, "failed": 0}
+    for scholarship_id in ids:
+        if limit is not None and counts["ok"] >= limit:
+            break
+        if max_cost and llm.cost_usd() * 32 > max_cost:
+            print(f"已超過這次的費用上限 NT${max_cost}，停下")
+            break
+        with SessionLocal() as session, session.begin():
+            row = session.scalars(select(Scholarship).where(Scholarship.id == scholarship_id).with_for_update()).one()
+            if not needs_amounts(row):
+                counts["current"] += 1
+                continue
+            try:
+                summary = backfill_amounts(session, llm, row)
+            except LLMError as error:
+                counts["failed"] += 1
+                print(f"failed     {row.id} {row.name[:50]}：{error}")
+                continue
+            counts["ok"] += 1
+            print(f"{row.id:>4} {row.name[:50]}｜{summary}")
+    print(f"補金額 {counts['ok']}、已經是最新 {counts['current']}、失敗 {counts['failed']}")
+    print(llm.usage_line())
+
+
 def recheck_amounts() -> None:
     """改了金額的核對規則後，用已存的金額與快照原文重新核對（不呼叫 AI、不花錢；ADR-070 只用程式核對）。"""
     with SessionLocal() as session, session.begin():
@@ -499,6 +570,9 @@ def main() -> None:
     parser.add_argument(
         "--amounts-only", action="store_true", help="只用已存的金額與快照重新核對金額，不呼叫 AI"
     )
+    parser.add_argument(
+        "--backfill-amounts", action="store_true", help="只補金額（ADR-074）：其他欄位不動，提示詞版本記成最新"
+    )
     args = parser.parse_args()
     if args.cycles_only:
         rebuild_cycles()
@@ -512,6 +586,9 @@ def main() -> None:
         )
     except MissingApiKeyError as error:
         sys.exit(str(error))
+    if args.backfill_amounts:
+        run_backfill(llm, args.source, args.limit, args.max_cost)
+        return
 
     child = aliased(Source)
     query = (

@@ -48,6 +48,24 @@ class CategoryDraft(BaseModel):
     )
 
 
+# 金額的期間與用途（ADR-070）
+AmountPeriod = Literal["month", "year", "once", "unclear"]
+AmountKind = Literal["living_allowance", "tuition_coverage", "travel", "other"]
+
+
+class AmountDraft(BaseModel):
+    """獎學金給你的一筆錢（ADR-070）；學費、申請費這類要你付的錢不列。"""
+
+    value: float = Field(description="金額數字，照原文換成阿拉伯數字，例如「1 萬 6 千」填 16000、「1,400」填 1400")
+    currency: str = Field(description="ISO 4217 三碼幣別，例如 EUR、USD、TWD、GBP")
+    period: AmountPeriod = Field(description="每月填 month、每年填 year、一次填 once；原文沒說填 unclear")
+    kind: AmountKind = Field(
+        description="用途：生活津貼 living_allowance、學費補助或減免 tuition_coverage、旅費 travel、其他 other"
+    )
+    applies_to: str | None = Field(description="適用對象，例如「一般生」「非歐盟學生」；所有人都一樣就留空")
+    evidence: str | None = Field(description="寫著這個金額的原文句子，逐字引用")
+
+
 class RequirementDraft(BaseModel):
     """申請要交的一份文件。"""
 

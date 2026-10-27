@@ -1,7 +1,13 @@
 """獎學金的金額（第 9 天，ADR-070）：每個金額一筆，附用途與原文引用；程式核對引用與數字，產生列表與文字用的說明。"""
 
+import math
 import re
 import unicodedata
+
+import pycountry
+
+from app.features.documents.checks import quote_in_source, quote_in_table_text
+from app.features.scholarships.schemas import AmountDraft
 
 # 中文單位：「1 萬 6 千」「3 萬」「1.6 萬」「5 千」（教育部簡章的寫法）
 _WAN = re.compile(r"(\d+(?:\.\d+)?)\s*[萬万](?:\s*(\d+)\s*千)?")
@@ -41,3 +47,18 @@ def numbers_in(text: str) -> set[float]:
         if number is not None:
             found.add(number)
     return found
+
+
+def amount_status(amount: AmountDraft, source: str) -> str:
+    """金額的核對結果，只用程式、不另外問 AI（docs/day-09.md「Claude 自行決定」第 21 點）：
+    supported、no_evidence、invalid_currency、quote_not_found、number_not_in_quote。"""
+    if not amount.evidence:
+        return "no_evidence"
+    if pycountry.currencies.get(alpha_3=amount.currency.upper()) is None:
+        return "invalid_currency"
+    # 和驗證者一樣：表格的字被交錯排列時，允許引用切成幾截就近出現
+    if not (quote_in_source(amount.evidence, source) or quote_in_table_text(amount.evidence, source)):
+        return "quote_not_found"
+    if not any(math.isclose(number, amount.value) for number in numbers_in(amount.evidence)):
+        return "number_not_in_quote"
+    return "supported"

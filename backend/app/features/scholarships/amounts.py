@@ -113,3 +113,19 @@ def describe(items: list[dict[str, Any]]) -> str | None:
         amount = f"{PERIOD_NAMES[item['period']]} {money(item['value'])} {item['currency']}".strip()
         parts.append(f"{amount}（{'，'.join(notes)}）")
     return "；".join(parts) or None
+
+
+def with_amounts(
+    extracted: dict[str, Any], found: list[dict[str, Any]], statuses: list[str], prompts: list[str], label: str
+) -> dict[str, Any]:
+    """只補金額後的抽取結果（ADR-074）：放進金額清單、核對狀態與由清單產生的文字，記下金額的來源（label），
+    提示詞版本改成最新（這次改版只動了金額的規則）；其他欄位原樣保留。回傳新的 dict（JSONB 要整個重新指定）。"""
+    items = [{**item, "status": status} for item, status in zip(found, statuses, strict=True)]
+    return {
+        **extracted,
+        "amounts": found,
+        "amount": describe(items),
+        "amounts_from": label,
+        "verification": {**extracted["verification"], "amounts": statuses},
+        "meta": {**extracted["meta"], "prompts": prompts},
+    }

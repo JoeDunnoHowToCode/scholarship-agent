@@ -37,7 +37,6 @@ LIST_FIELDS = ["countries", "degrees", "fields"]
 # 文字欄位：不同節可能各寫一部分，把不同的內容串起來
 TEXT_FIELDS = [
     "coverage",
-    "amount",
     "nationality_conditions",
     "language_requirements",
     "other_eligibility",
@@ -192,6 +191,8 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
 
     # 申請窗口（ADR-047）：每一節找到的都收下，同一個截止日只留一筆
     values["windows"] = dedupe_windows([w for s in sections for w in s.windows])
+    # 金額（ADR-070）：每一節找到的都收下，同一個金額只留一筆
+    values["amounts"] = merge_amounts([s.amounts for s in sections])
 
     for name, (evidence, order) in PRIORITY_FIELDS.items():
         decider = min(

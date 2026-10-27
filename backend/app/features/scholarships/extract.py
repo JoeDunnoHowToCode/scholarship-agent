@@ -19,7 +19,15 @@ from app.core.fetch.text import decode_snapshot, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
 from app.features.documents.chunking import chunk_html, chunk_transcript, group_sections
 from app.features.documents.transcribe import transcribe
-from app.features.scholarships import changes, countries, cycles, merge, rules, verify
+from app.features.scholarships import (
+    amounts,
+    changes,
+    countries,
+    cycles,
+    merge,
+    rules,
+    verify,
+)
 from app.features.scholarships.models import (
     Change,
     Cycle,
@@ -42,9 +50,9 @@ from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
 # 提示詞版本：改了提示詞就要改號碼；和快照雜湊、模型一起決定要不要重抽（ADR-013）
-PROMPT_VERSION = "extract-10"
+PROMPT_VERSION = "extract-11"
 OUTLINE_VERSION = "outline-8"
-SECTION_VERSION = "section-10"
+SECTION_VERSION = "section-11"
 # 網頁合併後超過這個長度才切段（docs/day-03.md「Claude 自行決定」第 6 點）
 LONG_TEXT_CHARS = 100_000
 
@@ -58,6 +66,8 @@ RULES = """規則：
 - 同一屆對不同申請人有不同截止日時（例如夥伴國與歐盟國、申請獎學金與自費、第一輪與第二輪），每個截止日各寫一個窗口，
   用 nationality_scope、nationalities、funding 寫清楚適用對象，label 照抄原文的稱呼
 - degrees 是拿這個獎學金去讀的學位，不是申請人已經有的學歷（「需有學士學位」不代表可以讀學士）；原文明確寫可以讀學士才填 bachelor
+- 金額寫在 amounts（ADR-070）：只列獎學金給你的錢（生活津貼、學費補助或減免、旅費、其他），每個金額一筆，
+  數字照原文換成阿拉伯數字，附逐字引用；學費、申請費這類要你付的錢不要列；同一筆錢依適用對象不同就分開寫，用 applies_to 寫清楚
 - 學位有附加條件時，學位清單列出所有可能讀的學位，條件寫進 degree_conditions。
   例：「一般生以博士為限，惟藝術學群得讀碩士」→ degrees 填 master、phd；degree_conditions 填「碩士限藝術學群」
 """
@@ -265,7 +275,7 @@ def save(
     row.degrees = list(draft.degrees)
     row.fields = draft.fields
     row.coverage = draft.coverage
-    row.amount = draft.amount
+    row.amount = extracted["amount"]  # 由金額清單產生的文字（ADR-070）
     row.nationality_scope = draft.nationality_scope
     row.nationalities = draft.nationalities
     row.nationality_conditions = draft.nationality_conditions
@@ -399,7 +409,7 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
         # ADR-040：每個獎學金至少一筆類別；模型漏填時用整個獎學金的資料補一筆
         only = CategoryDraft(
             name=draft.name, quota=None, degrees=draft.degrees, countries=draft.countries,
-            amount=draft.amount, eligibility=None, quota_evidence=None,
+            amount=None, eligibility=None, quota_evidence=None,
             degrees_evidence=draft.degrees_evidence, degree_conditions=None,
         )
         draft = draft.model_copy(update={"categories": [only]})
@@ -415,10 +425,17 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
             update={"nationality_scope": "all", "nationalities": [], "nationality_evidence": CATALOGUE_EVIDENCE}
         )
         status["nationality"] = "catalogue"
+    # 金額的核對只用程式（docs/day-09.md「Claude 自行決定」第 21 點），結果和其他欄位一起存在 verification
+    status["amounts"] = [amounts.amount_status(a, raw) for a in verified.amounts]
+    amount_items = [
+        {**a.model_dump(mode="json"), "status": s} for a, s in zip(verified.amounts, status["amounts"], strict=True)
+    ]
     deadline = earliest_deadline(verified.windows)
     extracted = {
         **verified.model_dump(mode="json"),
         "deadline": deadline,
+        # scholarships.amount 的文字改由金額清單產生（搜尋索引、問答、變更紀錄照舊用它）
+        "amount": amounts.describe(amount_items),
         "verification": status,
         "original_nationality_scope": draft.nationality_scope,
         **extra,

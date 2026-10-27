@@ -20,7 +20,7 @@ from app.features.matching.score import describe_cycle
 from app.features.notifications.rules import describe_change
 from app.features.pipeline import breaker
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
-from app.features.scholarships import countries
+from app.features.scholarships import amounts, countries
 from app.features.scholarships.cycles import is_stale
 from app.features.scholarships.listing import list_order
 from app.features.scholarships.models import (
@@ -74,6 +74,7 @@ class ScholarshipRow(BaseModel):
     time_reason: str | None
     unclear: list[str]  # 待確認的條件（nationality、degree）
     failed: list[str]  # 不符合的條件
+    amount_headline: str | None  # 大概的金額，例如「每月 1,400 EUR」；只看核對通過的（ADR-070）
     official_url: str | None
 
 
@@ -136,6 +137,18 @@ class ScoreOut(BaseModel):
     computed_at: datetime
 
 
+class AmountOut(BaseModel):
+    """獎學金給你的一筆錢與核對結果（ADR-070）。"""
+
+    value: float
+    currency: str
+    period: str  # month、year、once、unclear
+    kind: str  # living_allowance、tuition_coverage、travel、other
+    applies_to: str | None
+    evidence: str | None
+    status: str | None  # supported、no_evidence、invalid_currency、quote_not_found、number_not_in_quote；舊資料沒有
+
+
 class ChangeOut(BaseModel):
     changed_at: datetime
     text: str
@@ -151,6 +164,7 @@ class ScholarshipDetail(BaseModel):
     fields: list[str]
     coverage: str | None
     amount: str | None
+    amounts: list[AmountOut]
     language_requirements: str | None
     other_eligibility: str | None
     requires_admission: bool | None
@@ -180,6 +194,15 @@ def stale_of(row: Scholarship, today: date) -> bool:
     """資料過舊：已封存，而且最近一次真的截止日超過 24 個月（ADR-058，和每天的 refresh 同一個判斷）。"""
     latest = max((c.closes_at for c in row.cycles if not c.estimated), default=None)
     return row.status == ScholarshipStatus.ARCHIVED and latest is not None and is_stale(latest, today)
+
+
+def amount_items(extracted: dict[str, Any]) -> list[dict[str, Any]]:
+    """抽取結果裡的金額，加上核對狀態（兩個清單順序一樣）；第 9 天重抽前的舊資料沒有金額清單。"""
+    statuses = extracted.get("verification", {}).get("amounts", [])
+    return [
+        {**item, "status": statuses[index] if index < len(statuses) else None}
+        for index, item in enumerate(extracted.get("amounts", []))
+    ]
 
 
 def start_of(day: date) -> datetime:
@@ -243,6 +266,7 @@ def to_row(row: Scholarship, match: Match | None, today: date) -> ScholarshipRow
         time_reason=time_check["reason"] if time_check else None,
         unclear=list(match.unclear) if match else [],
         failed=list(match.failed) if match else [],
+        amount_headline=amounts.headline(amount_items(row.extracted)),
         official_url=row.official_url,
     )
 
@@ -402,6 +426,7 @@ def read_scholarship(scholarship_id: int, session: DbSession) -> ScholarshipDeta
         fields=list(row.fields),
         coverage=row.coverage,
         amount=row.amount,
+        amounts=[AmountOut(**item) for item in amount_items(extracted)],
         language_requirements=row.language_requirements,
         other_eligibility=row.other_eligibility,
         requires_admission=row.requires_admission,

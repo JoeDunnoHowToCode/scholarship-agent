@@ -121,7 +121,12 @@ class ProgramFacts(BaseModel):
     degrees_evidence: str | None = Field(description="支持學位的原文句子，逐字引用")
     fields: list[str] = Field(description="適用的領域，用英文；不限領域就留空清單")
     coverage: str | None = Field(description="補助內容，例如學費、生活費、機票")
-    amount: str | None = Field(description="補助金額，照原文寫，例如「每月 EUR 1,400」")
+    amounts: list[AmountDraft] = Field(
+        description=(
+            "獎學金給你的每一筆錢，每個金額一筆（生活津貼、學費補助或減免、旅費等）；"
+            "學費、申請費這類要你付的錢不要列；原文沒寫金額就留空清單"
+        )
+    )
     nationality_scope: NationalityScope = Field(
         description=(
             "國籍資格：開放所有國籍填 all；只限某些國家填 listed；"

@@ -34,3 +34,14 @@ def test_country_names_for_display_and_source_text() -> None:
         "Taiwan", "Taiwan, Province of China", "Republic of China", "Chinese Taipei", "台灣", "臺灣", "中華民國",
     ]
     assert countries.names_for("ZZ") == ["ZZ"]
+
+
+def test_chinese_name_for_the_web_page() -> None:
+    # 網頁是繁體中文（第 9 天）：我們自己的名稱優先（ADR-054：台灣顯示為「台灣」，不用 ISO 翻譯的「中華民國」）
+    assert countries.chinese_name("TW") == "台灣"
+    assert countries.chinese_name("KR") == "南韓"
+    assert countries.chinese_name("XK") == "科索沃"  # pycountry 沒有 XK
+    # 其他國家用 pycountry 的繁體中文翻譯
+    assert countries.chinese_name("FI") == "芬蘭"
+    assert countries.chinese_name("CZ") == "捷克"
+    assert countries.chinese_name("ZZ") == "ZZ"  # 不認得的代碼直接顯示代碼

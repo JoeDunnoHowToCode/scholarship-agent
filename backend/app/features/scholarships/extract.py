@@ -1,6 +1,6 @@
 """抽取指令（第 3 天）：把每個來源最新的快照抽成獎學金、類別與文件清單（ADR-008、031、034、037）。
 
-用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only]
+用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only] [--amounts-only]
 
 - 網頁：每頁的可見文字合併後整份抽（ADR-034：一般網頁整頁讀）；學程補抓的 PDF 轉錄後當成一頁（ADR-044）
 - PDF 與很長的網頁：切段 → 第一輪列大綱 → 第二輪逐節抽 → 程式合併
@@ -37,6 +37,7 @@ from app.features.scholarships.models import (
     ScholarshipStatus,
 )
 from app.features.scholarships.schemas import (
+    AmountDraft,
     CategoryDraft,
     Outline,
     ScholarshipDraft,
@@ -462,6 +463,28 @@ def rebuild_cycles() -> None:
     print(f"已重建 {len(rows)} 筆獎學金的申請期；接著執行 cycles 指令更新狀態與預估")
 
 
+def recheck_amounts() -> None:
+    """改了金額的核對規則後，用已存的金額與快照原文重新核對（不呼叫 AI、不花錢；ADR-070 只用程式核對）。"""
+    with SessionLocal() as session, session.begin():
+        rows = session.scalars(select(Scholarship).where(Scholarship.source_id.is_not(None))).all()
+        checked = changed = 0
+        for row in rows:
+            items = row.extracted.get("amounts")
+            if not items or row.source_id is None:
+                continue  # 第 9 天改版前抽的，還沒有金額清單
+            raw = snapshot_text(session, row.source_id, row.extracted["meta"]["snapshots"])
+            statuses = [amounts.amount_status(AmountDraft.model_validate(item), raw) for item in items]
+            checked += 1
+            if statuses == row.extracted["verification"].get("amounts"):
+                continue
+            changed += 1
+            text = amounts.describe([{**item, "status": status} for item, status in zip(items, statuses, strict=True)])
+            verification = {**row.extracted["verification"], "amounts": statuses}
+            row.extracted = {**row.extracted, "verification": verification, "amount": text}  # JSONB 整個重新指定
+            row.amount = text
+    print(f"重新核對 {checked} 筆獎學金的金額，{changed} 筆的結果有變")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="把來源快照抽成獎學金資料")
     parser.add_argument("--source", type=int, help="只抽這個來源 id")
@@ -473,9 +496,15 @@ def main() -> None:
     parser.add_argument(
         "--cycles-only", action="store_true", help="只用已存的抽取結果重建申請期，不呼叫 AI"
     )
+    parser.add_argument(
+        "--amounts-only", action="store_true", help="只用已存的金額與快照重新核對金額，不呼叫 AI"
+    )
     args = parser.parse_args()
     if args.cycles_only:
         rebuild_cycles()
+        return
+    if args.amounts_only:
+        recheck_amounts()
         return
     try:
         llm = GeminiLLM(

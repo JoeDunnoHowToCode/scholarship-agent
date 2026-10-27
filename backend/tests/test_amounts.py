@@ -39,3 +39,28 @@ def test_amount_status_checks_the_quote_and_the_number() -> None:
     assert amounts.amount_status(amount(1400, "EUR 1,400 every month"), page) == "quote_not_found"
     # 引用在原文裡，但數字不對（AI 把 1,400 寫成 1,500）
     assert amounts.amount_status(amount(1500, "a monthly allowance of EUR 1,400"), page) == "number_not_in_quote"
+
+
+def test_headline_prefers_living_allowance_and_shows_a_range() -> None:
+    # 列表上的大概金額：抽取結果裡的金額，加上核對狀態（status）
+    def amount(value: float, kind: str = "living_allowance", period: str = "month", currency: str = "EUR",
+               status: str = "supported", applies_to: str | None = None) -> dict[str, object]:
+        return {"value": value, "currency": currency, "period": period, "kind": kind,
+                "applies_to": applies_to, "evidence": "（引用）", "status": status}
+
+    # 有生活津貼就先顯示它（ReSound：每月 1,400 EUR），旅費排在後面
+    assert amounts.headline([amount(3000, kind="travel", period="once"), amount(1400)]) == "每月 1,400 EUR"
+    # 同用途、同期間、同幣別，只是適用對象不同：顯示範圍（教育部）
+    moe = [
+        amount(16000, period="year", currency="USD", applies_to="一般生"),
+        amount(30000, period="year", currency="USD", applies_to="勵學優秀生"),
+        amount(20000, period="year", currency="USD", applies_to="特殊教育生"),
+    ]
+    assert amounts.headline(moe) == "每年 16,000–30,000 USD"
+    # 沒有生活津貼：依學費補助、旅費、其他的順序找；期間沒寫就不加「每月」這類字
+    assert amounts.headline([amount(5000, kind="tuition_coverage", period="unclear")]) == "5,000 EUR"
+    # 有小數就寫到小數第二位
+    assert amounts.headline([amount(1350.5)]) == "每月 1,350.50 EUR"
+    # 沒有核對通過的金額：不顯示
+    assert amounts.headline([amount(1400, status="quote_not_found")]) is None
+    assert amounts.headline([]) is None

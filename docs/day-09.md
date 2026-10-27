@@ -309,9 +309,28 @@ def list_order(group: str, score: float | None) -> tuple[int, float]
 
 ### 第 2 段：混合搜尋
 
-- [ ] S1 RRF 合併名次（紅綠循環） -> verify: `uv run pytest tests/test_search_fusion.py`
-- [ ] S2 列表 API 的 `q`：關鍵字＋語意＋RRF；語意不能用時只用關鍵字 -> verify: `curl` 搜「數據科學」「DEAI」；手動打開斷路器再搜一次，看到 `semantic: false`，之後恢復
-- [ ] S3 搜尋框與「只用關鍵字」的提示 -> verify: 瀏覽器預覽，貼截圖
+- [x] S1 RRF 合併名次（紅綠循環） -> verify: `uv run pytest tests/test_search_fusion.py`
+
+  ```
+  1 passed in 0.01s
+  ```
+- [x] S2 列表 API 的 `q`：關鍵字＋語意＋RRF；語意不能用時只用關鍵字 -> verify: `curl` 搜「數據科學」「DEAI」；手動打開斷路器再搜一次，看到 `semantic: false`，之後恢復
+
+  ```
+  搜「數據科學」：30 筆｜語意 True｜前幾名 EMLDS、BDMA、Brain and Data Science、DEAI
+  搜「DEAI」：30 筆｜語意 True｜第 1：DEAI
+  搜「data science」：30 筆｜語意 True｜第 1：EMLDS
+  搜「烹飪」：30 筆｜語意 True｜MBUILD、master-serp.eu、WINTOUR…（ADR-069 寫過的限制）
+  DEAI＋只看還能申請的：10 筆，都還能申請，第 1：DEAI
+  語意不能用：改成在程式內呼叫 API、把 GOOGLE_API_KEY 設成空的（不打開斷路器：會發 Telegram 通知，也會暫停正在跑的每日檢查）
+    沒有金鑰時搜「DEAI」：1 筆｜語意 False；搜「數據科學」：0 筆｜語意 False
+  ```
+- [x] S3 搜尋框與「只用關鍵字」的提示 -> verify: 瀏覽器預覽，貼截圖
+
+  ```
+  搜尋框打「數據科學」按 Enter：共 30 筆，依和搜尋字的相關程度排序（語意搜尋最多取 30 筆）；第 1 筆 EMLDS；卡片上標時間狀態；主控台沒有錯誤
+  「只用關鍵字」的提示：沒有在瀏覽器觸發（要打開斷路器，理由同 S2）；它只看 API 的 semantic=false，S2 已驗證 API 會回傳 false
+  ```
 
 ### 第 3 段：結構化金額
 

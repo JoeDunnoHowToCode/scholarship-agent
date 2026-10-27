@@ -4,8 +4,28 @@
     {
       "name": "api",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "--directory", "backend", "uvicorn", "app.main:app", "--port", "8000", "--reload"],
+      "runtimeArgs": [
+        "run",
+        "--directory",
+        "backend",
+        "uvicorn",
+        "app.main:app",
+        "--port",
+        "8000",
+        "--reload"
+      ],
       "port": 8000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
+      "port": 5173
     }
   ]
 }

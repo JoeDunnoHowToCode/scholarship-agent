@@ -12,7 +12,7 @@
 
 import argparse
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -25,7 +25,7 @@ from app.core.llm.base import Embedder, StructuredLLM
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM, MissingApiKeyError
 from app.features.scholarships import countries
 from app.features.scholarships.dedup import normalize_name
-from app.features.scholarships.models import EMBEDDING_DIMENSIONS, Scholarship
+from app.features.scholarships.models import EMBEDDING_DIMENSIONS, Cycle, Scholarship
 from app.features.search import citations, filters
 from app.features.search.index import Topic
 from app.features.search.models import Chunk
@@ -95,6 +95,18 @@ class Answered:
     answer: str
     citations: list[Evidence]
     invalid: list[str]
+
+
+@dataclass
+class AskResult:
+    """一題問答的結果，網頁與終端機指令共用（第 9 天）。"""
+
+    classified: Route  # AI 的分類（原樣保留，終端機會印出來）
+    route: str  # 實際走的路線：指名某一筆時 filter 會改走 lookup，找不到時退回 semantic
+    notes: list[str] = field(default_factory=list)  # 改走其他路線的說明
+    candidates: list[tuple[Scholarship, float]] = field(default_factory=list)  # 名稱對不到時，最像的幾筆
+    answered: Answered | None = None  # lookup、document、semantic 的答案
+    listed: list[tuple[Scholarship, Cycle]] = field(default_factory=list)  # filter 路線篩到的申請期
 
 
 def resolve(
@@ -208,43 +220,57 @@ def print_answer(answered: Answered) -> None:
         print(f"  ⚠ 答案引用了不存在的編號，已略過：{', '.join(answered.invalid)}")
 
 
-def list_filtered(session: Session, chosen: filters.Filters) -> bool:
-    """filter 路線：條件轉 SQL，用固定格式列出；篩不到回傳 False（之後退回 semantic）。"""
+def filtered(session: Session, chosen: filters.Filters) -> list[tuple[Scholarship, Cycle]]:
+    """filter 路線：條件轉 SQL，最多 30 個申請期；篩不到回傳空清單（之後退回 semantic）。"""
     rows = session.execute(filters.build_filter_query(chosen, datetime.now(UTC)).limit(30)).all()
-    for scholarship, cycle in rows:
-        unsure = "（國籍待確認）" if scholarship.nationality_scope == "unclear" else ""
-        unverified = "（截止日待確認）" if cycle.verification != "supported" else ""
-        print(f"- {scholarship.name}{unsure}｜截止 {cycle.closes_at:%Y-%m-%d}（{cycle.status}）{unverified}｜{cycle.label or ''}")
-        print(f"    {scholarship.official_url}")
-    return bool(rows)
+    return [(scholarship, cycle) for scholarship, cycle in rows]
 
 
-def ask(session: Session, llm: StructuredLLM, embedder: Embedder, question: str) -> None:
+def ask(session: Session, llm: StructuredLLM, embedder: Embedder, question: str) -> AskResult:
     route = llm.extract(ROUTE_PROMPT.format(today=f"{datetime.now(UTC):%Y-%m-%d}", question=question), Route)
-    print(f"路線：{route.route}；獎學金：{route.scholarship}；主題：{route.topic}\n")
+    result = AskResult(classified=route, route=route.route)
     target: Scholarship | None = None
     if route.scholarship:
         target, candidates = resolve(session, embedder, route.scholarship)
         if target is None and route.route in ("lookup", "document"):
-            print("找不到這個獎學金，最像的是：")
-            for row, similarity in candidates:
-                print(f"  {similarity:.2f} {row.name}")
-            print("（改用原文搜尋回答）\n")
-    if route.route == "filter" and target:
+            result.candidates = candidates
+            result.notes.append("找不到這個獎學金，改用原文搜尋回答")
+    if result.route == "filter" and target:
         # 保險：指名了某一筆獎學金，就算分類成 filter，也改查那一筆（篩選會忽略名稱）
-        print(f"（問題指名「{target.name}」，改走 lookup）\n")
-        route.route = "lookup"
-    if route.route == "lookup" and target:
-        print_answer(answer_with(llm, question, facts_of(session, target)))
-    elif route.route == "document" and target and target.source_id:
-        print_answer(answer_with(llm, question, whole_document(session, target.source_id, target.official_url or "")))
-    elif route.route == "filter" and list_filtered(session, route.filters):
-        pass
+        result.notes.append(f"問題指名「{target.name}」，改走 lookup")
+        result.route = "lookup"
+    if result.route == "lookup" and target:
+        result.answered = answer_with(llm, question, facts_of(session, target))
+    elif result.route == "document" and target and target.source_id:
+        result.answered = answer_with(llm, question, whole_document(session, target.source_id, target.official_url or ""))
+    elif result.route == "filter" and (rows := filtered(session, route.filters)):
+        result.listed = rows
     else:
-        if route.route == "filter":
-            print("條件篩不到，改用原文搜尋回答\n")
+        if result.route == "filter":
+            result.notes.append("條件篩不到，改用原文搜尋回答")
+        result.route = "semantic"
         source_id = target.source_id if target else None
-        print_answer(answer_with(llm, question, chunks_for(session, embedder, question, source_id, route.topic)))
+        result.answered = answer_with(llm, question, chunks_for(session, embedder, question, source_id, route.topic))
+    return result
+
+
+def print_result(result: AskResult) -> None:
+    """終端機指令的輸出：分類、改走其他路線的說明、篩到的申請期或答案。"""
+    route = result.classified
+    print(f"路線：{route.route}；獎學金：{route.scholarship}；主題：{route.topic}\n")
+    if result.candidates:
+        print("最像的是：")
+        for row, similarity in result.candidates:
+            print(f"  {similarity:.2f} {row.name}")
+    for note in result.notes:
+        print(f"（{note}）\n")
+    for scholarship, cycle in result.listed:
+        unsure = "（國籍待確認）" if scholarship.nationality_scope == "unclear" else ""
+        unverified = "（截止日待確認）" if cycle.verification != "supported" else ""
+        print(f"- {scholarship.name}{unsure}｜截止 {cycle.closes_at:%Y-%m-%d}（{cycle.status}）{unverified}｜{cycle.label or ''}")
+        print(f"    {scholarship.official_url}")
+    if result.answered:
+        print_answer(result.answered)
 
 
 def main() -> None:
@@ -260,7 +286,7 @@ def main() -> None:
     except MissingApiKeyError as error:
         sys.exit(str(error))
     with SessionLocal() as session:
-        ask(session, llm, embedder, args.question)
+        print_result(ask(session, llm, embedder, args.question))
     print(f"\n{llm.usage_line()}")
 
 

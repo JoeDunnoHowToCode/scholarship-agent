@@ -60,6 +60,14 @@ def notify_soon() -> None:
     queue().enqueue(send_events, retry=RETRY, job_timeout=10 * 60, result_ttl=RESULT_TTL)
 
 
+def score_soon() -> None:
+    """放一件評分工作（第 9 天：個人資料改了就在背景重新評分）；沒網路時 worker 會等。
+
+    排在佇列最前面：每天的檢查可能正排著上百件來源工作，不必等它們做完。
+    """
+    queue().enqueue(score_today, retry=RETRY, job_timeout=FINISH_TIMEOUT, result_ttl=RESULT_TTL, at_front=True)
+
+
 def notify_breaker(session: Session) -> None:
     """斷路器打開時通知你（ADR-013、056）；去重鍵用打開的時間，同一次打開只通知一次。"""
     row = breaker.get(session)

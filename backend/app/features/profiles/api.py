@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.features.pipeline.jobs import score_soon
 from app.features.profiles.service import (
     CURRENT_USER_ID,
     ProfileIn,
@@ -31,6 +32,10 @@ def read_profile(session: DbSession) -> ProfileOut:
 
 @router.put("")
 def write_profile(data: ProfileIn, session: DbSession) -> ProfileOut:
+    existing = get_profile(session, CURRENT_USER_ID)
+    before = existing.version if existing else None
     row = save_profile(session, CURRENT_USER_ID, data)
     session.commit()
+    if row.version != before:
+        score_soon()  # 第 9 天：內容真的改了（版本號加一），評分在背景重新算（全部重評約 NT$4 以內）
     return to_out(row)

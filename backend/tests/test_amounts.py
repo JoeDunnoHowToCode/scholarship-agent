@@ -86,3 +86,16 @@ def test_numbers_in_reads_spaces_as_thousands_separators() -> None:
     assert amounts.numbers_in("2 300 000 EUR") == {2300000}
     # 兩個年份之間的空格不是千分位（後面不是剛好三位數）
     assert amounts.numbers_in("2026 2027") == {2026, 2027}
+
+
+def test_headline_prefers_the_monthly_amount_of_a_kind() -> None:
+    # 第 9 天實抽 M3EP：原文同時寫總額與每月金額（33,600 € = 1400 € × 24 個月），列表要顯示每月的
+    def amount(value: float, period: str) -> dict[str, object]:
+        return {"value": value, "currency": "EUR", "period": period, "kind": "living_allowance",
+                "applies_to": None, "evidence": "（引用）", "status": "supported"}
+
+    # 期間的順序：每月、每年、總額、一次、沒寫
+    assert amounts.headline([amount(500, "once"), amount(16800, "year")]) == "每年 16,800 EUR"
+    assert amounts.headline([amount(33600, "total"), amount(1400, "month")]) == "每月 1,400 EUR"
+    # 只有總額：寫「總額」
+    assert amounts.headline([amount(33600, "total")]) == "總額 33,600 EUR"

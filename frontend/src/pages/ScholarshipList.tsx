@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 
 import { api, unwrap, type Schemas } from "@/api/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +20,7 @@ type Degree = "bachelor" | "master" | "phd";
 // 下拉選單的「全部」：API 收到時當成沒有篩選
 const ALL = "all";
 
-type Filters = { country: string; degree: string; openOnly: boolean; after: string; before: string };
+type Filters = { q: string; country: string; degree: string; openOnly: boolean; after: string; before: string };
 
 const DEGREE_ITEMS = [
   { value: ALL, label: "所有學位" },
@@ -28,14 +29,18 @@ const DEGREE_ITEMS = [
 
 export default function ScholarshipList() {
   const [filters, setFilters] = useState<Filters>({
+    q: "",
     country: ALL,
     degree: ALL,
     openOnly: false,
     after: "",
     before: "",
   });
+  // 搜尋框打字時先存在這裡，按 Enter 或「搜尋」才送出（每次搜尋要算一次向量）
+  const [draft, setDraft] = useState("");
   // 沒填的條件不送（undefined 不會出現在網址上）
   const query = {
+    q: filters.q || undefined,
     country: filters.country === ALL ? undefined : filters.country,
     degree: filters.degree === ALL ? undefined : (filters.degree as Degree),
     open_only: filters.openOnly || undefined,
@@ -55,10 +60,35 @@ export default function ScholarshipList() {
   });
   const countryItems = [{ value: ALL, label: "所有國家" }, ...countriesOf(everything.data?.rows ?? [])];
   const update = (change: Partial<Filters>) => setFilters((current) => ({ ...current, ...change }));
+  const search = (event: FormEvent) => {
+    event.preventDefault();
+    update({ q: draft.trim() });
+  };
+  const searching = filters.q !== "";
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">獎學金</h1>
+      <form onSubmit={search} className="flex gap-2">
+        <Input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="搜尋：名稱、領域或想讀的方向，中英文都可以（例如：數據科學、DEAI）"
+        />
+        <Button type="submit">搜尋</Button>
+        {searching && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setDraft("");
+              update({ q: "" });
+            }}
+          >
+            清除
+          </Button>
+        )}
+      </form>
       <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-1">
           <Label>留學國家</Label>
@@ -117,22 +147,32 @@ export default function ScholarshipList() {
         </Alert>
       )}
       {list.isPending && <Skeleton className="h-40 w-full" />}
-      {list.data && <p className="text-sm text-muted-foreground">共 {list.data.rows.length} 筆</p>}
+      {searching && list.data && !list.data.semantic && (
+        <Alert>
+          <AlertTitle>這次只用關鍵字搜尋</AlertTitle>
+          <AlertDescription>語意搜尋暫時不能用（沒有網路或 AI 暫停中），只列出名稱、領域裡有這些字的獎學金。</AlertDescription>
+        </Alert>
+      )}
+      {list.data && (
+        <p className="text-sm text-muted-foreground">
+          共 {list.data.rows.length} 筆{searching && "，依和搜尋字的相關程度排序（語意搜尋最多取 30 筆）"}
+        </p>
+      )}
       {list.data?.rows.length === 0 && <p className="text-sm">沒有符合條件的獎學金，可以放寬篩選條件再試。</p>}
       {list.data?.rows.map((row, index) => (
         <div key={row.id} className="space-y-2">
-          {/* 時間狀態換了就寫一個分組標題（列表已經依時間狀態、分數排好） */}
-          {(index === 0 || list.data.rows[index - 1].group !== row.group) && (
+          {/* 沒有搜尋時，時間狀態換了就寫一個分組標題（列表已經依時間狀態、分數排好）；搜尋時改在卡片上標 */}
+          {!searching && (index === 0 || list.data.rows[index - 1].group !== row.group) && (
             <h2 className="pt-4 text-base font-semibold">{row.group ? GROUP_NAMES[row.group] : "還沒評分"}</h2>
           )}
-          <ScholarshipCard row={row} />
+          <ScholarshipCard row={row} showGroup={searching} />
         </div>
       ))}
     </div>
   );
 }
 
-function ScholarshipCard({ row }: { row: Row }) {
+function ScholarshipCard({ row, showGroup }: { row: Row; showGroup: boolean }) {
   const flags = [
     ...row.unclear.map((check) => `${nameOf(CHECK_NAMES, check)}待確認`),
     ...row.failed.map((check) => `${nameOf(CHECK_NAMES, check)}不符合`),
@@ -154,6 +194,7 @@ function ScholarshipCard({ row }: { row: Row }) {
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
         <div className="flex flex-wrap gap-2">
+          {showGroup && <Badge variant="secondary">{row.group ? GROUP_NAMES[row.group] : "還沒評分"}</Badge>}
           {row.stale && <Badge variant="destructive">資料過舊</Badge>}
           {row.status === "archived" && <Badge variant="secondary">已封存</Badge>}
           {flags.map((flag) => (

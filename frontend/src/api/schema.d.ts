@@ -49,6 +49,7 @@ export interface paths {
         /**
          * List Scholarships
          * @description 篩選：留學國家、學位看獎學金本身；只看還能申請的、截止日範圍看真的（不是預估的）申請期。
+         *     q：搜尋字，關鍵字與語意的結果用 RRF 合併（ADR-069）。
          */
         get: operations["list_scholarships_api_scholarships_get"];
         put?: never;
@@ -205,7 +206,7 @@ export interface components {
         };
         /**
          * Country
-         * @description 國碼與顯示名稱（ADR-054：台灣顯示為「台灣」）。
+         * @description 國碼與中文國名（ADR-054：台灣顯示為「台灣」）。
          */
         Country: {
             /** Code */
@@ -483,6 +484,8 @@ export interface components {
             rows: components["schemas"]["ScholarshipRow"][];
             /** Scores Outdated */
             scores_outdated: boolean;
+            /** Semantic */
+            semantic: boolean;
         };
         /**
          * ScholarshipRow
@@ -660,6 +663,7 @@ export interface operations {
     list_scholarships_api_scholarships_get: {
         parameters: {
             query?: {
+                q?: string | null;
                 country?: string | null;
                 degree?: ("bachelor" | "master" | "phd") | null;
                 open_only?: boolean;

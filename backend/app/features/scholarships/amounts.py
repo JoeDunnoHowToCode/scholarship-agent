@@ -92,3 +92,19 @@ def headline(items: list[dict[str, Any]]) -> str | None:
         number = money(low) if low == high else f"{money(low)}–{money(high)}"
         return f"{PERIOD_NAMES[first['period']]} {number} {first['currency']}".strip()
     return None
+
+KIND_NAMES = {"living_allowance": "生活津貼", "tuition_coverage": "學費補助", "travel": "旅費", "other": "其他"}
+
+
+def describe(items: list[dict[str, Any]]) -> str | None:
+    """scholarships.amount 的文字：每一筆都寫用途與適用對象，沒核對通過的標待確認；沒有金額回傳 None。"""
+    parts = []
+    for item in items:
+        notes = [KIND_NAMES[item["kind"]]]
+        if item.get("applies_to"):
+            notes.append(item["applies_to"])
+        if item.get("status") != "supported":
+            notes.append("待確認")
+        amount = f"{PERIOD_NAMES[item['period']]} {money(item['value'])} {item['currency']}".strip()
+        parts.append(f"{amount}（{'，'.join(notes)}）")
+    return "；".join(parts) or None

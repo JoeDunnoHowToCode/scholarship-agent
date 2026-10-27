@@ -77,3 +77,12 @@ def test_describe_lists_every_amount_with_its_use() -> None:
     assert amounts.describe(items) == "每月 1,400 EUR（生活津貼）；一次 3,000 EUR（旅費，非歐盟學生，待確認）"
     # 沒有金額：沒有文字
     assert amounts.describe([]) is None
+
+
+def test_numbers_in_reads_spaces_as_thousands_separators() -> None:
+    # 第 9 天實抽 EDISS 發現：歐洲常用空格當千分位（一般空格、不換行空格、窄的不換行空格）
+    assert amounts.numbers_in("Contribution to participation costs 9 000€/year") == {9000}
+    assert amounts.numbers_in("1 400 €/month") == {1400}
+    assert amounts.numbers_in("2 300 000 EUR") == {2300000}
+    # 兩個年份之間的空格不是千分位（後面不是剛好三位數）
+    assert amounts.numbers_in("2026 2027") == {2026, 2027}

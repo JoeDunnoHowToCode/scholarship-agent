@@ -15,6 +15,8 @@ _WAN = re.compile(r"(\d+(?:\.\d+)?)\s*[萬万](?:\s*(\d+)\s*千)?")
 _QIAN = re.compile(r"(\d+(?:\.\d+)?)\s*千")
 # 一串數字，中間可以夾逗號或點，例如 1,400、5.613,10、2.5
 _TOKEN = re.compile(r"\d+(?:[.,]\d+)*")
+# 空格當千分位（9 000€）：空格後面剛好三位數才算；NFKC 已把不換行空格換成一般空格
+_SPACE_THOUSANDS = re.compile(r"(?<=\d) (?=\d{3}(?!\d))")
 
 
 def _parse(token: str) -> float | None:
@@ -42,7 +44,7 @@ def numbers_in(text: str) -> set[float]:
         found.add(round(float(match[1]) * 1000, 2))
         return " "
 
-    text = _QIAN.sub(qian, _WAN.sub(wan, text))
+    text = _SPACE_THOUSANDS.sub("", _QIAN.sub(qian, _WAN.sub(wan, text)))
     for token in _TOKEN.findall(text):
         number = _parse(token)
         if number is not None:

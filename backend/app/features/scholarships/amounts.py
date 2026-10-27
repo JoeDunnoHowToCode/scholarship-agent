@@ -3,6 +3,7 @@
 import math
 import re
 import unicodedata
+from typing import Any
 
 import pycountry
 
@@ -62,3 +63,32 @@ def amount_status(amount: AmountDraft, source: str) -> str:
     if not any(math.isclose(number, amount.value) for number in numbers_in(amount.evidence)):
         return "number_not_in_quote"
     return "supported"
+
+
+# 列表上的大概金額先找哪一種用途（docs/day-09.md「Claude 自行決定」第 23 點）
+KIND_ORDER = ("living_allowance", "tuition_coverage", "travel", "other")
+PERIOD_NAMES = {"month": "每月", "year": "每年", "once": "一次", "unclear": ""}
+
+
+def money(value: float) -> str:
+    """1400 → 1,400；1350.5 → 1,350.50。"""
+    return f"{value:,.0f}" if value == int(value) else f"{value:,.2f}"
+
+
+def headline(items: list[dict[str, Any]]) -> str | None:
+    """列表上的大概金額：只看核對通過的；先找生活津貼，再依學費補助、旅費、其他的順序。
+    同用途、同期間、同幣別、只是適用對象不同的，顯示範圍。items 是抽取結果裡的金額加上核對狀態（status）。"""
+    supported = [item for item in items if item.get("status") == "supported"]
+    for kind in KIND_ORDER:
+        same_kind = [item for item in supported if item["kind"] == kind]
+        if not same_kind:
+            continue
+        first = same_kind[0]
+        values = [
+            item["value"] for item in same_kind
+            if item["period"] == first["period"] and item["currency"] == first["currency"]
+        ]
+        low, high = min(values), max(values)
+        number = money(low) if low == high else f"{money(low)}–{money(high)}"
+        return f"{PERIOD_NAMES[first['period']]} {number} {first['currency']}".strip()
+    return None

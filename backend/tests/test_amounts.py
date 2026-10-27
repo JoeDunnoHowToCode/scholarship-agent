@@ -99,3 +99,28 @@ def test_headline_prefers_the_monthly_amount_of_a_kind() -> None:
     assert amounts.headline([amount(33600, "total"), amount(1400, "month")]) == "每月 1,400 EUR"
     # 只有總額：寫「總額」
     assert amounts.headline([amount(33600, "total")]) == "總額 33,600 EUR"
+
+
+def test_backfill_keeps_other_fields_and_marks_the_prompts_current() -> None:
+    # ADR-074：既有資料只補金額，其他欄位不動
+    old: dict[str, object] = {
+        "name": "ReSound",
+        "nationality_scope": "all",
+        "amount": "EUR 1,400 per month",
+        "verification": {"nationality": "supported", "deadlines": ["supported"]},
+        "meta": {"snapshots": ["abc"], "prompts": ["extract-10", "outline-8", "section-10", "verify-5"], "model": "m"},
+    }
+    found = [{"value": 1400, "currency": "EUR", "period": "month", "kind": "living_allowance",
+              "applies_to": None, "evidence": "1,400 EUR per month"}]
+    current = ["extract-12", "outline-8", "section-12", "verify-5"]
+    new = amounts.with_amounts(old, found, ["supported"], current, "amounts-1")
+    # 補上金額清單、核對狀態、由清單產生的文字，並記下金額來自補抽
+    assert new["amounts"] == found
+    assert new["verification"] == {"nationality": "supported", "deadlines": ["supported"], "amounts": ["supported"]}
+    assert new["amount"] == "每月 1,400 EUR（生活津貼）"
+    assert new["amounts_from"] == "amounts-1"
+    # 提示詞版本改成最新（之後原文沒變就不會整份重抽）；快照與模型不變
+    assert new["meta"] == {"snapshots": ["abc"], "prompts": current, "model": "m"}
+    # 其他欄位原樣保留，也沒有改到傳進來的 dict（JSONB 要整個重新指定）
+    assert new["name"] == "ReSound" and new["nationality_scope"] == "all"
+    assert old["amount"] == "EUR 1,400 per month" and "amounts" not in old

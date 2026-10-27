@@ -10,6 +10,7 @@ from typing import Any
 
 from app.features.scholarships import rules
 from app.features.scholarships.schemas import (
+    AmountDraft,
     CategoryDraft,
     CategoryFact,
     Outline,
@@ -150,6 +151,15 @@ def completeness(window: WindowDraft) -> int:
     """窗口寫了多少資訊：有值的欄位數，加上有寫明的申請類型。"""
     filled = sum(value not in (None, [], "") for value in window.model_dump().values())
     return filled + (window.funding != "any")
+
+
+def merge_amounts(sections: list[list[AmountDraft]]) -> list[AmountDraft]:
+    """各節抽到的金額取聯集（ADR-070）：數字、幣別、期間、用途、適用對象都一樣的，只留第一次出現的那筆與它的引用。"""
+    kept: dict[tuple[Any, ...], AmountDraft] = {}
+    for amount in (a for section in sections for a in section):
+        key = (amount.value, amount.currency.upper(), amount.period, amount.kind, normalized(amount.applies_to or ""))
+        kept.setdefault(key, amount)
+    return list(kept.values())
 
 
 def dedupe_windows(windows: list[WindowDraft]) -> list[WindowDraft]:

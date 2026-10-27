@@ -88,6 +88,15 @@ class Evidence:
     where: str
 
 
+@dataclass
+class Answered:
+    """AI 的回答：答案、有效的出處（照答案引用的順序），以及答案引用了但不存在的編號。"""
+
+    answer: str
+    citations: list[Evidence]
+    invalid: list[str]
+
+
 def resolve(
     session: Session, embedder: Embedder, name: str
 ) -> tuple[Scholarship | None, list[tuple[Scholarship, float]]]:
@@ -180,18 +189,23 @@ def whole_document(session: Session, source_id: int, url: str) -> list[Evidence]
     return [Evidence(f"C{i}", c.text, f"{url} §{' > '.join(c.heading_path)}") for i, c in enumerate(rows, 1)]
 
 
-def answer_with(llm: StructuredLLM, question: str, evidence: list[Evidence]) -> None:
+def answer_with(llm: StructuredLLM, question: str, evidence: list[Evidence]) -> Answered:
     """請 AI 只根據資料回答，再用程式檢查出處編號（「Claude 自行決定」第 14 點）。"""
     context = "\n\n".join(f"[{e.id}] {e.text}" for e in evidence)
     result = llm.extract(ANSWER_PROMPT.format(question=question, context=context), Answer)
     kept, invalid = citations.valid_citations(result.citations, {e.id for e in evidence})
-    print(result.answer)
-    print("\n出處：")
     by_id = {e.id: e for e in evidence}
-    for cid in kept:
-        print(f"  [{cid}] {by_id[cid].where}")
-    if invalid:
-        print(f"  ⚠ 答案引用了不存在的編號，已略過：{', '.join(invalid)}")
+    return Answered(result.answer, [by_id[cid] for cid in kept], invalid)
+
+
+def print_answer(answered: Answered) -> None:
+    """終端機指令的輸出：答案、出處，以及被略過的編號。"""
+    print(answered.answer)
+    print("\n出處：")
+    for e in answered.citations:
+        print(f"  [{e.id}] {e.where}")
+    if answered.invalid:
+        print(f"  ⚠ 答案引用了不存在的編號，已略過：{', '.join(answered.invalid)}")
 
 
 def list_filtered(session: Session, chosen: filters.Filters) -> bool:
@@ -221,16 +235,16 @@ def ask(session: Session, llm: StructuredLLM, embedder: Embedder, question: str)
         print(f"（問題指名「{target.name}」，改走 lookup）\n")
         route.route = "lookup"
     if route.route == "lookup" and target:
-        answer_with(llm, question, facts_of(session, target))
+        print_answer(answer_with(llm, question, facts_of(session, target)))
     elif route.route == "document" and target and target.source_id:
-        answer_with(llm, question, whole_document(session, target.source_id, target.official_url or ""))
+        print_answer(answer_with(llm, question, whole_document(session, target.source_id, target.official_url or "")))
     elif route.route == "filter" and list_filtered(session, route.filters):
         pass
     else:
         if route.route == "filter":
             print("條件篩不到，改用原文搜尋回答\n")
         source_id = target.source_id if target else None
-        answer_with(llm, question, chunks_for(session, embedder, question, source_id, route.topic))
+        print_answer(answer_with(llm, question, chunks_for(session, embedder, question, source_id, route.topic)))
 
 
 def main() -> None:

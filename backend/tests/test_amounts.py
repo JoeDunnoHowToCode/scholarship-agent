@@ -64,3 +64,16 @@ def test_headline_prefers_living_allowance_and_shows_a_range() -> None:
     # 沒有核對通過的金額：不顯示
     assert amounts.headline([amount(1400, status="quote_not_found")]) is None
     assert amounts.headline([]) is None
+
+
+def test_describe_lists_every_amount_with_its_use() -> None:
+    # scholarships.amount 的文字（搜尋索引、問答、變更紀錄用）：每一筆都寫，沒核對過的標待確認
+    items: list[dict[str, object]] = [
+        {"value": 1400, "currency": "EUR", "period": "month", "kind": "living_allowance",
+         "applies_to": None, "evidence": "（引用）", "status": "supported"},
+        {"value": 3000, "currency": "EUR", "period": "once", "kind": "travel",
+         "applies_to": "非歐盟學生", "evidence": "（引用）", "status": "quote_not_found"},
+    ]
+    assert amounts.describe(items) == "每月 1,400 EUR（生活津貼）；一次 3,000 EUR（旅費，非歐盟學生，待確認）"
+    # 沒有金額：沒有文字
+    assert amounts.describe([]) is None

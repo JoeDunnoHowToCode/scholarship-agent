@@ -23,7 +23,7 @@ def category(name: str, degrees: list[str], degrees_evidence: str | None) -> Cat
 def draft(categories: list[CategoryDraft], degrees_evidence: str | None) -> ScholarshipDraft:
     empty: dict[str, Any] = {
         "provider": None, "countries": [], "degrees": ["master", "phd"], "fields": [],
-        "coverage": None, "amount": None, "nationality_scope": "unclear", "nationalities": [],
+        "coverage": None, "amount": None, "amounts": [], "nationality_scope": "unclear", "nationalities": [],
         "nationality_evidence": None, "nationality_conditions": None,
         "language_requirements": None, "other_eligibility": None, "requires_admission": None,
     "total_quota": None, "windows": [],

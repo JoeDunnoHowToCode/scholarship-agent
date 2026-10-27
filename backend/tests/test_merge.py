@@ -21,6 +21,7 @@ EMPTY: dict[str, Any] = {
     "fields": [],
     "coverage": None,
     "amount": None,
+    "amounts": [],
     "nationality_scope": "unclear",
     "nationalities": [],
     "nationality_evidence": None,

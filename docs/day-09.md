@@ -87,6 +87,12 @@
 29. 第 14 點補充：內容真的改了（版本號加一）才放評分工作；評分工作放在佇列最前面（RQ 的 `at_front`），不用等每天的檢查排著的上百件來源工作
 30. TypeScript 用 5.9.3，不用最新的 7.0：openapi-typescript 7.13.0 宣告只支援 TypeScript 5（peerDependencies `^5.x`），它要用 TypeScript 的 API 產生型別（ADR-067 提到的維護放緩）。其他套件（React Router 8、TanStack Query、Vite 8）都沒有限制 TypeScript 版本
 31. `.claude/launch.json` 的 API 設定加上 `--reload`：改了程式自動重新載入（和 CLAUDE.md 的常用指令一樣）
+32. `frontend/.npmrc` 設 `ignore-scripts=true`：安裝套件時不執行套件自己的腳本（CISA 警示的攻擊手法），再加 `save-exact=true`。加了之後安裝與建置都正常
+33. shadcn 4.23 的工具函式改用它自己的 `cn` 套件（取代 clsx＋tailwind-merge）；裝之前查過：維護者是 shadcn、原始碼在 github.com/shadcn-ui/cn、沒有其他依賴
+34. 網頁的國名用中文：新增 `countries.chinese_name`（我們自己的名稱優先：台灣、南韓、北韓、科索沃；其他用 pycountry 附的繁體中文翻譯）。原本的英文 `display_name` 不改，它還用來比對原文、建搜尋索引
+35. 詳細頁的「你的評分」只完整顯示分數最高的類別，其他類別各一行（教育部有 8 個類別，全部展開會把申請期擠到很下面）
+36. 個人資料頁的存檔狀態放在頁面外層：表單用版本號當 key，存檔後會重新建立，放在表單裡的「已存檔」訊息會跟著消失（實測發現）
+37. 類別的程式檢查結果換成中文（例如「學士不在學位引用裡」「類別名稱不在原文」）
 
 ## 待使用者決策
 
@@ -246,14 +252,60 @@ def list_order(group: str, score: float | None) -> tuple[int, float]
 
 前端（Claude）：
 
-- [ ] F1 前端骨架（Vite＋React＋TypeScript＋Tailwind 4＋shadcn＋TanStack Query＋React Router 8），版本寫死、有 lockfile -> verify: `npm ci && npm run build`
-- [ ] F2 產生型別 -> verify: `npm run gen:api && npx tsc --noEmit`
-- [ ] F3 列表頁（分組、分數、時間說明、篩選、資料過舊標記） -> verify: 瀏覽器預覽，貼截圖
-- [ ] F4 詳細頁（截止日、資格與引用、文件、評分與理由、變更紀錄） -> verify: 瀏覽器預覽教育部與 ReSound，貼截圖
-- [ ] F5 個人資料頁（存檔後列表顯示評分更新中，更新完自動刷新） -> verify: 瀏覽器預覽，貼存檔前後的畫面
-- [ ] F6 問答頁（等待中、答案、出處、費用提醒） -> verify: 瀏覽器預覽問一題，貼截圖
-- [ ] F7 通知歷史頁 -> verify: 瀏覽器預覽，貼截圖
-- [ ] F8 FastAPI 提供建好的網頁（只開 FastAPI） -> verify: `npm run build` 後只啟動 uvicorn，打開 `http://127.0.0.1:8000/` 與 `/scholarships/3`（重新整理也要能開），貼截圖
+- [x] F1 前端骨架（Vite＋React＋TypeScript＋Tailwind 4＋shadcn＋TanStack Query＋React Router 8），版本寫死、有 lockfile -> verify: `npm ci && npm run build`
+
+  ```
+  npm install：added 79 packages｜found 0 vulnerabilities
+  npm ci：found 0 vulnerabilities
+  npm run build：tsc --noEmit 通過；✓ built in 707ms（JS 485.69 kB，gzip 159.36 kB）
+  ```
+- [x] F2 產生型別 -> verify: `npm run gen:api && npx tsc --noEmit`
+
+  ```
+  ✨ openapi-typescript 7.13.0
+  🚀 openapi.json → src/api/schema.d.ts [61.8ms]（812 行）
+  npx tsc --noEmit：沒有錯誤
+  ```
+- [x] F3 列表頁（分組、分數、時間說明、篩選、資料過舊標記） -> verify: 瀏覽器預覽，貼截圖
+
+  ```
+  共 188 筆，依「還能申請」分組，卡片有分數、中文名稱、截止日（台灣時間）；主控台沒有錯誤
+  只看還能申請的：共 71 筆（和 API 一樣）；再選博士：共 0 筆（API 也是 0；不限時間的博士 4 筆）
+  0 筆時顯示「沒有符合條件的獎學金，可以放寬篩選條件再試」
+  ```
+- [x] F4 詳細頁（截止日、資格與引用、文件、評分與理由、變更紀錄） -> verify: 瀏覽器預覽教育部與 ReSound，貼截圖
+
+  ```
+  教育部：評分（最高的類別完整、其他 7 類各一行）、申請期 4 筆（含預估）、國籍「只限列出的國家：台灣」（已核對＋引用）、
+         類別 8 個（待確認：學士不在學位引用裡、類別名稱不在原文）、文件 13 份（含引用）、變更紀錄 2 筆
+  ReSound：申請期 2026-01-20（已截止）與 2027-01-20（預估）；主控台沒有錯誤
+  ```
+- [x] F5 個人資料頁（存檔後列表顯示評分更新中，更新完自動刷新） -> verify: 瀏覽器預覽，貼存檔前後的畫面
+
+  ```
+  內容不改直接存檔：已存檔（版本 7），不重新評分
+  想去的國家後面加「, IS」存檔 → 列表出現「評分更新中」→ 評分做完約 6 秒內提示自己消失（沒有重新整理）
+  刪掉「, IS」存檔：已存檔（版本 9）（修好第 36 點後訊息會留著）｜API：想去的國家裡還有 IS：False
+  （為了不讓個人資料出現在對話裡，這一頁只檢查欄位標籤與存檔結果，沒有截圖）
+  ```
+- [x] F6 問答頁（等待中、答案、出處、費用提醒） -> verify: 瀏覽器預覽問一題，貼截圖
+
+  ```
+  問「DEAI 要交哪些文件？」：按鈕變成「AI 回答中…」→ 路線：查某一筆獎學金｜答案列出履歷、動機信、推薦信、成績單、學位證書、語言檢定，
+  附 [F4]–[F9]，出處連到 https://deai.ulb.be/；主控台沒有錯誤
+  ```
+- [x] F7 通知歷史頁 -> verify: 瀏覽器預覽，貼截圖
+
+  ```
+  3 則：資料變更（Cyber-t，待送）、斷路器打開（已送）、新獎學金 DEAI（已送），各有產生與送出的台灣時間、內容與連結
+  ```
+- [x] F8 FastAPI 提供建好的網頁（只開 FastAPI） -> verify: `npm run build` 後只啟動 uvicorn，打開 `http://127.0.0.1:8000/` 與 `/scholarships/3`（重新整理也要能開），貼截圖
+
+  ```
+  http://localhost:8000/：共 188 筆｜直接打開 http://localhost:8000/scholarships/3：詳細頁正常，主控台沒有錯誤
+  /health 200 application/json｜/api/scholarships 200 application/json｜/scholarships/3（瀏覽器換頁）200 text/html
+  /assets/missing.js 404｜/api/nothing 404（一般請求）
+  ```
 
 ### 第 2 段：混合搜尋
 
@@ -289,3 +341,5 @@ def list_order(group: str, score: float | None) -> tuple[int, float]
    - 10-27 查佇列：160 件，其中抓來源 126 件（10 個來源排了兩次）、`tick` 17 件、`send_events` 15 件；10-26 22:33 產生的一則資料變更通知，送出工作排在第 101 位，還沒送
    - 根本原因：tick 每天都會開始新的一輪，不管前一輪做完沒有；筆電常睡眠或沒網路，加上只有一個 worker、一次做一件，一輪要拖一天以上
    - 斷路器關著，沒有東西出錯，只是排隊。修法另外提（第 9 天的報告）
+3. 驗證詳細頁時，有一張截圖拍到了評分的領域契合理由（提到使用者想讀的領域）。之後評分區與個人資料頁不截圖，改用頁面文字搜尋、只看欄位標籤與狀態
+4. 國名原本是英文（包括 Taiwan），和 ADR-054「台灣顯示為『台灣』」不一致，改成中文（第 34 點）

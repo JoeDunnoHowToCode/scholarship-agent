@@ -1,7 +1,8 @@
 """獎學金列表與詳細頁的 API（第 9 天）：網頁的列表、詳細頁會呼叫這兩個端點。
 
 列表一筆獎學金一列，分數用分數最高的類別（和第 8 天通知的 best_scores 一致）；
-沒有搜尋字時，依時間狀態分組、同組依分數排（ADR-059）。
+沒有搜尋字時，依時間狀態分組、同組依分數排（ADR-059）；
+有搜尋字時，關鍵字與語意各排一次名次，用 RRF 合併，依相關程度排（ADR-069）。
 """
 
 from datetime import UTC, date, datetime, time, timedelta
@@ -10,17 +11,20 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import any_, exists, false, literal, select
+from sqlalchemy import Text, any_, case, exists, false, func, literal, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.llm.gemini import GeminiEmbedder, LLMError, MissingApiKeyError
 from app.features.matching.models import Match
 from app.features.matching.score import describe_cycle
 from app.features.notifications.rules import describe_change
+from app.features.pipeline import breaker
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships import countries
 from app.features.scholarships.cycles import is_stale
 from app.features.scholarships.listing import list_order
 from app.features.scholarships.models import (
+    EMBEDDING_DIMENSIONS,
     Change,
     Cycle,
     Requirement,
@@ -29,8 +33,10 @@ from app.features.scholarships.models import (
     ScholarshipStatus,
 )
 from app.features.scholarships.schemas import Degree
-from app.features.search.find import next_deadline
+from app.features.search.find import find, next_deadline
+from app.features.search.fusion import rrf
 from app.shared.db import get_session
+from app.shared.settings import settings
 
 # FastAPI 的依賴注入：每個請求自動拿到一個資料庫 Session
 DbSession = Annotated[Session, Depends(get_session)]
@@ -40,6 +46,7 @@ router = APIRouter(prefix="/api/scholarships", tags=["獎學金"])
 TAIPEI = ZoneInfo("Asia/Taipei")
 # 詳細頁只列會通知的欄位的變更（ADR-064）；其他欄位的紀錄雜訊多（docs/day-08.md 執行時發現第 6 點）
 NOTIFIED_FIELDS = ("windows", "nationality_scope", "nationalities", "degrees")
+SEMANTIC_LIMIT = 30  # 語意搜尋取前 30 筆，再和關鍵字的結果合併
 
 
 class Country(BaseModel):
@@ -73,6 +80,7 @@ class ScholarshipRow(BaseModel):
 class ScholarshipList(BaseModel):
     rows: list[ScholarshipRow]
     scores_outdated: bool  # 個人資料改過，評分還在背景更新
+    semantic: bool  # 有搜尋字時，語意搜尋有沒有用上（沒網路、斷路器打開時只用關鍵字）；沒有搜尋字時是 false
 
 
 class CycleOut(BaseModel):
@@ -188,16 +196,69 @@ def best_matches(session: Session) -> dict[int, Match]:
     return best
 
 
+def keyword_ranking(session: Session, ids: list[int], q: str) -> list[int]:
+    """關鍵字比對名稱、中文名稱、提供單位、領域（資料只有 188 筆，不需要全文索引）；名稱裡有的排前面。"""
+    fields_text = func.array_to_string(Scholarship.fields, " ", type_=Text)
+    # autoescape：搜尋字裡的 % 和 _ 當成一般字元，不當成萬用字元
+    in_name = or_(Scholarship.name.icontains(q, autoescape=True), Scholarship.name_zh.icontains(q, autoescape=True))
+    elsewhere = or_(Scholarship.provider.icontains(q, autoescape=True), fields_text.icontains(q, autoescape=True))
+    return list(
+        session.scalars(
+            select(Scholarship.id)
+            .where(Scholarship.id.in_(ids), or_(in_name, elsewhere))
+            .order_by(case((in_name, 0), else_=1), Scholarship.id)
+        )
+    )
+
+
+def semantic_ranking(session: Session, q: str) -> tuple[list[int], bool]:
+    """語意搜尋（第 5 天的 find）的名次；斷路器打開、沒有金鑰、沒網路或呼叫失敗時，回傳（空清單, False）。"""
+    if breaker.is_open(session):
+        return [], False
+    try:
+        embedder = GeminiEmbedder(
+            settings.embedding_model, settings.google_api_key, EMBEDDING_DIMENSIONS,
+            settings.llm_requests_per_minute,
+        )
+        return [row.id for row, _ in find(session, embedder, q, SEMANTIC_LIMIT)], True
+    except (MissingApiKeyError, LLMError):
+        return [], False
+
+
+def to_row(row: Scholarship, match: Match | None, today: date) -> ScholarshipRow:
+    time_check = match.checks["time"] if match else None
+    return ScholarshipRow(
+        id=row.id,
+        name=row.name,
+        name_zh=row.name_zh,
+        provider=row.provider,
+        countries=country_list(row.countries),
+        degrees=list(row.degrees),
+        status=row.status.value,
+        stale=stale_of(row, today),
+        next_deadline=next_deadline(list(row.cycles)),
+        score=match.total if match else None,
+        category=match.category_name if match else None,
+        group=time_check["result"] if time_check else None,
+        time_reason=time_check["reason"] if time_check else None,
+        unclear=list(match.unclear) if match else [],
+        failed=list(match.failed) if match else [],
+        official_url=row.official_url,
+    )
+
+
 @router.get("")
 def list_scholarships(
     session: DbSession,
+    q: str | None = None,
     country: str | None = None,
     degree: Degree | None = None,
     open_only: bool = False,
     deadline_after: date | None = None,
     deadline_before: date | None = None,
 ) -> ScholarshipList:
-    """篩選：留學國家、學位看獎學金本身；只看還能申請的、截止日範圍看真的（不是預估的）申請期。"""
+    """篩選：留學國家、學位看獎學金本身；只看還能申請的、截止日範圍看真的（不是預估的）申請期。
+    q：搜尋字，關鍵字與語意的結果用 RRF 合併（ADR-069）。"""
     query = (
         select(Scholarship)
         # 只看代表的那筆（ADR-048），而且是從來源抽出來的
@@ -218,40 +279,26 @@ def list_scholarships(
             # 截止日當天也算：上限是隔天 0 點
             cycle = cycle.where(Cycle.closes_at < start_of(deadline_before + timedelta(days=1)))
         query = query.where(cycle.exists())
+    found = {row.id: row for row in session.scalars(query)}
     best = best_matches(session)
     today = datetime.now(TAIPEI).date()
-    rows = []
-    for row in session.scalars(query):
-        match = best.get(row.id)
-        time_check = match.checks["time"] if match else None
-        rows.append(
-            ScholarshipRow(
-                id=row.id,
-                name=row.name,
-                name_zh=row.name_zh,
-                provider=row.provider,
-                countries=country_list(row.countries),
-                degrees=list(row.degrees),
-                status=row.status.value,
-                stale=stale_of(row, today),
-                next_deadline=next_deadline(list(row.cycles)),
-                score=match.total if match else None,
-                category=match.category_name if match else None,
-                group=time_check["result"] if time_check else None,
-                time_reason=time_check["reason"] if time_check else None,
-                unclear=list(match.unclear) if match else [],
-                failed=list(match.failed) if match else [],
-                official_url=row.official_url,
-            )
-        )
-    rows.sort(key=lambda r: list_order(r.group, r.score))
+    semantic = False
+    if q and q.strip():
+        keyword = keyword_ranking(session, list(found), q.strip())
+        meaning, semantic = semantic_ranking(session, q.strip())
+        # 語意的結果也要符合篩選條件
+        ranked = rrf([keyword, [scholarship_id for scholarship_id in meaning if scholarship_id in found]])
+        rows = [to_row(found[scholarship_id], best.get(scholarship_id), today) for scholarship_id in ranked]
+    else:
+        rows = [to_row(row, best.get(row.id), today) for row in found.values()]
+        rows.sort(key=lambda r: list_order(r.group, r.score))
     profile = get_profile(session, CURRENT_USER_ID)
     outdated = profile is not None and bool(
         session.scalar(
             select(exists().where(Match.user_id == CURRENT_USER_ID, Match.profile_version < profile.version))
         )
     )
-    return ScholarshipList(rows=rows, scores_outdated=outdated)
+    return ScholarshipList(rows=rows, scores_outdated=outdated, semantic=semantic)
 
 
 @router.get("/{scholarship_id}")

@@ -81,6 +81,13 @@
 26. 抽取提示詞改版號：`extract-11`、`section-11`。全部重抽用 `extract --max-cost 60`，等當天的每日檢查跑完再跑（兩邊同時抽同一個來源會互相覆蓋）；只因改版重抽的不寫變更紀錄（第 4 天的規則）
 27. 前端不寫單元測試：邏輯放在後端並有測試，前端只負責顯示；每一頁用瀏覽器預覽驗證，貼截圖或頁面文字
 
+執行時調整（第 1 段）：
+
+28. 第 12 點改寫：列表的篩選查詢另外寫，沒有直接用 `build_filter_query`。原因：那個查詢一定接著申請期表，只篩國家或學位時，會把沒有截止日的獎學金也篩掉（188 筆裡有 35 筆原文沒有截止日）。欄位一樣：國家、學位看獎學金本身；只看還能申請的、截止日範圍看真的申請期
+29. 第 14 點補充：內容真的改了（版本號加一）才放評分工作；評分工作放在佇列最前面（RQ 的 `at_front`），不用等每天的檢查排著的上百件來源工作
+30. TypeScript 用 5.9.3，不用最新的 7.0：openapi-typescript 7.13.0 宣告只支援 TypeScript 5（peerDependencies `^5.x`），它要用 TypeScript 的 API 產生型別（ADR-067 提到的維護放緩）。其他套件（React Router 8、TanStack Query、Vite 8）都沒有限制 TypeScript 版本
+31. `.claude/launch.json` 的 API 設定加上 `--reload`：改了程式自動重新載入（和 CLAUDE.md 的常用指令一樣）
+
 ## 待使用者決策
 
 1. ~~網頁伺服器（FastAPI）要不要也由 launchd 登入後自動啟動~~：選 A 手動啟動（ADR-073）
@@ -185,16 +192,57 @@ def list_order(group: str, score: float | None) -> tuple[int, float]
 
 純函式（紅綠循環）：
 
-- [ ] W1 列表排序：時間狀態分組，同組依分數 -> verify: `uv run pytest tests/test_web_order.py`
-- [ ] Q1 `answer_with` 回傳答案與有效出處 -> verify: `uv run pytest tests/test_ask_answer.py`
+- [x] W1 列表排序：時間狀態分組，同組依分數 -> verify: `uv run pytest tests/test_web_order.py`
+
+  ```
+  1 passed in 0.01s
+  ```
+- [x] Q1 `answer_with` 回傳答案與有效出處 -> verify: `uv run pytest tests/test_ask_answer.py`
+
+  ```
+  1 passed in 0.74s
+  ```
 
 後端 API（Claude）：
 
-- [ ] A1 `GET /api/scholarships`（篩選、分組、分數、時間說明） -> verify: `curl -s 'http://127.0.0.1:8000/api/scholarships?open_only=true' | python3 -m json.tool | head -40`
-- [ ] A2 `GET /api/scholarships/{id}`（教育部、ReSound 各一次） -> verify: `curl -s http://127.0.0.1:8000/api/scholarships/3 | python3 -m json.tool | head -60`
-- [ ] A3 存個人資料後放評分工作，列表回報評分更新中，更新完變回 false -> verify: `curl -X PUT` 後 `uv run rq info` 看到工作；再查 `scores_outdated`
-- [ ] A4 `POST /api/ask`（lookup、filter、semantic 各一題），終端機指令輸出不變 -> verify: `curl -s -X POST http://127.0.0.1:8000/api/ask -H 'Content-Type: application/json' -d '{"question":"教育部北歐國家有幾個名額？"}'`
-- [ ] A5 `GET /api/events` -> verify: `curl -s 'http://127.0.0.1:8000/api/events?limit=5' | python3 -m json.tool`
+- [x] A1 `GET /api/scholarships`（篩選、分組、分數、時間說明） -> verify: `curl -s 'http://127.0.0.1:8000/api/scholarships?open_only=true' | python3 -m json.tool | head -40`
+
+  ```
+  只看還能申請的：71 筆｜第一筆 pass 100.0 CoDaS｜2027-01-05T13:00:00Z｜適用你的截止日：2027-01-05（即將開放）
+  全部：188 筆｜分組 unclear 107、pass 61、fail 20｜資料過舊 9（和每天收尾算的 stale 9 一樣）｜分組順序正確：True
+  篩選 country=fr&degree=master：84 筆，都有 FR
+  ```
+- [x] A2 `GET /api/scholarships/{id}`（教育部、ReSound 各一次） -> verify: `curl -s http://127.0.0.1:8000/api/scholarships/3 | python3 -m json.tool | head -60`
+
+  ```
+  3 留學獎學金｜國籍 listed supported｜學位 master、phd supported｜類別 8（有問題 3）｜申請期 4｜文件 13｜評分 8 個類別
+     變更：2026-10-18 可讀學位：碩士、博士 → 學士、碩士、博士；2026-10-18 國籍資格：原文沒寫 → 只限列出的國家
+  87 ReSound｜國籍 all supported｜學位 master｜申請期 2：2026-01-20（已截止）、2027-01-20（預估，依 2026 年的日期推估）
+  不存在的 id：404
+  ```
+- [x] A3 存個人資料後放評分工作，列表回報評分更新中，更新完變回 false -> verify: `curl -X PUT` 後 `uv run rq info` 看到工作；再查 `scores_outdated`
+
+  ```
+  原樣存回：版本號不變、不放評分工作（第 29 點）
+  想去的國家暫時加 IS：版本號 5 → 6｜scores_outdated：True｜佇列第一件：score_today（共 167 件）→ 評分做完：False
+  改回原本的資料：版本號 6 → 7｜scores_outdated：True → 評分做完：False（只印狀態，沒有印出個人資料）
+  ```
+- [x] A4 `POST /api/ask`（lookup、filter、semantic 各一題），終端機指令輸出不變 -> verify: `curl -s -X POST http://127.0.0.1:8000/api/ask -H 'Content-Type: application/json' -d '{"question":"教育部北歐國家有幾個名額？"}'`
+
+  ```
+  教育部北歐國家有幾個名額？→ semantic（找不到這個獎學金，改用原文搜尋回答；見執行時發現第 1 點）｜答案：北歐國家一般生名額計有 10 名 [C2]
+  台灣人可以申請、2027 年 2 月以後截止的碩士獎學金有哪些？→ filter｜篩到 30 個申請期
+  哪些學程的課程和人工智慧有關？→ semantic｜出處 C1、C2、C7、C8
+  空的問題：422
+  ```
+- [x] A5 `GET /api/events` -> verify: `curl -s 'http://127.0.0.1:8000/api/events?limit=5' | python3 -m json.tool`
+
+  ```
+  270 change pending 2026-10-26T22:33｜資料變更：Erasmus Mundus Scholarship – Cyber-t…（見執行時發現第 2 點）
+  34 system sent 2026-10-24T14:21｜斷路器打開：AI 步驟暫停
+  32 new_scholarship sent 2026-10-24T13:22｜新獎學金：…DEAI…
+  （基準線事件沒有列出）
+  ```
 
 前端（Claude）：
 
@@ -234,3 +282,10 @@ def list_order(group: str, score: float | None) -> tuple[int, float]
 - [ ] 完整檢查、更新 CLAUDE.md 的常用指令（前端）、progress.md、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`，以及 `frontend/` 的 `npm run build && npx tsc --noEmit`
 
 ## 執行時發現
+
+1. 問答的 lookup 路線對不到教育部：資料庫裡教育部這筆叫「留學獎學金」，問題寫「教育部」時，名稱比對與向量相似度都過不了門檻（0.75），退回原文搜尋。答案仍然正確（10 名，附出處），是第 5 天就有的名稱比對問題
+2. 每天的檢查一輪接一輪疊在一起，通知被延誤：
+   - 10-25 那一輪 10-25 00:57 開始、10-26 22:37 才結束（約 46 小時）；10-26、10-27 兩輪都還沒結束
+   - 10-27 查佇列：160 件，其中抓來源 126 件（10 個來源排了兩次）、`tick` 17 件、`send_events` 15 件；10-26 22:33 產生的一則資料變更通知，送出工作排在第 101 位，還沒送
+   - 根本原因：tick 每天都會開始新的一輪，不管前一輪做完沒有；筆電常睡眠或沒網路，加上只有一個 worker、一次做一件，一輪要拖一天以上
+   - 斷路器關著，沒有東西出錯，只是排隊。修法另外提（第 9 天的報告）

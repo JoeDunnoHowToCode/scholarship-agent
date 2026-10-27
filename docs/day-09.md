@@ -94,9 +94,19 @@
 36. 個人資料頁的存檔狀態放在頁面外層：表單用版本號當 key，存檔後會重新建立，放在表單裡的「已存檔」訊息會跟著消失（實測發現）
 37. 類別的程式檢查結果換成中文（例如「學士不在學位引用裡」「類別名稱不在原文」）
 
+執行時調整（第 3 段）：
+
+38. 新增 `extract --amounts-only`：金額只用程式核對，所以改了數字規則後，用已存的金額與快照原文重新核對就好，不必花錢重抽（比照 `--cycles-only`）；重複執行結果一樣
+39. 數字規則補上「空格當千分位」（9 000€）：空格後面剛好三位數才算（EDISS 實抽發現，先寫重現的測試）
+40. 列表的大概金額在同一種用途裡先挑每月的，再來是每年、總額、一次；期間多一種「總額」（total），整個學程的總額不再被當成「一次」（M3EP 實抽發現）。提示詞改成 extract-12、section-12
+41. 抽取表格的 `amount` 文字換成必填的 `amounts` 清單；三個測試檔的測試資料分兩次、各自單獨提交調整（先加 `"amounts": []`，改完抽取表格後再拿掉用不到的 `"amount"`），改抽取表格的那一次不動測試
+42. 大量重抽前先備份資料庫（`backend/data/backups/scholar-20261027-2211.dump`，54.7 MB）：重抽會覆蓋上一版的抽取結果，之前只有 10-18 的備份
+
 ## 待使用者決策
 
 1. ~~網頁伺服器（FastAPI）要不要也由 launchd 登入後自動啟動~~：選 A 手動啟動（ADR-073）
+2. 全部重抽（M7）要不要先加保護：重抽後，原本已核對的國籍、學位可能變成待確認（執行時發現第 6、7 點）
+3. 每天的檢查一輪疊一輪、通知被延誤（執行時發現第 2 點）要怎麼修
 
 ## 設計草圖
 
@@ -336,21 +346,69 @@ def list_order(group: str, score: float | None) -> tuple[int, float]
 
 純函式（紅綠循環）：
 
-- [ ] M1 數字寫法：千分位、小數、萬、千 -> verify: `uv run pytest tests/test_amounts.py -k numbers`
-- [ ] M2 金額核對的各種狀態 -> verify: `uv run pytest tests/test_amounts.py -k status`
-- [ ] M3 長文件各節的金額合併去重 -> verify: `uv run pytest tests/test_merge.py -k amounts`
-- [ ] M4 列表上的大概金額 -> verify: `uv run pytest tests/test_amounts.py -k headline`
-- [ ] M5 由金額清單產生的文字 -> verify: `uv run pytest tests/test_amounts.py -k describe`
+- [x] M1 數字寫法：千分位、小數、萬、千 -> verify: `uv run pytest tests/test_amounts.py -k numbers`
+
+  ```
+  2 passed, 4 deselected in 0.03s   ← 含實抽 EDISS 後補的「空格當千分位」
+  ```
+- [x] M2 金額核對的各種狀態 -> verify: `uv run pytest tests/test_amounts.py -k status`
+
+  ```
+  1 passed, 5 deselected in 0.03s
+  ```
+- [x] M3 長文件各節的金額合併去重 -> verify: `uv run pytest tests/test_merge.py -k amounts`
+
+  ```
+  1 passed, 16 deselected in 0.03s
+  ```
+- [x] M4 列表上的大概金額 -> verify: `uv run pytest tests/test_amounts.py -k headline`
+
+  ```
+  2 passed, 4 deselected in 0.03s   ← 含實抽 M3EP 後補的「先挑每月的」
+  ```
+- [x] M5 由金額清單產生的文字 -> verify: `uv run pytest tests/test_amounts.py -k describe`
+
+  ```
+  1 passed, 5 deselected in 0.03s
+  ```
 
 串起來（Claude）：
 
-- [ ] M6 抽取表格、提示詞改版（extract-11、section-11）、存檔時核對並產生文字 -> verify: `uv run python -m app.features.scholarships.extract --source 3`，再抽 ReSound 與 PIONEER，貼出金額清單與核對狀態
+- [x] M6 抽取表格、提示詞改版（extract-11、section-11）、存檔時核對並產生文字 -> verify: `uv run python -m app.features.scholarships.extract --source 3`，再抽 ReSound 與 PIONEER，貼出金額清單與核對狀態
+
+  ```
+  PIONEER（來源 227）正排在 worker 的佇列裡，為了不同時抽同一個來源，改抽 EDISS（來源 64）
+  教育部（NT$1.2）：每年 16,000 USD（一般生）、30,000 USD（勵學優秀生、原住民生及身心障礙生）、20,000 USD（特殊教育生），三筆都 supported
+                    列表：每年 16,000–30,000 USD
+  ReSound（NT$0.2）：每月 1,400 EUR supported｜列表：每月 1,400 EUR
+  EDISS（NT$0.3）：9 000€/year、1 400€/month 兩筆 number_not_in_quote → 找到 bug（第 39 點）→ 修好後 --amounts-only：
+                    重新核對 7 筆獎學金的金額，1 筆的結果有變；四筆都 supported｜列表：每月 310–1,400 EUR；再跑一次：0 筆有變
+  M3EP：總額 33,600 € 被當成「一次」→ 第 40 點 → 列表：每月 1,400 EUR
+  ```
 - [ ] M7 全部重抽 -> verify: `uv run python -m app.features.scholarships.extract --max-cost 60`，貼出筆數與費用；抽查 5 筆的金額與引用
-- [ ] M8 列表與詳細頁顯示金額（核對狀態、引用） -> verify: 瀏覽器預覽，貼截圖
+
+  ```
+  沒有跑，等你決定（待使用者決策第 2 點）：重抽後國籍、學位的核對結果可能變差（執行時發現第 6、7 點）
+  ```
+- [x] M8 列表與詳細頁顯示金額（核對狀態、引用） -> verify: 瀏覽器預覽，貼截圖
+
+  ```
+  列表：8 張卡片有「補助：…」（每月 1,400 EUR、每月 310–1,400 EUR、每年 16,000–30,000 USD…）
+  EDISS 詳細頁「補助」：四筆金額，各有期間、用途、適用對象、已核對、原文引用
+  PIONEER（還沒用新版抽）：照舊顯示原本的金額文字；主控台沒有錯誤
+  ```
 
 ### 收尾
 
-- [ ] 完整檢查、更新 CLAUDE.md 的常用指令（前端）、progress.md、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`，以及 `frontend/` 的 `npm run build && npx tsc --noEmit`
+- [x] 完整檢查、更新 CLAUDE.md 的常用指令（前端）、progress.md、推上 main -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`，以及 `frontend/` 的 `npm run build && npx tsc --noEmit`
+
+  ```
+  170 passed in 1.53s
+  All checks passed!
+  Success: no issues found in 89 source files
+  frontend：npm run build（含 tsc --noEmit）✓ built in 364ms
+  CLAUDE.md：常用指令加上前端與 --amounts-only；推之前前端有改也要 npm run build
+  ```
 
 ## 執行時發現
 
@@ -362,3 +420,7 @@ def list_order(group: str, score: float | None) -> tuple[int, float]
    - 斷路器關著，沒有東西出錯，只是排隊。修法另外提（第 9 天的報告）
 3. 驗證詳細頁時，有一張截圖拍到了評分的領域契合理由（提到使用者想讀的領域）。之後評分區與個人資料頁不截圖，改用頁面文字搜尋、只看欄位標籤與狀態
 4. 國名原本是英文（包括 Taiwan），和 ADR-054「台灣顯示為『台灣』」不一致，改成中文（第 34 點）
+5. EDISS 的官網用空格當千分位（9 000€），兩筆金額被判成「數字不在引用裡」→ 第 39 點
+6. 教育部用新版提示詞重抽後，國籍資格從「只限台灣、已核對」變成「原文沒寫」：AI 這次把範圍填成「只限列出的國家」，國家清單卻是空的，驗證者判定不支持；學位也多了學士（標了待確認）。這次只改金額的規則，但提示詞一改版，所有來源都會重抽，AI 每次抽的結果不同
+7. 用新版抽過的 13 筆對上還沒重抽的 175 筆：國籍核對通過 92% 對 100%、學位核對通過 69% 對 80%（樣本小，只能參考）。worker 正在跑的每日檢查，處理到的來源都會因為提示詞版本變了而重抽（佇列裡約 88 個）
+8. M3EP 的官網同時寫總額與每月金額，列表原本挑到總額，還被標成「一次」→ 第 40 點

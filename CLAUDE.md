@@ -14,7 +14,7 @@
 - 依「最後負責時刻」（ADR-014）：開始某一天的工作前，先處理 `docs/adr.md` 中排在那一天之前的待決定題目。
 - 實作前先讀 `docs/adr.md` 的「已決定」，技術組合以那裡為準。
 - 每完成一天，更新 `docs/progress.md`。
-- 單人開發：直接在 main 上 commit 並推到 origin/main，不開分支、不開 PR（取代全域 Gate 3 的分支與 PR 規定）。推之前先在 `backend/` 跑完整檢查：`uv run pytest && uv run ruff check . && uv run mypy app`。
+- 單人開發：直接在 main 上 commit 並推到 origin/main，不開分支、不開 PR（取代全域 Gate 3 的分支與 PR 規定）。推之前先在 `backend/` 跑完整檢查：`uv run pytest && uv run ruff check . && uv run mypy app`；前端有改的話，再在 `frontend/` 跑 `npm run build`（含型別檢查）。
 - 不寫目前無法測試的程式。例如沒有 OpenAI 金鑰，就先不寫 OpenAI 轉接頭。
 - 不要要求使用者把 API 金鑰貼進對話；請使用者自己寫進 `backend/.env`。
 
@@ -45,11 +45,18 @@
 ```bash
 docker compose up -d                            # 在 repo 根目錄啟動 Redis 與 PostgreSQL
 cd backend
-uv run uvicorn app.main:app --reload            # 啟動 API
+uv run uvicorn app.main:app --reload            # 啟動 API；建置過前端的話，網頁也在 http://127.0.0.1:8000/（ADR-073：要用時才手動啟動）
 uv run rq worker                                # 啟動背景 worker
 uv run alembic revision --autogenerate -m "說明"  # 產生遷移，讀過再套用
 uv run alembic upgrade head                     # 套用遷移
+uv run python -m app.features.scholarships.extract --amounts-only  # 改了金額的核對規則後重新核對（不呼叫 AI）
 uv run pytest && uv run ruff check . && uv run mypy app
+
+cd frontend
+npm ci                                          # 照 package-lock.json 安裝（版本寫死，不執行套件的安裝腳本）
+npm run dev                                     # 開發用的網頁（Vite），/api 轉發到 8000
+npm run gen:api                                 # 後端 API 改了之後，重新產生 TypeScript 型別
+npm run build                                   # 建置（含型別檢查），之後只開 FastAPI 就能用
 ```
 
 ## 文件

@@ -51,7 +51,11 @@ def report_message(
 
 def waiting_message(today: date, previous_date: date, previous_started: datetime, now: datetime) -> Message:
     """今天的檢查還沒開始：在等前一輪收尾。"""
-    return "", []
+    hours = int((now - previous_started).total_seconds() // 3600)
+    return f"{day(today)} 的檢查還沒開始", [
+        f"在等 {day(previous_date)} 那輪收尾（已經開始 {hours} 小時）",
+        "收尾後 15 分鐘內開始",  # tick 每 15 分鐘一次
+    ]
 
 
 def stale_message(previous_date: date, previous_started: datetime, now: datetime) -> Message:

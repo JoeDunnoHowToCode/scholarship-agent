@@ -113,6 +113,13 @@ ADR-074（只補金額）的做法：
 47. 修第 12 點的 bug：`OnlineSpawnWorker` 開新程序前，檢查登記資料有沒有佇列名稱，沒有就補回 RQ 啟動時寫的完整內容（3 行）。不改用 SimpleWorker：每件工作照舊在新程序裡跑，改了工作的程式不必重開 worker；這次改的是 worker 本身，所以重開一次（請 worker 做完手上這件再結束，launchd 自動重開）。重開前清掉中繼佇列裡 47 筆做完或已失敗、只是沒被移出的紀錄，重開後再移掉 7 筆重複的（同一件也還在正式佇列排隊）。重開後做完的 3 件，0 件留在中繼佇列
 48. 第一個要 Redis 的測試：用第 15 號資料庫，不碰 worker 用的那個；網址裡的資料庫號碼會蓋過 `from_url` 的參數，所以先拆開網址再換號碼，清空前先確認是 15 號
 
+第 4 段（排程規則與每日報告）的做法：
+
+49. 判斷寫成純函式 `decide_start`，訊息文字放在新模組 `pipeline/report.py`：不碰資料庫與 Redis 就能測 7 種情況和三種訊息。tick、手動指令、收尾只負責查資料、照結果做；這段串接沒有單元測試，靠完整檢查、用 10-31 那輪的資料印出報告、部署後下一次 tick 的結果驗證
+50. 去重鍵：每日報告 `run:{id}`、在等 `waiting:{日期}`、太久 `stale-run:{id}`。`add_system_event` 改成回傳有沒有真的新增，「在等」只有第一次才放送出工作，之後每 15 分鐘的 tick 不會一直排空的送出工作
+51. 報告的「抓不到」是重試完還是失敗的來源工作；被擋、目錄頁、略過的都算「其他」。沒檢查的日子：那天寫過「在等」的通知，就寫「在等前一輪收尾」，否則寫「那天電腦沒開或沒有網路」
+52. 手動指令沿用當天那一輪時，報告的去重鍵相同，不會再送第二則；學習卡一天一個檔案，放在 `docs/learning/day-NN.md`
+
 ## 待使用者決策
 
 1. ~~網頁伺服器（FastAPI）要不要也由 launchd 登入後自動啟動~~：選 A 手動啟動（ADR-073）
@@ -466,11 +473,38 @@ def list_order(group: str, score: float | None) -> tuple[int, float]
 - 三種訊息的文字都由純函式產生；都是系統事件，各自一則、不併進摘要（send.py 現有的規則），網頁的通知歷史顯示為「系統」
 - 不在範圍：收尾和送通知插隊（C）；抓不到的來源名單（第 4 題再決定）
 
-- [ ] R1 開始前的判斷：沒有前一輪、前一輪已收尾、還沒收尾 10 小時、還沒收尾 25 小時、剛好 24 小時、今天開始過、手動指令不看今天（紅綠循環） -> verify: `uv run pytest tests/test_pipeline_start.py`
-- [ ] R2 等待、警告、每日報告的訊息文字（紅綠循環） -> verify: `uv run pytest tests/test_pipeline_messages.py`
-- [ ] R3 tick、手動指令、收尾照判斷做，寫入系統通知 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`，再用 10-31 那輪的資料印出報告文字
+- [x] R1 開始前的判斷：沒有前一輪、前一輪已收尾、還沒收尾 10 小時、還沒收尾 25 小時、剛好 24 小時、今天開始過、手動指令不看今天（紅綠循環） -> verify: `uv run pytest tests/test_pipeline_start.py`
+
+  ```
+  紅：7 failed：AttributeError: module 'app.features.pipeline.jobs' has no attribute 'decide_start'
+  綠：7 passed in 0.81s；git diff HEAD --stat 只有 backend/app/features/pipeline/jobs.py
+  ```
+- [x] R2 等待、警告、每日報告的訊息文字（紅綠循環） -> verify: `uv run pytest tests/test_pipeline_messages.py`
+
+  ```
+  先提交空殼模組 report.py，三個測試各自紅綠：
+  報告　紅：AssertionError: assert '' == '每日檢查完成：11-01'　綠：1 passed
+  在等　紅：AssertionError: assert '' == '11-01 的檢查還沒開始'　綠：2 passed
+  太久　紅：AssertionError: assert '' == '10-30 那輪開始 26 小時還沒收尾'　綠：3 passed
+  ```
+- [x] R3 tick、手動指令、收尾照判斷做，寫入系統通知 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`，再用 10-31 那輪的資料印出報告文字
+
+  ```
+  182 passed, 1 warning in 1.55s
+  All checks passed!
+  Success: no issues found in 90 source files
+  每日檢查完成：10-31
+    08:40 開始，11:58 收尾
+    151 個來源：有變 16、沒變 113、抓不到 18、其他 4
+    這輪產生 0 則通知
+  現在 tick 的判斷： already_started ｜手動指令的判斷： start
+  ```
 - [ ] R4 下一輪收尾後真的送出每日報告 -> verify: 查 events 表最新一則 `run:` 開頭的事件，印出標題與狀態
-- [ ] R5 學習卡：第 4 段一張（對照使用者的預測），第 9 天補 5 張 -> verify: `ls docs/learning/`
+- [x] R5 學習卡：第 4 段一張（對照使用者的預測），第 9 天補 5 張 -> verify: `ls docs/learning/`
+
+  ```
+  day-09.md（6 張：網頁、混合搜尋、結構化金額、重抽 C、RQ 的 bug、第 4 段）
+  ```
 
 ## 執行時發現
 

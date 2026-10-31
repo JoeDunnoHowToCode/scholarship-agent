@@ -23,3 +23,14 @@ def test_report_message_tells_whether_and_why_the_check_ran() -> None:
         "10-30 沒有單獨檢查：在等前一輪收尾",
         "10-31 沒有檢查：那天電腦沒開或沒有網路",
     ]
+
+
+def test_waiting_message_says_why_today_has_not_started() -> None:
+    title, lines = report.waiting_message(
+        today=date(2026, 11, 1),
+        previous_date=date(2026, 10, 31),
+        previous_started=datetime(2026, 10, 31, 3, 40, tzinfo=UTC),  # 台灣 10-31 11:40
+        now=datetime(2026, 10, 31, 23, 40, tzinfo=UTC),  # 台灣 11-01 07:40：開始 20 小時
+    )
+    assert title == "11-01 的檢查還沒開始"
+    assert lines == ["在等 10-31 那輪收尾（已經開始 20 小時）", "收尾後 15 分鐘內開始"]

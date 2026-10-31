@@ -60,4 +60,8 @@ def waiting_message(today: date, previous_date: date, previous_started: datetime
 
 def stale_message(previous_date: date, previous_started: datetime, now: datetime) -> Message:
     """前一輪開始太久還沒收尾：可能壞了，今天照常開始。"""
-    return "", []
+    hours = int((now - previous_started).total_seconds() // 3600)
+    return f"{day(previous_date)} 那輪開始 {hours} 小時還沒收尾", [
+        "可能是收尾壞了，或電腦關機太久；今天照常開始",
+        "查原因：backend/data/logs/worker.log",
+    ]

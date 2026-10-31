@@ -34,3 +34,16 @@ def test_waiting_message_says_why_today_has_not_started() -> None:
     )
     assert title == "11-01 的檢查還沒開始"
     assert lines == ["在等 10-31 那輪收尾（已經開始 20 小時）", "收尾後 15 分鐘內開始"]
+
+
+def test_stale_message_warns_and_says_today_starts_anyway() -> None:
+    title, lines = report.stale_message(
+        previous_date=date(2026, 10, 30),
+        previous_started=datetime(2026, 10, 29, 22, 40, tzinfo=UTC),  # 台灣 10-30 06:40
+        now=datetime(2026, 10, 31, 0, 40, tzinfo=UTC),  # 台灣 10-31 08:40：開始 26 小時
+    )
+    assert title == "10-30 那輪開始 26 小時還沒收尾"
+    assert lines == [
+        "可能是收尾壞了，或電腦關機太久；今天照常開始",
+        "查原因：backend/data/logs/worker.log",
+    ]

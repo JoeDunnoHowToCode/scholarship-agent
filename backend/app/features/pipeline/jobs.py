@@ -1,8 +1,8 @@
 """背景工作（第 7 天，ADR-056、057、058），由 RQ 的 worker 執行。
 
-- tick：每 15 分鐘一次（rq cron）。有網路、今天（台灣時間）還沒開始過，就開始今天的檢查
+- tick：每 15 分鐘一次（rq cron）。有網路、今天（台灣時間）還沒開始過、前一輪也收尾了（ADR-075），就開始今天的檢查
 - process_source：每個到期的來源一件。抓取 → 內容有變才抽取 → 建索引
-- finish_daily_run：等上面全部結束（成功或最後失敗都算）才收尾。更新申請期與封存 → 去重 → 評分
+- finish_daily_run：等上面全部結束（成功或最後失敗都算）才收尾。更新申請期與封存 → 去重 → 評分 → 每日檢查報告（ADR-076）
 """
 
 from collections import Counter
@@ -22,11 +22,13 @@ from app.core.fetch.http import HttpFetcher
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM
 from app.features.matching.score import score_all
 from app.features.notifications.generate import add_system_event, generate
+from app.features.notifications.models import Event
 from app.features.notifications.send import send_events
 from app.features.pipeline import breaker
 from app.features.pipeline.due import frequency_for, is_due
 from app.features.pipeline.errors import CostLimitError, classify
 from app.features.pipeline.models import Run
+from app.features.pipeline.report import report_message, stale_message, waiting_message
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships import dedup
 from app.features.scholarships.cycles import is_stale, refresh
@@ -230,9 +232,16 @@ def finish_daily_run(run_id: int) -> str:
         events = generate(session, CURRENT_USER_ID, datetime.now(UTC))  # 通知事件（ADR-062）
         run = session.get(Run, run_id)
         if run is not None:
-            run.finished_at = datetime.now(UTC)
+            finished = datetime.now(UTC)
+            run.finished_at = finished
             # JSONB 欄位整個重新指定（CLAUDE.md 程式規範）
             run.counts = {**run.counts, "sources": sources, "cycles": dict(cycles), "scores": scores, "events": events}
+            # 每日檢查報告（ADR-076）：每一輪都讓你知道做了沒、做了什麼；同一輪只送一則（去重鍵 run:id）
+            new_events = sum(n for kind, n in events.items() if kind.endswith(":pending"))
+            title, lines = report_message(
+                run.local_date, run.started_at, finished, sources, new_events, skipped_days(session, run)
+            )
+            add_system_event(session, CURRENT_USER_ID, f"run:{run.id}", title, lines, finished)
     notify_soon()
     return f"收尾完成：來源 {sources}；申請期 {dict(cycles)}；評分 {scores}；通知事件 {events}"
 
@@ -271,15 +280,62 @@ def decide_start(today_started: bool, previous: Run | None, now: datetime) -> St
     return "stale"
 
 
+def latest_run(session: Session) -> Run | None:
+    """最近一輪（依開始時間）。"""
+    return session.scalars(select(Run).order_by(Run.started_at.desc()).limit(1)).first()
+
+
+def skipped_days(session: Session, run: Run) -> list[tuple[date, bool]]:
+    """和上一輪之間沒有單獨檢查的日子（ADR-076），以及那天是不是在等前一輪收尾（寫過「在等」的通知）。"""
+    previous = session.scalars(
+        select(Run).where(Run.started_at < run.started_at).order_by(Run.started_at.desc()).limit(1)
+    ).first()
+    if previous is None:
+        return []
+    days = [previous.local_date + timedelta(days=n) for n in range(1, (run.local_date - previous.local_date).days)]
+    if not days:
+        return []
+    keys = [f"waiting:{day}" for day in days]
+    waited = set(session.scalars(select(Event.dedup_key).where(Event.user_id == CURRENT_USER_ID, Event.dedup_key.in_(keys))))
+    return [(day, f"waiting:{day}" in waited) for day in days]
+
+
+def note_waiting(session: Session, today: date, previous: Run, now: datetime) -> None:
+    """在等前一輪收尾（ADR-075）：每天只送一則（去重鍵 waiting:日期），之後的 tick 不再重複送。"""
+    title, lines = waiting_message(today, previous.local_date, previous.started_at, now)
+    if add_system_event(session, CURRENT_USER_ID, f"waiting:{today}", title, lines, now):
+        session.commit()
+        notify_soon()
+
+
+def warn_stale(session: Session, previous: Run, now: datetime) -> None:
+    """前一輪開始 24 小時以上還沒收尾（ADR-075）：警告一次（去重鍵 stale-run:那一輪的 id），今天照常開始。"""
+    title, lines = stale_message(previous.local_date, previous.started_at, now)
+    if add_system_event(session, CURRENT_USER_ID, f"stale-run:{previous.id}", title, lines, now):
+        session.commit()
+        notify_soon()
+
+
 def tick() -> str:
-    """每 15 分鐘一次（ADR-057）：有網路、今天（台灣時間）還沒開始過，就開始今天的檢查。"""
+    """每 15 分鐘一次（ADR-057、075）：有網路、今天（台灣時間）還沒開始過、前一輪也收尾了，就開始今天的檢查。"""
     if not online():
         return "沒有網路，等下一次"
     today = taipei_date()
+    now = datetime.now(UTC)
     with SessionLocal() as session:
-        if session.scalars(select(Run).where(Run.local_date == today)).first() is not None:
+        today_started = session.scalars(select(Run).where(Run.local_date == today)).first() is not None
+        previous = latest_run(session)
+        step = decide_start(today_started, previous, now)
+        if step == "already_started":
             return "今天已經開始過"
-        run = Run(local_date=today, started_at=datetime.now(UTC))
+        if step == "wait":
+            assert previous is not None  # decide_start 只有在有前一輪時才會回 wait、stale
+            note_waiting(session, today, previous, now)
+            return "前一輪還沒收尾，等它做完"
+        if step == "stale":
+            assert previous is not None
+            warn_stale(session, previous, now)
+        run = Run(local_date=today, started_at=now)
         session.add(run)
         try:
             session.commit()

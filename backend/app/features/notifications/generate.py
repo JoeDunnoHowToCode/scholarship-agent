@@ -140,7 +140,8 @@ def generate(session: Session, user_id: int, now: datetime) -> dict[str, int]:
     return dict(writer.counts)
 
 
-def add_system_event(session: Session, user_id: int, key: str, title: str, lines: list[str], now: datetime) -> None:
-    """系統事件（例如斷路器打開）：不看門檻、不建基準線；呼叫的人負責 commit。"""
+def add_system_event(session: Session, user_id: int, key: str, title: str, lines: list[str], now: datetime) -> bool:
+    """系統事件（例如斷路器打開）：不看門檻、不建基準線；回傳有沒有真的新增（去重鍵已經有了就沒有）。
+    呼叫的人負責 commit。"""
     writer = EventWriter(session, user_id, now)
-    writer.add("system", key, None, note("system", title, lines, None), False)
+    return writer.add("system", key, None, note("system", title, lines, None), False)

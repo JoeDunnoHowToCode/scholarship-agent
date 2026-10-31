@@ -6,8 +6,8 @@
 """
 
 from collections import Counter
-from datetime import UTC, date, datetime
-from typing import Any
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -249,6 +249,26 @@ def start_run(session: Session, run: Run, source_ids: list[int]) -> None:
     q.enqueue(finish_daily_run, run.id, depends_on=depends_on, job_timeout=FINISH_TIMEOUT, result_ttl=RESULT_TTL)
     run.counts = {**run.counts, "enqueued": len(jobs)}
     session.commit()
+
+
+# 前一輪開始這麼久還沒收尾，就當它壞了（或電腦關機太久），不再等（ADR-075）
+STALE_RUN = timedelta(hours=24)
+
+StartStep = Literal["already_started", "wait", "stale", "start"]
+
+
+def decide_start(today_started: bool, previous: Run | None, now: datetime) -> StartStep:
+    """開始今天的檢查前的判斷（ADR-075）：今天開始過、在等前一輪收尾、前一輪太久、開始。
+
+    previous 是最近一輪；手動指令不看今天開始過沒，today_started 傳 False。
+    """
+    if today_started:
+        return "already_started"
+    if previous is None or previous.finished_at is not None:
+        return "start"
+    if now - previous.started_at < STALE_RUN:
+        return "wait"  # 背壓：前一輪還在做，先不放新的一輪進佇列
+    return "stale"
 
 
 def tick() -> str:

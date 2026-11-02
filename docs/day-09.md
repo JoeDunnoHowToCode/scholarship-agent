@@ -500,7 +500,11 @@ def list_order(group: str, score: float | None) -> tuple[int, float]
   現在 tick 的判斷： already_started ｜手動指令的判斷： start
   部署後第一次 tick（10-31 15:48，worker 載入新程式）：今天已經開始過（沒有錯誤）
   ```
-- [ ] R4 下一輪收尾後真的送出每日報告 -> verify: 查 events 表最新一則 `run:` 開頭的事件，印出標題與狀態
+- [x] R4 下一輪收尾後真的送出每日報告 -> verify: 查 events 表最新一則 `run:` 開頭的事件，印出標題與狀態
+
+  ```
+  run:12 sent 產生 11-01 13:50 送出 11-01 13:50 ｜ 每日檢查完成：11-01
+  ```
 - [x] R5 學習卡：第 4 段一張（對照使用者的預測），第 9 天補 5 張 -> verify: `ls docs/learning/`
 
   ```

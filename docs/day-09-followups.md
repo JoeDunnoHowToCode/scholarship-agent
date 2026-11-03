@@ -7,7 +7,7 @@
 | A | 只看和獎學金有關的段落有沒有變，決定要不要重抽 | 079 | 做完，A4 觀察一週 |
 | B | 天天抓不到的來源標需人工並通知 | 080 | 待預測 |
 | C | 網頁顯示開放日與「適用你的申請期」 | 077 | 待預測 |
-| D | 通知的申請期寫成「開放 → 截止（狀態）」，開放當天再通知 | 081 | 待預測 |
+| D | 通知的申請期寫成「開放 → 截止（狀態）」，開放當天再通知 | 081 | 做完，D4 等下一輪 |
 
 ## Claude 自行決定（小問題，請事後檢查）
 
@@ -16,6 +16,8 @@
 3. 要比對的引用：截止日、國籍、學位（核對變更用的同一批）加上金額；比對方式和驗證者一樣
 4. 「太久沒重抽」用 `last_verified_at`（上次真的整份抽取的時間），網頁有變而且超過 30 天才整份重抽；網頁沒變的照舊不抽
 5. 只有無關內容變了時不重建搜尋索引（索引裡那幾段新聞會舊一點，省下向量的費用）；工作結果記成 `noise`
+6. D 段：原文沒寫時區的申請期，日期換回 UTC+14 顯示（存的時候就是假設 UTC+14），MULTICOM 的開放日才會是 11-01 而不是 UTC 的 10-31；`generate.closing_date`（去重鍵用的截止日）不動，避免已送過的截止提醒重送
+7. D 段：狀態在產生文字的那一刻重算，不用資料庫裡上次更新的狀態；網頁詳細頁也因此是打開當下的狀態
 
 ## A：只看相關段落決定要不要重抽（ADR-079）
 
@@ -82,8 +84,29 @@
 - 申請期文字：即將開放、開放中、開放日原文沒寫、原文時區的日期
 - 已開放：公布在開放前、現在開放中 → 送；公布在開放後 → 不送；已截止 → 不送；開放日原文沒寫 → 不送；送過了 → 不再送
 
-- [ ] D1 申請期文字（紅綠循環） -> verify: `uv run pytest tests/test_notification_rules.py -k cycle`
-- [ ] D2 什麼時候送已開放（紅綠循環） -> verify: `uv run pytest tests/test_notification_rules.py -k opened`
-- [ ] D3 產生通知、改名「新年度公布」、網頁的種類名稱 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`、`npm run build`，再用 MULTICOM 的資料印出兩則通知的文字（不送出）
+- [x] D1 申請期文字（紅綠循環） -> verify: `uv run pytest tests/test_notification_rules.py -k cycle`
+
+  ```
+  先提交「describe_cycle 多收一個時間參數（還沒用）」，讓紅燈是斷言失敗而不是參數錯誤
+  紅：AssertionError: assert '2027-02-12（開放中）' == '2026-11-01 → 2027-02-12（即將開放）'　綠：1 passed
+  ```
+- [x] D2 什麼時候送已開放（紅綠循環） -> verify: `uv run pytest tests/test_notification_rules.py -k opened`
+
+  ```
+  紅：AttributeError: module 'app.features.notifications.rules' has no attribute 'should_notify_opened'　綠：9 passed
+  ```
+- [x] D3 產生通知、改名「新年度公布」、網頁的種類名稱 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`、`npm run build`，再用 MULTICOM 的資料印出兩則通知的文字（不送出）
+
+  ```
+  188 passed；All checks passed!；Success: no issues found in 91 source files；frontend ✓ built in 353ms
+  摘要的分組標題改名，原本的測試預期【新年度開放】：計畫核准過改名，單獨提交只改這一個預期值
+  10-30 公布時的那行： 2026-11-01 → 2027-02-12（即將開放）
+  現在的那行：         2026-11-01 → 2027-02-12（開放中）
+  要送已開放嗎： True
+  ```
 - [ ] D4 下一輪收尾後，MULTICOM 收到「已開放」 -> verify: 查 events 表 `opened:23:` 開頭的事件，印出標題與狀態
-- [ ] D5 學習卡（對照預測） -> verify: `grep -n "已開放" docs/learning/day-09.md`
+- [x] D5 學習卡（對照預測） -> verify: `grep -n "已開放" docs/learning/day-09.md`
+
+  ```
+  第 8 張：申請期寫法與已開放通知（ADR-081）
+  ```

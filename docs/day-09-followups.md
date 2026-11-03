@@ -4,9 +4,17 @@
 
 | 段 | 內容 | ADR | 狀態 |
 | --- | --- | --- | --- |
-| A | 只看和獎學金有關的段落有沒有變，決定要不要重抽 | 079 | 計畫等核准 |
+| A | 只看和獎學金有關的段落有沒有變，決定要不要重抽 | 079 | 做完，A4 觀察一週 |
 | B | 天天抓不到的來源標需人工並通知 | 080 | 待預測 |
 | C | 網頁顯示開放日與「適用你的申請期」 | 077 | 待預測 |
+
+## Claude 自行決定（小問題，請事後檢查）
+
+1. 相關段落的關鍵字（英中）：scholarship、funding、grant、stipend、allowance、tuition、fee、deadline、application、apply、admission、eligib、requirement、nationalit、countr、degree、intake、selection、document、amount、EUR、€、獎學金、截止、申請、資格、名額、金額、學費、補助、國籍、學位、文件
+2. 算指紋前拿掉每次載入都會換的東西：email、UUID、16 個字以上的十六進位亂碼、ISO 時間戳記；一般日期不拿（改日期可能是真的變更）
+3. 要比對的引用：截止日、國籍、學位（核對變更用的同一批）加上金額；比對方式和驗證者一樣
+4. 「太久沒重抽」用 `last_verified_at`（上次真的整份抽取的時間），網頁有變而且超過 30 天才整份重抽；網頁沒變的照舊不抽
+5. 只有無關內容變了時不重建搜尋索引（索引裡那幾段新聞會舊一點，省下向量的費用）；工作結果記成 `noise`
 
 ## A：只看相關段落決定要不要重抽（ADR-079）
 
@@ -28,8 +36,25 @@
 - 判斷：指紋一樣而且引用都在 → 不重抽；引用有一句不見 → 重抽；超過 30 天 → 重抽
 - 報告：多一行說明「只有無關內容變了」的數量
 
-- [ ] A1 相關段落與指紋（紅綠循環） -> verify: `uv run pytest tests/test_relevance.py`
-- [ ] A2 要不要重抽的判斷（紅綠循環） -> verify: `uv run pytest tests/test_relevance.py -k decide`
-- [ ] A3 抽取流程照判斷做、報告多一行 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`，再用 10-30、10-31 都重抽的 9 個來源試算，印出有幾個會被略過
+- [x] A1 相關段落與指紋（紅綠循環） -> verify: `uv run pytest tests/test_relevance.py`
+
+  ```
+  紅：AssertionError: assert '' != ''（空殼的指紋都是空字串）　綠：1 passed
+  A3 試算後加一輪：紅：每次載入都換的 email、亂碼、時間戳記讓指紋不同　綠：3 passed
+  ```
+- [x] A2 要不要重抽的判斷（紅綠循環） -> verify: `uv run pytest tests/test_relevance.py -k decide`
+
+  ```
+  紅：AssertionError: assert 'skip' == 'relevant_changed'　綠：2 passed
+  ```
+- [x] A3 抽取流程照判斷做、報告多一行 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`，再用 10-30、10-31 都重抽的 9 個來源試算，印出有幾個會被略過
+
+  ```
+  報告：紅：「其他 9」　綠：4 passed（沒變 109（其中 9 個只有無關內容變了））
+  186 passed, 1 warning；All checks passed!；Success: no issues found in 91 source files
+  試算改用最近 7 天的全部快照（那 9 個來源的工作結果已經過期，查不到是哪 9 個）：
+  第一版：網頁變化 316 次，只略過 17 次（5%）→ 查變動的行：email 防垃圾信代碼每次載入都換、ISO 時間戳記
+  拿掉這些之後：網頁變化 229 次，略過 92 次（40%）；剩下的多半是學校真的在改申請資訊（申請季）
+  ```
 - [ ] A4 上線後一週的重抽數 -> verify: 每日報告的「有變」與「只有無關內容變了」，和 10-28～10-31 的 14–24 個比較
 - [ ] A5 學習卡（對照預測） -> verify: `grep -n "相關段落" docs/learning/day-09.md`

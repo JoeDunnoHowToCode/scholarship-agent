@@ -47,3 +47,16 @@ def test_stale_message_warns_and_says_today_starts_anyway() -> None:
         "可能是收尾壞了，或電腦關機太久；今天照常開始",
         "查原因：backend/data/logs/worker.log",
     ]
+
+
+def test_report_counts_sources_whose_only_changes_were_unrelated() -> None:
+    # ADR-079：只有無關內容變了、沒重抽的來源算「沒變」，另外註明有幾個，用來看重抽比率有沒有下降
+    _, lines = report.report_message(
+        local_date=date(2026, 11, 5),
+        started_at=datetime(2026, 11, 5, 0, 10, tzinfo=UTC),
+        finished_at=datetime(2026, 11, 5, 2, 0, tzinfo=UTC),
+        sources={"extracted": 5, "unchanged": 100, "noise": 9, "failed": 18},
+        new_events=0,
+        skipped=[],
+    )
+    assert lines[1] == "132 個來源：有變 5、沒變 109（其中 9 個只有無關內容變了）、抓不到 18、其他 0"

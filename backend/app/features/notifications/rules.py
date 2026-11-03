@@ -123,7 +123,8 @@ BUNDLE_LIMIT = 5  # 一次超過這麼多則就合併成摘要（docs/day-08.md�
 # 摘要裡照這個順序分組，每組先寫標題；不在這裡的類型放最後的【其他】
 DIGEST_HEADERS = {
     "deadline": "【截止提醒】",
-    "new_cycle": "【新年度開放】",
+    "new_cycle": "【新年度公布】",
+    "cycle_opened": "【已開放】",
     "new_scholarship": "【新獎學金】",
     "change": "【資料變更】",
 }

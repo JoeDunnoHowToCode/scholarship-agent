@@ -29,7 +29,7 @@ class Event(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger)  # ADR-021，第一版固定是 1
-    # new_scholarship 新獎學金、new_cycle 新年度開放、deadline 截止提醒、change 資料變更、system 系統
+    # new_scholarship 新獎學金、new_cycle 新年度公布、cycle_opened 已開放、deadline 截止提醒、change 資料變更、system 系統
     kind: Mapped[str] = mapped_column(String(32))
     scholarship_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("scholarships.id", ondelete="CASCADE")

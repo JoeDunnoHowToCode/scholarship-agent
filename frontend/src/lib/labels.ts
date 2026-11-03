@@ -83,7 +83,8 @@ export const AMOUNT_STATUS_NAMES: Record<string, string> = {
 
 export const EVENT_KIND_NAMES: Record<string, string> = {
   new_scholarship: "新獎學金",
-  new_cycle: "新年度開放",
+  new_cycle: "新年度公布",
+  cycle_opened: "已開放",
   deadline: "截止提醒",
   change: "資料變更",
   system: "系統",

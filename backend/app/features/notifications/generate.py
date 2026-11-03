@@ -21,6 +21,7 @@ from app.features.notifications.rules import (
     cycle_year,
     describe_change,
     reminder_bucket,
+    should_notify_opened,
 )
 from app.features.profiles.service import get_profile
 from app.features.scholarships.models import Change, Cycle, Scholarship
@@ -92,6 +93,12 @@ def generate(session: Session, user_id: int, now: datetime) -> dict[str, int]:
         .options(selectinload(Scholarship.cycles))
         .order_by(Scholarship.id)
     ).all()
+    # 每一屆「新年度公布」是什麼時候產生的：用來判斷公布時是不是還沒開放（ADR-081）
+    announced = dict(
+        session.execute(
+            select(Event.dedup_key, Event.created_at).where(Event.user_id == user_id, Event.kind == "new_cycle")
+        ).tuples()
+    )
     for row in rows:
         score = scores.get(row.id)
         if score is None or score < threshold:
@@ -99,20 +106,28 @@ def generate(session: Session, user_id: int, now: datetime) -> dict[str, int]:
         label = f"{row.name}（{score:.0f} 分）"
         # 還有機會申請、可能適用你、不是預估的申請期（第 7 天的 still_possible）
         cycles = [c for c in possible_cycles(list(row.cycles), profile.nationality) if not c.estimated]
-        first_line = [describe_cycle(cycles[0])] if cycles else []
+        first_line = [describe_cycle(cycles[0], now)] if cycles else []
         fresh = writer.add(
             "new_scholarship", f"new:{row.id}", row.id,
             note("new_scholarship", f"新獎學金：{label}", first_line, row.official_url), writer.first_time,
         )
         for cycle in cycles:
             closing = closing_date(cycle)
-            # 新年度開放：同一筆獎學金每一屆只通知一次（同一屆的截止日被更正，交給「資料變更」）；
+            # 新年度公布：同一筆獎學金每一屆只通知一次（同一屆的截止日被更正，交給「資料變更」）；
             # 剛通知過「新獎學金」的，這次就不再另外通知
+            year = cycle_year(cycle.intake, closing.year)
             writer.add(
-                "new_cycle", f"cycle:{row.id}:{cycle_year(cycle.intake, closing.year)}", row.id,
-                note("new_cycle", f"新年度開放：{label}｜截止 {closing}", [describe_cycle(cycle)], row.official_url),
+                "new_cycle", f"cycle:{row.id}:{year}", row.id,
+                note("new_cycle", f"新年度公布：{label}｜截止 {closing}", [describe_cycle(cycle, now)], row.official_url),
                 writer.first_time or fresh,
             )
+            # 已開放（ADR-081）：公布時還沒開放的這一屆，真的開放後再送一則；每一屆只送一次
+            if should_notify_opened(cycle.opens_at, cycle.closes_at, cycle.estimated, announced.get(f"cycle:{row.id}:{year}"), now):
+                writer.add(
+                    "cycle_opened", f"opened:{row.id}:{year}", row.id,
+                    note("cycle_opened", f"已開放：{label}", [describe_cycle(cycle, now)], row.official_url),
+                    False,  # 開放是現在的事，第一次啟用也照送
+                )
             days_left = (closing - today).days
             sent = {days for days in REMINDER_DAYS if f"deadline:{row.id}:{closing}:{days}" in writer.known}
             bucket = reminder_bucket(days_left, sent)
@@ -120,7 +135,7 @@ def generate(session: Session, user_id: int, now: datetime) -> dict[str, int]:
                 when = "今天截止" if days_left == 0 else f"還剩 {days_left} 天"
                 writer.add(
                     "deadline", f"deadline:{row.id}:{closing}:{bucket}", row.id,
-                    note("deadline", f"截止提醒：{row.name} {when}", [describe_cycle(cycle)], row.official_url),
+                    note("deadline", f"截止提醒：{row.name} {when}", [describe_cycle(cycle, now)], row.official_url),
                     False,  # 截止提醒是現在的事，第一次啟用也照送
                 )
     since = now - timedelta(days=CHANGE_WINDOW_DAYS)

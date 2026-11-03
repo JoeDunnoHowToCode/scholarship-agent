@@ -189,3 +189,24 @@ def test_cycle_line_reads_opens_arrow_closes_with_the_status_at_that_moment() ->
         timezone=None, timezone_assumed=True, status="open", estimated=False, verification="unsupported", label=None, evidence=None,
     )
     assert describe_cycle(no_open, datetime(2026, 11, 4, tzinfo=UTC)) == "開放日原文沒寫 → 2027-02-12（開放中，截止日未核對）"
+
+
+def test_opened_notification_only_for_cycles_announced_before_they_opened() -> None:
+    # ADR-081：即將開放時公布過的申請期，真的開放後送一則「已開放」；晚幾天跑到也送，截止了就不送
+    from datetime import UTC, datetime
+
+    opens = datetime(2026, 10, 31, 10, 0, tzinfo=UTC)
+    closes = datetime(2027, 2, 12, 9, 59, tzinfo=UTC)
+    announced = datetime(2026, 10, 30, 14, 37, tzinfo=UTC)
+    now = datetime(2026, 11, 4, tzinfo=UTC)  # 開放 4 天後才跑到
+    assert rules.should_notify_opened(opens, closes, False, announced, now) is True
+    # 公布時就已經開放了：當時的通知已經寫「開放中」，不用再送
+    assert rules.should_notify_opened(opens, closes, False, datetime(2026, 11, 2, tzinfo=UTC), now) is False
+    # 已經截止
+    assert rules.should_notify_opened(opens, closes, False, announced, datetime(2027, 3, 1, tzinfo=UTC)) is False
+    # 還沒開放
+    assert rules.should_notify_opened(opens, closes, False, announced, datetime(2026, 10, 31, tzinfo=UTC)) is False
+    # 原文沒寫開放日、系統推估的申請期、沒公布過：都不送
+    assert rules.should_notify_opened(None, closes, False, announced, now) is False
+    assert rules.should_notify_opened(opens, closes, True, announced, now) is False
+    assert rules.should_notify_opened(opens, closes, False, None, now) is False

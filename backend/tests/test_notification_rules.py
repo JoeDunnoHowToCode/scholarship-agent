@@ -159,3 +159,33 @@ def test_a_deadline_moved_to_a_date_already_past_is_not_notified() -> None:
     # 同一屆有好幾個新的截止日：全部都過去才不通知
     mixed = old_cycle_picked + [{"intake": "2027", "closes_year": 2027, "closes_month": 2, "closes_day": 1}]
     assert rules.describe_change("windows", old, mixed, today=today) == "截止日：2027-01-12 → 2026-01-20、2027-02-01"
+
+
+def test_cycle_line_reads_opens_arrow_closes_with_the_status_at_that_moment() -> None:
+    # ADR-081：「開放日 → 截止日（狀態）」，狀態看產生的那一刻；日期用原文的時區
+    from datetime import UTC, datetime
+
+    from app.features.matching.score import describe_cycle
+    from app.features.scholarships.models import Cycle
+
+    # MULTICOM：原文沒寫時區，存成全世界最早的 UTC+14（11-01 00:00 → UTC 10-31 10:00）
+    # 資料庫裡存的狀態是上次更新時的（這裡故意都寫 open），文字要照產生的那一刻重算
+    multicom = Cycle(
+        opens_at=datetime(2026, 10, 31, 10, 0, tzinfo=UTC), closes_at=datetime(2027, 2, 12, 9, 59, tzinfo=UTC),
+        timezone=None, timezone_assumed=True, status="open", estimated=False, verification="supported", label=None, evidence=None,
+    )
+    assert describe_cycle(multicom, datetime(2026, 10, 30, 14, 37, tzinfo=UTC)) == "2026-11-01 → 2027-02-12（即將開放）"
+    assert describe_cycle(multicom, datetime(2026, 11, 4, 3, 0, tzinfo=UTC)) == "2026-11-01 → 2027-02-12（開放中）"
+    # 原文寫了時區（布魯塞爾）：用當地日期
+    brussels = Cycle(
+        opens_at=datetime(2026, 10, 31, 23, 0, tzinfo=UTC), closes_at=datetime(2027, 1, 15, 22, 59, tzinfo=UTC),
+        timezone="Europe/Brussels", timezone_assumed=False, status="open", estimated=False, verification="supported",
+        label="Partner countries", evidence=None,
+    )
+    assert describe_cycle(brussels, datetime(2026, 11, 4, tzinfo=UTC)) == "2026-11-01 → 2027-01-15（開放中）Partner countries"
+    # 原文沒寫開放日
+    no_open = Cycle(
+        opens_at=None, closes_at=datetime(2027, 2, 12, 9, 59, tzinfo=UTC),
+        timezone=None, timezone_assumed=True, status="open", estimated=False, verification="unsupported", label=None, evidence=None,
+    )
+    assert describe_cycle(no_open, datetime(2026, 11, 4, tzinfo=UTC)) == "開放日原文沒寫 → 2027-02-12（開放中，截止日未核對）"

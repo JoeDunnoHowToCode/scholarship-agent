@@ -158,6 +158,8 @@ def process_source(source_id: int) -> dict[str, str]:
             spent = sum(x.cost_usd() for x in (llm, picker_llm) if x is not None) * NTD_PER_USD
             if spent > SOURCE_MAX_COST_NTD:
                 raise CostLimitError(f"來源 {source_id} 花了 NT${spent:.1f}，超過 NT${SOURCE_MAX_COST_NTD}")
+            if summary == "noise":
+                return {"result": "noise", "detail": "只有和獎學金無關的內容變了，沒重抽（ADR-079）"}
             has_chunks = session.scalar(select(exists().where(Chunk.source_id == source.id)))
             if summary == "unchanged" and has_chunks:
                 return {"result": "unchanged", "detail": "內容沒變"}

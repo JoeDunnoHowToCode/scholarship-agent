@@ -25,6 +25,7 @@ from app.features.scholarships import (
     countries,
     cycles,
     merge,
+    relevance,
     rules,
     verify,
 )
@@ -153,6 +154,27 @@ def snapshot_text(session: Session, source_id: int, hashes: list[str]) -> str:
         data = path.read_bytes()
         texts.append(pdf_to_text(data) if path.suffix == ".pdf" else html_to_text(decode_snapshot(data)))
     return "\n\n".join(texts)
+
+
+def relevance_fingerprint(session: Session, source_id: int, hashes: list[str]) -> str:
+    """這些快照裡和獎學金有關的段落的指紋（ADR-079）：網頁依標題切段，PDF 用 pdfplumber 的原文切段。"""
+    chunks = []
+    for digest in hashes:
+        snapshot = session.scalars(
+            select(Snapshot).where(Snapshot.source_id == source_id, Snapshot.content_hash == digest).limit(1)
+        ).first()
+        if snapshot is None:
+            continue  # 快照紀錄不見了：少了這一頁，指紋會不同，就會重抽（比較保守）
+        path = SNAPSHOT_DIR / snapshot.file_path
+        data = path.read_bytes()
+        chunks += chunk_transcript(pdf_to_text(data)) if path.suffix == ".pdf" else chunk_html(decode_snapshot(data))
+    return relevance.fingerprint(chunks)
+
+
+def stored_quotes(extracted: dict[str, Any]) -> list[str]:
+    """已存的原文引用：截止日、國籍、學位（核對變更用的同一批），加上金額。"""
+    quotes = [q for field in ("nationality_scope", "degrees", "windows") for q in changes._quotes(field, extracted)]
+    return quotes + [a["evidence"] for a in extracted.get("amounts") or [] if a.get("evidence")]
 
 
 def extract_web(
@@ -413,14 +435,39 @@ def earliest_deadline(windows: list[WindowDraft]) -> str | None:
 def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
     """抽一個來源，回傳一行摘要；內容和提示詞都沒變就跳過。"""
     snapshots = documents(session, source)
+    hashes = sorted(s.content_hash for s in snapshots)
     meta = {
-        "snapshots": sorted(s.content_hash for s in snapshots),
+        "snapshots": hashes,
         "prompts": current_prompts(),
         "model": settings.llm_model,
     }
     existing = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
     if existing and existing.extracted.get("meta") == meta:
         return "unchanged"
+    old_meta = existing.extracted.get("meta", {}) if existing else {}
+    if existing and {k: v for k, v in old_meta.items() if k != "snapshots"} == {k: v for k, v in meta.items() if k != "snapshots"}:
+        # ADR-079：只有網頁內容變了（提示詞、模型沒變）：只看和獎學金有關的段落有沒有變
+        new_fingerprint = relevance_fingerprint(session, source.id, hashes)
+        # 這個功能上線前抽的資料沒存指紋：用上次抽取時的快照算
+        old_fingerprint = existing.extracted.get("relevance") or relevance_fingerprint(
+            session, source.id, old_meta.get("snapshots") or []
+        )
+        decision = relevance.decide(
+            old_fingerprint,
+            new_fingerprint,
+            stored_quotes(existing.extracted),
+            snapshot_text(session, source.id, hashes),
+            existing.last_verified_at,
+            datetime.now(UTC),
+        )
+        if decision == "skip":
+            # 不重抽：記下新的快照與指紋，之後核對變更、核對引用都用新版原文（JSONB 整個重新指定）
+            existing.extracted = {
+                **existing.extracted,
+                "meta": {**old_meta, "snapshots": hashes},
+                "relevance": new_fingerprint,
+            }
+            return "noise"
 
     if source.fetch_method == FetchMethod.PDF:
         draft, raw, extra = extract_pdf(llm, snapshots[0])
@@ -461,6 +508,7 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
         "original_nationality_scope": draft.nationality_scope,
         **extra,
         "meta": meta,
+        "relevance": relevance_fingerprint(session, source.id, hashes),  # ADR-079
     }
     latest = max(snapshots, key=lambda snap: snap.fetched_at)
     save(session, source, verified, extracted, latest.id)
@@ -618,7 +666,7 @@ def main() -> None:
                 counts["failed"] += 1
                 print(f"failed     {source.id} {source.name}：{error}")
                 continue
-            counts["unchanged" if summary == "unchanged" else "ok"] += 1
+            counts["unchanged" if summary in ("unchanged", "noise") else "ok"] += 1
             print(f"{source.id:>4} {source.name[:50]}｜{summary}")
     print(f"完成 {counts['ok']}、沒變 {counts['unchanged']}、失敗 {counts['failed']}")
     print(llm.usage_line())

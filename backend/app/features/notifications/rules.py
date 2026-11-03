@@ -5,13 +5,26 @@ AI 重抽同一頁常會換個說法或漏抽，所以變更只比整理過的�
 """
 
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from app.core.notify.base import Notification
 
 # 截止前幾天提醒（docs/day-08.md「Claude 自行決定」第 6 點），由大到小
 REMINDER_DAYS = (30, 14, 7, 3, 1)
+
+
+def should_notify_opened(
+    opens_at: datetime | None, closes_at: datetime, estimated: bool, announced_at: datetime | None, now: datetime
+) -> bool:
+    """要不要送「已開放」（ADR-081）：這一屆在開放前就公布過（當時寫「即將開放」），現在已開放、還沒截止。
+
+    announced_at 是「新年度公布」那則通知的產生時間：早於開放日，就代表當時是即將開放，
+    不用另外記住上次的狀態。晚幾天才跑到也照送；送過了沒有，由去重鍵 opened:… 擋。
+    """
+    if estimated or opens_at is None or announced_at is None:
+        return False
+    return announced_at < opens_at <= now < closes_at
 
 
 def reminder_bucket(days_left: int, sent: set[int]) -> int | None:

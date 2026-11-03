@@ -23,6 +23,16 @@ KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
+# 每次載入都會換的東西，算指紋前先拿掉：email（有些網站每次都換防垃圾信的代碼）、UUID、
+# 16 個字以上的十六進位亂碼、ISO 格式的時間戳記（例如 2026-10-28T14:17:37+01:00）。一般的日期不拿掉
+PER_LOAD = re.compile(
+    r"\S+@\S+"
+    r"|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    r"|\b[0-9a-f]{16,}\b"
+    r"|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:\d{2}|Z)?",
+    re.IGNORECASE,
+)
+
 # 要不要重抽：略過（只有無關內容變了）、相關段落變了、引用不見了、太久沒重抽
 Decision = Literal["skip", "relevant_changed", "quote_missing", "too_old"]
 
@@ -30,7 +40,7 @@ Decision = Literal["skip", "relevant_changed", "quote_missing", "too_old"]
 def fingerprint(chunks: list[Chunk]) -> str:
     """和獎學金有關的段落（標題或內文有關鍵字）合起來的指紋；空白不同不算變。"""
     related = [
-        " ".join(chunk.text.split())  # 正規化：連續空白、換行都當成一個空白
+        " ".join(PER_LOAD.sub("", chunk.text).split())  # 正規化：拿掉每次載入都會換的東西，空白合成一個
         for chunk in chunks
         if KEYWORDS.search(" ".join(chunk.heading_path)) or KEYWORDS.search(chunk.text)
     ]

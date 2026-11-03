@@ -83,7 +83,7 @@ def nationality_fit(cycle: Cycle, user: str) -> CheckResult:
     return checks.nationality_check(user, cycle.nationality_scope, list(cycle.nationalities))
 
 
-def describe_cycle(cycle: Cycle) -> str:
+def describe_cycle(cycle: Cycle, now: datetime | None = None) -> str:
     """例如「2027-01-15（開放中，截止日未核對）Partner countries」；日期用原文的時區。"""
     local = cycle.closes_at.astimezone(ZoneInfo(cycle.timezone)) if cycle.timezone and not cycle.timezone_assumed else cycle.closes_at
     notes = [STATUS_NAMES.get(cycle.status, cycle.status)]

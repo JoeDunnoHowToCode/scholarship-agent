@@ -37,10 +37,17 @@ def report_message(
     """
     total = sum(sources.values())
     # 來源工作的結果（process_source 回傳的代碼）；failed 是重試完還是失敗的，多半是網站連不上
-    changed, unchanged, failed = sources.get("extracted", 0), sources.get("unchanged", 0), sources.get("failed", 0)
+    changed, failed = sources.get("extracted", 0), sources.get("failed", 0)
+    # noise：網頁有變，但只有無關內容變了、沒重抽（ADR-079），算進「沒變」並另外註明
+    noise = sources.get("noise", 0)
+    unchanged = sources.get("unchanged", 0) + noise
+    noise_note = f"（其中 {noise} 個只有無關內容變了）" if noise else ""
     lines = [
         f"{clock(started_at, local_date)} 開始，{clock(finished_at, local_date)} 收尾",
-        f"{total} 個來源：有變 {changed}、沒變 {unchanged}、抓不到 {failed}、其他 {total - changed - unchanged - failed}",
+        (
+            f"{total} 個來源：有變 {changed}、沒變 {unchanged}{noise_note}、抓不到 {failed}、"
+            f"其他 {total - changed - unchanged - failed}"
+        ),
         f"這輪產生 {new_events} 則通知",
     ]
     for skipped_day, waited in skipped:

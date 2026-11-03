@@ -6,10 +6,14 @@
 
 import hashlib
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
 from app.features.documents.chunking import Chunk
+from app.features.scholarships.changes import _found
+
+# 上次真的抽取超過這麼久，就整份重抽一次（安全網：萬一關鍵字漏掉了真的變更）
+FULL_REEXTRACT_AFTER = timedelta(days=30)
 
 # 和獎學金有關的字（英文與中文，不分大小寫）：標題或內文有其中一個，這一段就算相關
 KEYWORDS = re.compile(
@@ -41,5 +45,15 @@ def decide(
     last_extracted: datetime | None,
     now: datetime,
 ) -> Decision:
-    """快照變了之後，要不要請 AI 重抽。"""
+    """快照變了之後，要不要請 AI 重抽。
+
+    quotes 是已存的原文引用（截止日、國籍、學位、金額）；有一句在新版找不到，代表相關內容可能變了。
+    """
+    if last_extracted is None or now - last_extracted >= FULL_REEXTRACT_AFTER:
+        return "too_old"
+    if old_fingerprint != new_fingerprint:
+        return "relevant_changed"
+    # 用和驗證者一樣的比對方式找引用（_found 回傳 0 代表完全找不到）
+    if any(_found(quote, new_text) == 0 for quote in quotes):
+        return "quote_missing"
     return "skip"

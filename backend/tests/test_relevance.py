@@ -44,3 +44,16 @@ def test_decide_reextracts_only_when_needed() -> None:
     assert relevance.decide("a", "a", quotes, text, now - timedelta(days=30), now) == "too_old"
     # 沒有抽取時間的舊資料：當成太久
     assert relevance.decide("a", "a", quotes, text, None, now) == "too_old"
+
+
+def test_fingerprint_ignores_tokens_that_change_on_every_fetch() -> None:
+    # 實測（11-04）：有些網站每次載入都換一個防垃圾信的 email 代碼，或在段落裡印出更新時間（ISO 格式）
+    def page(token: str, stamp: str) -> str:
+        return (
+            "<h2>How to apply</h2><p>Application period: 1 November 2026 – 12 February 2027. "
+            f"Contact eucore{token}@ec-nantes.fr. Updated {stamp}. Session 9f86d081884c7d659a2feaa0c55ad015.</p>"
+        )
+
+    first = relevance.fingerprint(chunk_html(page("a565541a-f98a-4032-97d1-37266e8e05d9", "2026-10-27T11:47:52+01:00")))
+    again = relevance.fingerprint(chunk_html(page("8ac1562a-eabd-45cb-b276-0eca2472a6ef", "2026-10-28T14:17:37+01:00")))
+    assert first == again

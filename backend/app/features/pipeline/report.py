@@ -72,3 +72,18 @@ def stale_message(previous_date: date, previous_started: datetime, now: datetime
         "可能是收尾壞了，或電腦關機太久；今天照常開始",
         "查原因：backend/data/logs/worker.log",
     ]
+
+
+def unreachable_message(name: str, url: str, error: str, last_ok: date | None) -> Message:
+    """來源連續 3 天抓不到（ADR-080）：哪個來源、最後的錯誤、資料停在哪天、之後怎麼處理。"""
+    return f"連續 3 天抓不到：{name}", [
+        f"網址：{url}",
+        f"最後的錯誤：{error}",
+        f"資料停在 {day(last_ok)}" if last_ok else "還沒抓到過資料",
+        "之後每 7 天再試一次，恢復了會通知你",
+    ]
+
+
+def recovered_message(name: str, url: str) -> Message:
+    """標記成抓不到的來源又抓得到了（ADR-080）。"""
+    return f"抓得到了：{name}", [f"網址：{url}", "回到每天檢查"]

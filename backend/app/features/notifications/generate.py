@@ -97,7 +97,9 @@ def generate(session: Session, user_id: int, now: datetime) -> dict[str, int]:
     announced = dict(
         session.execute(
             select(Event.dedup_key, Event.created_at).where(Event.user_id == user_id, Event.kind == "new_cycle")
-        ).tuples()
+        )
+        .tuples()
+        .all()  # 先變成清單：查詢結果本身有 keys()，直接給 dict() 會被當成對照表而出錯
     )
     for row in rows:
         score = scores.get(row.id)

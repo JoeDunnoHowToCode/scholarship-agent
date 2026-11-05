@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | A | 只看和獎學金有關的段落有沒有變，決定要不要重抽 | 079 | 做完，A4 觀察一週 |
 | B | 天天抓不到的來源標需人工並通知 | 080 | 待預測 |
-| C | 列表卡片一律寫「截止日期：開放 → 截止（狀態）」 | 077 | 計畫等核准 |
+| C | 列表卡片一律寫「截止日期：開放 → 截止（狀態）」 | 077 | 做完 |
 | D | 通知的申請期寫成「開放 → 截止（狀態）」，開放當天再通知 | 081 | 做完，D4 等下一輪 |
 
 ## Claude 自行決定（小問題，請事後檢查）
@@ -18,6 +18,7 @@
 5. 只有無關內容變了時不重建搜尋索引（索引裡那幾段新聞會舊一點，省下向量的費用）；工作結果記成 `noise`
 6. D 段：原文沒寫時區的申請期，日期換回 UTC+14 顯示（存的時候就是假設 UTC+14），MULTICOM 的開放日才會是 11-01 而不是 UTC 的 10-31；`generate.closing_date`（去重鍵用的截止日）不動，避免已送過的截止提醒重送
 7. D 段：狀態在產生文字的那一刻重算，不用資料庫裡上次更新的狀態；網頁詳細頁也因此是打開當下的狀態
+8. C 段：沒有適用你的申請期時，退回所有還沒截止的申請期裡最早的一輪；卡片原本的「適用你的截止日」「最近的截止」不再顯示，API 的 `time_reason`、`next_deadline` 欄位先留著（評分區、篩選還會用到的資料）
 
 ## A：只看相關段落決定要不要重抽（ADR-079）
 
@@ -127,6 +128,20 @@
 測試：
 - 挑哪一輪：有國籍時挑適用的最早一輪（略過只限歐盟的）、沒填個人資料挑全部裡最早的、沒有適用的退回全部裡最早的、全部截止回傳沒有
 
-- [ ] C1 挑哪一輪（紅綠循環） -> verify: `uv run pytest tests/test_web_order.py -k card_cycle`
-- [ ] C2 列表 API 的 `deadline_line`、前端卡片 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`、`npm run gen:api && npm run build`，再用瀏覽器預覽找「截止日期」（只看這一行，不截評分）
-- [ ] C3 學習卡（對照預測） -> verify: `grep -n "截止日期" docs/learning/day-09.md`
+- [x] C1 挑哪一輪（紅綠循環） -> verify: `uv run pytest tests/test_web_order.py -k card_cycle`
+
+  ```
+  紅：AttributeError: module 'app.features.scholarships.listing' has no attribute 'card_cycle'　綠：2 passed
+  ```
+- [x] C2 列表 API 的 `deadline_line`、前端卡片 -> verify: `uv run pytest && uv run ruff check . && uv run mypy app`、`npm run gen:api && npm run build`，再用瀏覽器預覽找「截止日期」（只看這一行，不截評分）
+
+  ```
+  189 passed；All checks passed!；Success: no issues found in 91 source files；✓ built in 427ms
+  瀏覽器：20 張卡片都是「截止日期：…」，例如「截止日期：2026-11-01 → 2027-02-12（開放中）」
+  「最近的截止」：No matches；主控台沒有錯誤
+  ```
+- [x] C3 學習卡（對照預測） -> verify: `grep -n "截止日期" docs/learning/day-09.md`
+
+  ```
+  第 9 張：列表卡片的「截止日期」
+  ```

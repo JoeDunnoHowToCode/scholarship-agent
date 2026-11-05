@@ -1,10 +1,11 @@
 """sources 與 snapshots 資料表（ADR-019、024、025、026）。"""
 
 import enum
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -84,6 +85,10 @@ class Source(Base):
     # 需人工的原因；空白代表自動抓取，有內容就跳過、等使用者處理（ADR-028）
     manual_reason: Mapped[str | None] = mapped_column(Text)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 天天抓不到（ADR-080）：失敗了幾天（同一天只算一次）、最後失敗的日期、從哪天起標記成抓不到（之後每 7 天試一次）
+    fail_days: Mapped[int] = mapped_column(server_default=text("0"))
+    last_failed_on: Mapped[date | None] = mapped_column(Date)
+    unreachable_since: Mapped[date | None] = mapped_column(Date)
 
 
 class Snapshot(Base):

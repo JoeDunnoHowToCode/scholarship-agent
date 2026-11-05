@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { CHECK_NAMES, DEGREE_NAMES, GROUP_NAMES, nameOf, taipeiTime } from "@/lib/labels";
+import { CHECK_NAMES, DEGREE_NAMES, GROUP_NAMES, nameOf } from "@/lib/labels";
 
 type Row = Schemas["ScholarshipRow"];
 type Degree = "bachelor" | "master" | "phd";
@@ -207,9 +207,9 @@ function ScholarshipCard({ row, showGroup }: { row: Row; showGroup: boolean }) {
             {row.countries.map((country) => country.name).join("、") || "國家沒寫"}
           </span>
         </div>
-        {row.time_reason && <p>{row.time_reason}</p>}
+        {/* 一律寫「截止日期」，不分有沒有填個人資料；後端已先挑適合你的那一輪（ADR-077，11-04 修改） */}
+        <p>截止日期：{row.deadline_line ?? "原文沒寫"}</p>
         {row.amount_headline && <p>補助：{row.amount_headline}</p>}
-        {row.next_deadline && <p className="text-muted-foreground">最近的截止：{taipeiTime(row.next_deadline)}</p>}
         {row.category && row.category !== row.name && (
           <p className="text-muted-foreground">分數來自類別：{row.category}</p>
         )}

@@ -22,7 +22,7 @@ from app.features.pipeline import breaker
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships import amounts, countries
 from app.features.scholarships.cycles import is_stale
-from app.features.scholarships.listing import list_order
+from app.features.scholarships.listing import card_cycle, list_order
 from app.features.scholarships.models import (
     EMBEDDING_DIMENSIONS,
     Change,
@@ -68,6 +68,7 @@ class ScholarshipRow(BaseModel):
     status: str  # active 使用中、archived 已封存
     stale: bool  # 資料過舊（ADR-058）
     next_deadline: datetime | None  # 還能申請的申請期裡最早的截止時間
+    deadline_line: str | None  # 卡片的「截止日期」：開放 → 截止（狀態），打開網頁時才算（ADR-077）
     score: float | None  # 還沒評分（例如沒有個人資料）時是 None
     category: str | None
     group: Literal["pass", "unclear", "fail"] | None  # 時間狀態：還能申請、時間待確認、已截止或不適用
@@ -248,8 +249,9 @@ def semantic_ranking(session: Session, q: str) -> tuple[list[int], bool]:
         return [], False
 
 
-def to_row(row: Scholarship, match: Match | None, today: date) -> ScholarshipRow:
+def to_row(row: Scholarship, match: Match | None, today: date, nationality: str | None, now: datetime) -> ScholarshipRow:
     time_check = match.checks["time"] if match else None
+    shown = card_cycle(list(row.cycles), nationality)
     return ScholarshipRow(
         id=row.id,
         name=row.name,
@@ -260,6 +262,7 @@ def to_row(row: Scholarship, match: Match | None, today: date) -> ScholarshipRow
         status=row.status.value,
         stale=stale_of(row, today),
         next_deadline=next_deadline(list(row.cycles)),
+        deadline_line=describe_cycle(shown, now) if shown else None,
         score=match.total if match else None,
         category=match.category_name if match else None,
         group=time_check["result"] if time_check else None,
@@ -306,17 +309,22 @@ def list_scholarships(
     found = {row.id: row for row in session.scalars(query)}
     best = best_matches(session)
     today = datetime.now(TAIPEI).date()
+    now = datetime.now(UTC)
+    profile = get_profile(session, CURRENT_USER_ID)
+    nationality = profile.nationality if profile else None  # 只在本機用來挑申請期，不送出去
     semantic = False
     if q and q.strip():
         keyword = keyword_ranking(session, list(found), q.strip())
         meaning, semantic = semantic_ranking(session, q.strip())
         # 語意的結果也要符合篩選條件
         ranked = rrf([keyword, [scholarship_id for scholarship_id in meaning if scholarship_id in found]])
-        rows = [to_row(found[scholarship_id], best.get(scholarship_id), today) for scholarship_id in ranked]
+        rows = [
+            to_row(found[scholarship_id], best.get(scholarship_id), today, nationality, now)
+            for scholarship_id in ranked
+        ]
     else:
-        rows = [to_row(row, best.get(row.id), today) for row in found.values()]
+        rows = [to_row(row, best.get(row.id), today, nationality, now) for row in found.values()]
         rows.sort(key=lambda r: list_order(r.group, r.score))
-    profile = get_profile(session, CURRENT_USER_ID)
     outdated = profile is not None and bool(
         session.scalar(
             select(exists().where(Match.user_id == CURRENT_USER_ID, Match.profile_version < profile.version))

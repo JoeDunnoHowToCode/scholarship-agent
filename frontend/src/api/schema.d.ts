@@ -532,6 +532,8 @@ export interface components {
             stale: boolean;
             /** Next Deadline */
             next_deadline: string | null;
+            /** Deadline Line */
+            deadline_line: string | null;
             /** Score */
             score: number | null;
             /** Category */

@@ -15,4 +15,13 @@ State = tuple[int, date | None, date | None]
 
 def next_state(state: State, failed: bool, today: date) -> tuple[State, Notice]:
     """這一輪的結果出來後，來源新的失敗狀態，以及要不要通知。"""
-    return state, None
+    fail_days, last_failed_on, since = state
+    if not failed:
+        # 成功：歸零；原本標記成抓不到的，通知你恢復了
+        return (0, None, None), ("recovered" if since else None)
+    if last_failed_on == today:
+        return state, None  # 同一天的失敗只算一次
+    fail_days += 1
+    if since is None and fail_days >= UNREACHABLE_AFTER_DAYS:
+        return (fail_days, today, today), "unreachable"
+    return (fail_days, today, since), None

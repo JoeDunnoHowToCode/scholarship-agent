@@ -5,7 +5,7 @@
 | 段 | 內容 | ADR | 狀態 |
 | --- | --- | --- | --- |
 | A | 只看和獎學金有關的段落有沒有變，決定要不要重抽 | 079 | 做完，A4 觀察一週 |
-| B | 天天抓不到的來源標需人工並通知 | 080 | 待預測 |
+| B | 天天抓不到的來源：連續 3 天失敗就通知，之後每 7 天試一次 | 080 | 做完（D 的立即標記先不做） |
 | C | 列表卡片一律寫「截止日期：開放 → 截止（狀態）」 | 077 | 做完 |
 | D | 通知的申請期寫成「開放 → 截止（狀態）」，開放當天再通知 | 081 | 做完 |
 
@@ -20,6 +20,9 @@
 7. D 段：狀態在產生文字的那一刻重算，不用資料庫裡上次更新的狀態；網頁詳細頁也因此是打開當下的狀態
 8. C 段：沒有適用你的申請期時，退回所有還沒截止的申請期裡最早的一輪；卡片原本的「適用你的截止日」「最近的截止」不再顯示，API 的 `time_reason`、`next_deadline` 欄位先留著（評分區、篩選還會用到的資料）
 9. D 段上線後的修正：`generate` 的查詢要先 `.all()` 再給 `dict()`；新增第一個用開發資料庫的測試 `tests/test_generate_db.py`（在交易裡跑 `generate`、跑完復原，不留資料），因為這段串接沒有單元測試才會漏掉。這次是緊急修正（今天那輪的收尾也會當掉），沒有先請使用者預測
+10. B 段（11-06 使用者說先不問預測、專心開發）：不用 `manual_reason`（那是被擋、永遠不再抓），另外記 `fail_days`、`last_failed_on`、`unreachable_since`；標記後每 7 天再試一次，成功就回到每天檢查並通知你
+11. B 段：ADR-080 的「網域不存在就馬上標記」先不做：11-06 查證時，4 個網域不存在的來源裡 spreeafrica.com 又連得上了，網域不存在不一定是永久的；連續 3 天的規則一樣會標記它們
+12. B 段：串接的程式加一個用開發資料庫的測試（在交易裡跑三天失敗與每週排程，跑完復原）；暫時把門檻改成 4 天時測試會失敗，確認它抓得到錯
 
 ## A：只看相關段落決定要不要重抽（ADR-079）
 
@@ -155,3 +158,24 @@
 
 1. 11-04 D 段上線後，11-03、11-04 兩輪的收尾在產生通知時當掉（`TypeError: 'ChunkedIteratorResult' object is not subscriptable`）：查詢結果直接給 `dict()`，和第 9 天犯過的錯一樣。D3 只印了文字、沒有真的跑 `generate()`，所以沒抓到。修好後先寫重現的測試（紅：generate() 當掉；綠：1 passed），再把兩個失敗的收尾工作重新排進佇列，會補送兩則每日報告
 2. 11-03 到 11-05 筆電醒著的時間很少（11-03 只做完 41 件來源工作），每一輪都超過 24 小時，24 小時的保護天天啟動：11-04、11-05 各送了一則「前一輪太久」和一則「在等前一輪」，兩輪疊在一起（ADR-075 寫過的代價）
+
+## B：天天抓不到的來源（ADR-080）
+
+- [x] B1 失敗天數與標記、恢復的判斷（紅綠循環） -> verify: `uv run pytest tests/test_unreachable.py`
+
+  ```
+  紅：assert ((0, None, None), None) == ((1, datetime.date(2026, 11, 6), None), None)　綠：1 passed
+  ```
+- [x] B2 標記與恢復的通知文字（紅綠循環） -> verify: `uv run pytest tests/test_pipeline_messages.py`
+
+  ```
+  紅：AttributeError: module 'app.features.pipeline.report' has no attribute 'unreachable_message'　綠：5 passed
+  ```
+- [x] B3 資料表欄位、收尾時更新、標記後每 7 天才排 -> verify: `uv run alembic upgrade head`、`uv run pytest && uv run ruff check . && uv run mypy app`
+
+  ```
+  遷移只新增 fail_days、last_failed_on、unreachable_since 三欄（讀過再套用）；c6f4ec237e40 (head)
+  193 passed；All checks passed!；Success: no issues found in 92 source files
+  資料庫測試：門檻暫時改成 4 天時 1 failed（確認測試抓得到錯）
+  ```
+- [ ] B4 上線後：那 18 個來源 3 天內收到「連續 3 天抓不到」的通知 -> verify: 查 events 表 `unreachable:` 開頭的事件

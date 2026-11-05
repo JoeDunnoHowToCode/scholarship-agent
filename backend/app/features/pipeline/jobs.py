@@ -24,11 +24,17 @@ from app.features.matching.score import score_all
 from app.features.notifications.generate import add_system_event, generate
 from app.features.notifications.models import Event
 from app.features.notifications.send import send_events
-from app.features.pipeline import breaker
+from app.features.pipeline import breaker, unreachable
 from app.features.pipeline.due import frequency_for, is_due
 from app.features.pipeline.errors import CostLimitError, classify
 from app.features.pipeline.models import Run
-from app.features.pipeline.report import report_message, stale_message, waiting_message
+from app.features.pipeline.report import (
+    recovered_message,
+    report_message,
+    stale_message,
+    unreachable_message,
+    waiting_message,
+)
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships import dedup
 from app.features.scholarships.cycles import is_stale, refresh
@@ -118,6 +124,11 @@ def due_source_ids(session: Session, today: date) -> list[int]:
             stale = bool(real) and is_stale(max(real), today)
             starts = [c.recheck_from for c in row.cycles if c.estimated and c.recheck_from]
             recheck = min(starts) if starts else None
+        if source.unreachable_since is not None:
+            # 標記成抓不到的來源（ADR-080）：從最後一次失敗起每 7 天再試一次
+            if is_due("weekly", source.last_failed_on, today):
+                due.append(source.id)
+            continue
         frequency = frequency_for(row.status if row else None, stale)
         last = taipei_date(source.last_checked_at) if source.last_checked_at else None
         if is_due(frequency, last, today, recheck):
@@ -223,6 +234,46 @@ def score_today() -> dict[str, Any]:
         return counts
 
 
+def source_outcomes() -> list[tuple[int, bool, str]]:
+    """收尾時看今天每個來源的工作：（來源 id, 重試後還是失敗, 最後一行錯誤訊息）。"""
+    job = get_current_job()
+    if job is None:
+        return []
+    outcomes = []
+    for dependency in job.fetch_dependencies():
+        error = ""
+        if dependency.is_failed:
+            result = dependency.latest_result()
+            lines = [line for line in ((result.exc_string if result else "") or "").splitlines() if line.strip()]
+            error = lines[-1].strip()[:150] if lines else ""
+        outcomes.append((int(dependency.args[0]), dependency.is_failed, error))
+    return outcomes
+
+
+def track_unreachable(session: Session, outcomes: list[tuple[int, bool, str]], now: datetime) -> None:
+    """依今天的結果更新每個來源的失敗天數（ADR-080）；第 3 個失敗的日子通知你，恢復了也通知你。"""
+    today = taipei_date(now)
+    for source_id, failed, error in outcomes:
+        source = session.get(Source, source_id)
+        if source is None:
+            continue
+        state = (source.fail_days, source.last_failed_on, source.unreachable_since)
+        (source.fail_days, source.last_failed_on, source.unreachable_since), notice = unreachable.next_state(
+            state, failed, today
+        )
+        if notice is None:
+            continue
+        row = session.scalars(select(Scholarship).where(Scholarship.source_id == source_id)).first()
+        name = row.name if row else source.name
+        if notice == "unreachable":
+            last_ok = taipei_date(source.last_checked_at) if source.last_checked_at else None
+            title, lines = unreachable_message(name, source.url, error, last_ok)
+            add_system_event(session, CURRENT_USER_ID, f"unreachable:{source_id}:{today}", title, lines, now)
+        else:
+            title, lines = recovered_message(name, source.url)
+            add_system_event(session, CURRENT_USER_ID, f"recovered:{source_id}:{today}", title, lines, now)
+
+
 def finish_daily_run(run_id: int) -> str:
     """當天所有來源的工作結束後收尾：更新申請期與封存 → 規則去重 → 評分，結果記在 runs。"""
     sources = summarize_dependencies()
@@ -231,6 +282,7 @@ def finish_daily_run(run_id: int) -> str:
     dedup.main()  # 規則去重（ADR-048），自己開交易、印出結果
     scores = score_today()
     with SessionLocal() as session, session.begin():
+        track_unreachable(session, source_outcomes(), datetime.now(UTC))  # 天天抓不到的來源（ADR-080）
         events = generate(session, CURRENT_USER_ID, datetime.now(UTC))  # 通知事件（ADR-062）
         run = session.get(Run, run_id)
         if run is not None:

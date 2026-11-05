@@ -60,3 +60,22 @@ def test_report_counts_sources_whose_only_changes_were_unrelated() -> None:
         skipped=[],
     )
     assert lines[1] == "132 個來源：有變 5、沒變 109（其中 9 個只有無關內容變了）、抓不到 18、其他 0"
+
+
+def test_unreachable_and_recovered_messages() -> None:
+    # ADR-080：標記時告訴你是哪個來源、最後的錯誤、資料停在哪天，以及之後怎麼處理
+    title, lines = report.unreachable_message(
+        "MAGMA", "https://www.magma-erasmusmundus.eu/", "ConnectError: nodename nor servname provided", date(2026, 10, 11)
+    )
+    assert title == "連續 3 天抓不到：MAGMA"
+    assert lines == [
+        "網址：https://www.magma-erasmusmundus.eu/",
+        "最後的錯誤：ConnectError: nodename nor servname provided",
+        "資料停在 10-11",
+        "之後每 7 天再試一次，恢復了會通知你",
+    ]
+    # 從來沒抓到過的來源
+    assert report.unreachable_message("X", "https://x.eu/", "timed out", None)[1][2] == "還沒抓到過資料"
+    title, lines = report.recovered_message("SpreeAfrica", "http://www.spreeafrica.com/")
+    assert title == "抓得到了：SpreeAfrica"
+    assert lines == ["網址：http://www.spreeafrica.com/", "回到每天檢查"]

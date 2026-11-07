@@ -48,7 +48,7 @@ export interface paths {
         };
         /**
          * List Scholarships
-         * @description 篩選：留學國家、學位看獎學金本身；只看還能申請的、截止日範圍看真的（不是預估的）申請期。
+         * @description 篩選：留學國家、學位看獎學金本身；只看開放中的、截止日範圍看真的（不是預估的）申請期。
          *     q：搜尋字，關鍵字與語意的結果用 RRF 合併（ADR-069）。
          */
         get: operations["list_scholarships_api_scholarships_get"];

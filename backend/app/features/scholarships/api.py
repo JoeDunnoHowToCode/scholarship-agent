@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import Text, any_, case, exists, false, func, literal, or_, select
 from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.sql import Select
 
 from app.core.llm.gemini import GeminiEmbedder, LLMError, MissingApiKeyError
 from app.features.matching.models import Match
@@ -274,6 +275,20 @@ def to_row(row: Scholarship, match: Match | None, today: date, nationality: str 
     )
 
 
+def cycle_filter(open_only: bool, deadline_after: date | None, deadline_before: date | None, now: datetime) -> Select[Any]:
+    """列表篩選用的申請期條件（不含程式預估的）：只看開放中的、截止日範圍。"""
+    cycle = select(Cycle.id).where(Cycle.scholarship_id == Scholarship.id, Cycle.estimated.is_(false()))
+    if open_only:
+        # 只看開放中的（11-07，原本含即將開放）：照日期當下判斷，和卡片上的狀態同一套規則；開放日原文沒寫的算開放中
+        cycle = cycle.where(Cycle.closes_at > now, or_(Cycle.opens_at.is_(None), Cycle.opens_at <= now))
+    if deadline_after:
+        cycle = cycle.where(Cycle.closes_at >= start_of(deadline_after))
+    if deadline_before:
+        # 截止日當天也算：上限是隔天 0 點
+        cycle = cycle.where(Cycle.closes_at < start_of(deadline_before + timedelta(days=1)))
+    return cycle
+
+
 @router.get("")
 def list_scholarships(
     session: DbSession,
@@ -284,7 +299,7 @@ def list_scholarships(
     deadline_after: date | None = None,
     deadline_before: date | None = None,
 ) -> ScholarshipList:
-    """篩選：留學國家、學位看獎學金本身；只看還能申請的、截止日範圍看真的（不是預估的）申請期。
+    """篩選：留學國家、學位看獎學金本身；只看開放中的、截止日範圍看真的（不是預估的）申請期。
     q：搜尋字，關鍵字與語意的結果用 RRF 合併（ADR-069）。"""
     query = (
         select(Scholarship)
@@ -297,15 +312,7 @@ def list_scholarships(
     if degree:
         query = query.where(literal(degree) == any_(Scholarship.degrees))
     if open_only or deadline_after or deadline_before:
-        cycle = select(Cycle.id).where(Cycle.scholarship_id == Scholarship.id, Cycle.estimated.is_(false()))
-        if open_only:
-            cycle = cycle.where(Cycle.status.in_(["open", "upcoming"]))
-        if deadline_after:
-            cycle = cycle.where(Cycle.closes_at >= start_of(deadline_after))
-        if deadline_before:
-            # 截止日當天也算：上限是隔天 0 點
-            cycle = cycle.where(Cycle.closes_at < start_of(deadline_before + timedelta(days=1)))
-        query = query.where(cycle.exists())
+        query = query.where(cycle_filter(open_only, deadline_after, deadline_before, datetime.now(UTC)).exists())
     found = {row.id: row for row in session.scalars(query)}
     best = best_matches(session)
     today = datetime.now(TAIPEI).date()

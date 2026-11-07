@@ -130,7 +130,7 @@ export default function ScholarshipList() {
         </div>
         <Label className="flex items-center gap-2 pb-2">
           <Switch checked={filters.openOnly} onCheckedChange={(checked) => update({ openOnly: checked })} />
-          只看還能申請的
+          只看開放中的
         </Label>
       </div>
 

@@ -13,7 +13,6 @@ import {
   AMOUNT_PERIOD_NAMES,
   AMOUNT_STATUS_NAMES,
   CHECK_NAMES,
-  CYCLE_STATUS_NAMES,
   DEGREE_NAMES,
   DOC_NAMES,
   FUNDING_NAMES,
@@ -68,35 +67,26 @@ export default function ScholarshipDetail() {
       </div>
       <Scores detail={d} />
       <Section title="申請期">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>截止日</TableHead>
-              <TableHead>狀態</TableHead>
-              <TableHead>適用</TableHead>
-              <TableHead>原文引用</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {d.cycles.map((c, index) => (
-              <TableRow key={index}>
-                <TableCell className="align-top">
-                  <div>{c.description}</div>
-                  <div className="text-xs text-muted-foreground">{taipeiTime(c.closes_at)}</div>
-                </TableCell>
-                <TableCell className="align-top">
-                  {nameOf(CYCLE_STATUS_NAMES, c.status)}
-                  {!c.estimated && <div className="text-xs text-muted-foreground">{nameOf(VERIFICATION_NAMES, c.verification)}</div>}
-                </TableCell>
-                <TableCell className="align-top whitespace-normal">
-                  {nameOf(SCOPE_NAMES, c.nationality_scope)}
-                  {c.nationalities.length > 0 && `（${c.nationalities.length} 國）`}｜{nameOf(FUNDING_NAMES, c.funding)}
-                </TableCell>
-                <TableCell className="align-top whitespace-normal text-muted-foreground">{c.evidence ?? "—"}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        {/* 11-07：原本是四欄表格，第一欄不換行把其他欄擠成一字一行；改成每一期一塊，由上往下讀 */}
+        <ul className="divide-y">
+          {d.cycles.map((c, index) => (
+            <li key={index} className="space-y-1 py-3 text-sm first:pt-0 last:pb-0">
+              {/* 例如「2026-10-20 → 2027-01-11（開放中）Grant application period」：狀態已經在括號裡 */}
+              <p className="font-medium">{c.description}</p>
+              <p className="text-muted-foreground">
+                {[
+                  `截止 ${taipeiTime(c.closes_at)}`,
+                  !c.estimated && nameOf(VERIFICATION_NAMES, c.verification),
+                  `${nameOf(SCOPE_NAMES, c.nationality_scope)}${c.nationalities.length > 0 ? `（${c.nationalities.length} 國）` : ""}`,
+                  nameOf(FUNDING_NAMES, c.funding),
+                ]
+                  .filter(Boolean)
+                  .join("｜")}
+              </p>
+              {c.evidence && <p className="text-muted-foreground">「{c.evidence}」</p>}
+            </li>
+          ))}
+        </ul>
         {d.cycles.length === 0 && <p className="text-sm text-muted-foreground">原文沒有截止日</p>}
       </Section>
       <Section title="資格">

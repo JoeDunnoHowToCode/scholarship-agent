@@ -68,7 +68,7 @@ class ScholarshipRow(BaseModel):
     status: str  # active 使用中、archived 已封存
     stale: bool  # 資料過舊（ADR-058）
     next_deadline: datetime | None  # 還能申請的申請期裡最早的截止時間
-    deadline_line: str | None  # 卡片的「截止日期」：開放 → 截止（狀態），打開網頁時才算（ADR-077）
+    deadline_line: str | None  # 卡片的「申請日期」：開放 → 截止（狀態），打開網頁時才算（ADR-077）
     score: float | None  # 還沒評分（例如沒有個人資料）時是 None
     category: str | None
     group: Literal["pass", "unclear", "fail"] | None  # 時間狀態：還能申請、時間待確認、已截止或不適用

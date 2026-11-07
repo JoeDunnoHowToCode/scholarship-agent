@@ -14,7 +14,7 @@ def list_order(group: str | None, score: float | None) -> tuple[int, float]:
 
 
 def card_cycle(cycles: list[Cycle], nationality: str | None) -> Cycle | None:
-    """列表卡片上「截止日期」那一行要顯示的申請期（ADR-077，11-04 修改）。
+    """列表卡片上「申請日期」那一行要顯示的申請期（ADR-077，11-04 修改）。
 
     有國籍時，挑還能申請、國籍符合或待確認的申請期裡截止最早的一輪；沒填個人資料、或沒有適用的，
     就挑所有還沒截止、給申請獎學金的人的申請期裡最早的一輪；都截止了就沒有。

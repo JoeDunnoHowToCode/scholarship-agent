@@ -24,7 +24,7 @@ def test_list_groups_by_time_status_then_score() -> None:
 
 
 def test_card_cycle_picks_the_nearest_applicable_round_else_the_nearest_open_one() -> None:
-    # ADR-077（11-04 修改）：卡片上一律寫「截止日期」，邏輯上先挑適合你的那一輪
+    # ADR-077（11-04 修改）：卡片上一律寫「申請日期」（11-07 由「截止日期」改名），邏輯上先挑適合你的那一輪
     from datetime import UTC, datetime
 
     from app.features.scholarships.models import Cycle

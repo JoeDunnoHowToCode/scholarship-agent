@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     telegram_chat_id: str | None = None
     # 通知門檻（spec：預設 60 分，適配度）；第 10 天的設定頁再改成網頁可調
     notify_threshold: int = 60
+    # Tavily 搜尋（ADR-085）：金鑰由使用者寫進 .env；可以留空，用到搜尋時才檢查
+    tavily_api_key: SecretStr | None = None
 
 
 settings = Settings()

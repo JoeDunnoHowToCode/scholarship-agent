@@ -107,35 +107,24 @@ export default function ScholarshipDetail() {
       <Section title="補助">
         <Fact label="補助內容">{d.coverage ?? "—"}</Fact>
         {d.amounts.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>金額</TableHead>
-                <TableHead>用途</TableHead>
-                <TableHead>核對</TableHead>
-                <TableHead>原文引用</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {d.amounts.map((a, index) => (
-                <TableRow key={index}>
-                  <TableCell className="align-top">
+          // 11-07：原本是表格，手機上要左右捲動；改成一筆一塊，和申請期一樣
+          <ul className="divide-y">
+            {d.amounts.map((a, index) => (
+              <li key={index} className="space-y-1 py-3 text-sm first:pt-0 last:pb-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">
                     {`${nameOf(AMOUNT_PERIOD_NAMES, a.period)} ${a.value.toLocaleString("en-US")} ${a.currency}`.trim()}
-                  </TableCell>
-                  <TableCell className="align-top whitespace-normal">
-                    {nameOf(AMOUNT_KIND_NAMES, a.kind)}
-                    {a.applies_to && <div className="text-xs text-muted-foreground">{a.applies_to}</div>}
-                  </TableCell>
-                  <TableCell className="align-top">
-                    <Badge variant={a.status === "supported" ? "secondary" : "outline"}>
-                      {nameOf(AMOUNT_STATUS_NAMES, a.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="align-top whitespace-normal text-muted-foreground">{a.evidence ?? "—"}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </span>
+                  <span>{nameOf(AMOUNT_KIND_NAMES, a.kind)}</span>
+                  <Badge variant={a.status === "supported" ? "secondary" : "outline"}>
+                    {nameOf(AMOUNT_STATUS_NAMES, a.status)}
+                  </Badge>
+                </div>
+                {a.applies_to && <p className="text-muted-foreground">適用：{a.applies_to}</p>}
+                {a.evidence && <p className="text-muted-foreground">「{a.evidence}」</p>}
+              </li>
+            ))}
+          </ul>
         ) : (
           // 第 9 天改版前抽的資料還沒有金額清單，先顯示原本的文字
           <Fact label="金額">{d.amount ?? "—"}</Fact>
@@ -171,29 +160,24 @@ export default function ScholarshipDetail() {
         </Section>
       )}
       <Section title="要交的文件">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>文件</TableHead>
-              <TableHead>要求</TableHead>
-              <TableHead>原文引用</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {d.requirements.map((r, index) => (
-              <TableRow key={index}>
-                <TableCell className="align-top">
-                  {nameOf(DOC_NAMES, r.doc_type)}
-                  {r.count && ` ×${r.count}`}
-                  {r.required === false && <div className="text-xs text-muted-foreground">選填</div>}
-                  {r.category && <div className="text-xs text-muted-foreground">只限：{r.category}</div>}
-                </TableCell>
-                <TableCell className="align-top whitespace-normal">{r.details ?? "—"}</TableCell>
-                <TableCell className="align-top whitespace-normal text-muted-foreground">{r.evidence ?? "—"}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        {/* 11-07：原本是表格，改成一筆一塊，和申請期、補助一樣 */}
+        <ul className="divide-y">
+          {d.requirements.map((r, index) => (
+            <li key={index} className="space-y-1 py-3 text-sm first:pt-0 last:pb-0">
+              <p className="font-medium">
+                {nameOf(DOC_NAMES, r.doc_type)}
+                {r.count && ` ×${r.count}`}
+                {r.required === false && <span className="font-normal text-muted-foreground">（選填）</span>}
+              </p>
+              {r.category && <p className="text-muted-foreground">只限：{r.category}</p>}
+              {r.details && <p>{r.details}</p>}
+              {/* 約三成的「要求」和原文引用一字不差，一樣時只顯示一次 */}
+              {r.evidence && r.evidence.trim() !== r.details?.trim() && (
+                <p className="text-muted-foreground">「{r.evidence}」</p>
+              )}
+            </li>
+          ))}
+        </ul>
       </Section>
       <Section title="變更紀錄">
         {d.changes.length === 0 ? (

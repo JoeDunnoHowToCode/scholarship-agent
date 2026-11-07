@@ -22,7 +22,7 @@ from app.features.pipeline import breaker
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships import amounts, countries
 from app.features.scholarships.cycles import is_stale
-from app.features.scholarships.listing import card_cycle, is_open_now, list_order
+from app.features.scholarships.listing import card_cycle, list_order
 from app.features.scholarships.models import (
     EMBEDDING_DIMENSIONS,
     Change,
@@ -324,9 +324,7 @@ def list_scholarships(
         ]
     else:
         rows = [to_row(row, best.get(row.id), today, nationality, now) for row in found.values()]
-        # 同組同分時，卡片上那一輪已開放的排前面
-        opened = {s.id for s in found.values() if is_open_now(card_cycle(list(s.cycles), nationality), now)}
-        rows.sort(key=lambda r: list_order(r.group, r.score, r.id in opened))
+        rows.sort(key=lambda r: list_order(r.group, r.score))
     outdated = profile is not None and bool(
         session.scalar(
             select(exists().where(Match.user_id == CURRENT_USER_ID, Match.profile_version < profile.version))

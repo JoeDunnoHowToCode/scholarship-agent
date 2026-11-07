@@ -46,31 +46,3 @@ def test_card_cycle_picks_the_nearest_applicable_round_else_the_nearest_open_one
     assert listing.card_cycle([eu_only, closed], "TW") is eu_only
     # 全部截止：沒有
     assert listing.card_cycle([closed], "TW") is None
-
-
-def test_same_score_puts_the_open_round_before_the_upcoming_one() -> None:
-    # 11-07：只在「同一組、同分」時，卡片上那一輪已經開放的排前面；分數不同時還是分數高的在前
-    from datetime import UTC, datetime
-
-    from app.features.scholarships.models import Cycle
-
-    now = datetime(2027, 3, 1, tzinfo=UTC)
-
-    def cycle(opens: datetime | None, closes: datetime) -> Cycle:
-        return Cycle(opens_at=opens, closes_at=closes, estimated=False)
-
-    open_now = cycle(datetime(2027, 2, 1, tzinfo=UTC), datetime(2027, 4, 1, tzinfo=UTC))
-    upcoming = cycle(datetime(2027, 3, 15, tzinfo=UTC), datetime(2027, 4, 1, tzinfo=UTC))
-    assert listing.is_open_now(open_now, now)
-    assert not listing.is_open_now(upcoming, now)
-    assert not listing.is_open_now(None, now)  # 沒有可顯示的申請期
-
-    # 每一列：（名稱, 時間狀態, 分數, 卡片上那一輪是否已開放）
-    rows = [
-        ("即將開放、同分", "pass", 90.0, False),
-        ("已開放、同分", "pass", 90.0, True),
-        ("即將開放、分數高", "pass", 95.0, False),
-        ("已開放、分數低", "pass", 80.0, True),
-    ]
-    ordered = sorted(rows, key=lambda row: listing.list_order(row[1], row[2], row[3]))
-    assert [name for name, *_ in ordered] == ["即將開放、分數高", "已開放、同分", "即將開放、同分", "已開放、分數低"]

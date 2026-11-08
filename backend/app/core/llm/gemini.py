@@ -9,7 +9,7 @@ from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from pydantic import BaseModel, SecretStr
 
-from app.core.llm.base import UsageHook
+from app.core.llm.base import ChatMessage, ToolSpec, Turn, UsageHook
 from app.core.llm.ratelimit import RateLimiter
 
 # Gemini 3.5 Flash-Lite 每百萬 tokens 的價格（美元，Gemini API 定價頁；docs/spec.md 成本粗估）
@@ -85,6 +85,10 @@ class GeminiLLM:
         response = self._send(prompt, partial(self._chat.invoke, [message]))
         self._report(prompt, *self._count(response), None)
         return str(response.text)
+
+    def step(self, messages: list[ChatMessage], tools: list[ToolSpec]) -> Turn:
+        """agent 的一步（ADR-082）：符合 ToolCallingLLM 插座。"""
+        return Turn(ChatMessage("assistant", ""), 0, 0, 0.0)  # 骨架
 
     def cost_usd(self) -> float:
         return (

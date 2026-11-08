@@ -105,3 +105,31 @@ def test_a_url_that_differs_only_by_the_trailing_slash_is_already_taken() -> Non
     finally:
         session.rollback()
         session.close()
+
+
+def test_old_source_is_disabled_when_the_catalogue_already_has_the_new_url() -> None:
+    # 11-08 使用者選 B：目錄已經把新網址加成另一個來源，而且是同一個學程，舊來源自動停用並註明被誰取代
+    session = SessionLocal()
+    try:
+        now = datetime.now(UTC)
+        new = Source(name="Surface Electro Radiation Photo chemistry (new)", url="https://test-serp-b-new.example/",
+                     kind=SourceKind.UNIVERSITY)
+        old = Source(name="Surface Electro Radiation Photo chemistry", url="https://test-serp-b-old.example/",
+                     kind=SourceKind.UNIVERSITY, unreachable_since=now.date())
+        session.add_all([new, old])
+        session.flush()
+        page = "Surface, Electro-, Radiation, and Photo-Chemistry master"
+        replaced, reason = decide_new_url(session, old, "https://test-serp-b-new.example", page)
+        assert replaced is False and f"#{new.id}" in reason
+        assert (old.enabled, old.review_note) == (False, f"已由 #{new.id} 取代")
+        assert old.disabled_at is not None
+        # 不是同一個學程（只是網址被別的來源用了）：不停用
+        other = Source(name="Master of Applied Cybersecurity", url="https://test-cyber-b.example/",
+                       kind=SourceKind.UNIVERSITY, unreachable_since=now.date())
+        session.add(other)
+        session.flush()
+        decide_new_url(session, other, "https://test-serp-b-new.example/", page)
+        assert other.enabled is True
+    finally:
+        session.rollback()
+        session.close()

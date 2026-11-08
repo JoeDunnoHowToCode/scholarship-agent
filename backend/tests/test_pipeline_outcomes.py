@@ -44,3 +44,19 @@ def test_unreachable_results_count_as_failed_days() -> None:
     assert jobs.result_key(False, {"result": "unreachable"}) == "failed"
     assert jobs.result_key(True, None) == "failed"
     assert jobs.result_key(False, {"result": "noise"}) == "noise"
+
+
+def test_a_missing_homepage_is_described_as_such(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core.fetch.base import PageGone
+
+    monkeypatch.setattr(jobs, "online", lambda: True)
+    request = httpx.Request("GET", "https://gone.example/")
+    try:
+        try:
+            raise httpx.HTTPStatusError("404", request=request, response=httpx.Response(404, request=request))
+        except httpx.HTTPStatusError as cause:
+            raise PageGone("https://gone.example/", 404) from cause
+    except PageGone as error:
+        result = jobs.handle_error(None, 7, error)  # type: ignore[arg-type]
+    assert result["result"] == "unreachable"
+    assert result["detail"].startswith("PageGone") and "404" in result["detail"]  # 不是裡面的 HTTPStatusError

@@ -145,3 +145,14 @@ def test_new_url_message_lists_superseded_sources() -> None:
     title, lines = message
     assert title == "找新網址：換了 0 個、對不上 0 個、沒找到 0 個、被取代停用 1 個"
     assert lines[0] == "被取代停用：SERP　已由另一個來源（#3801）取代，舊來源已停用"
+
+
+def test_missing_homepages_have_their_own_kind_and_count_as_gone() -> None:
+    assert report.error_kind("PageGone: 首頁不存在（404）：https://gone.example/") == "頁面不存在（404）"
+    # 11-09 使用者選 B：網站不在了才派 agent 找新官網；暫時的故障只重試
+    assert report.site_gone("gaierror: [Errno 8] nodename nor servname provided") is True
+    assert report.site_gone("PageGone: 首頁不存在（410）：https://gone.example/") is True
+    assert report.site_gone("SSLCertVerificationError: certificate verify failed") is True
+    assert report.site_gone("httpx.ConnectTimeout: timed out") is False
+    assert report.site_gone("TemporaryFetchError: robots.txt 暫時無法讀取（520）") is False
+    assert report.site_gone(None) is False

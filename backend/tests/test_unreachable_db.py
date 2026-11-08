@@ -57,3 +57,18 @@ def test_marked_and_recovered_sources_go_into_the_daily_report() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_the_last_error_is_remembered_and_cleared_on_success() -> None:
+    # 11-09 使用者選 B：要知道「為什麼抓不到」，才能決定要不要派 agent 找新官網
+    session = SessionLocal()
+    try:
+        source = session.scalars(select(Source).where(Source.manual_reason.is_(None)).limit(1)).one()
+        now = datetime(2026, 11, 9, 2, 0, tzinfo=UTC)
+        track_unreachable(session, [(source.id, True, "gaierror: nodename nor servname provided")], now)
+        assert source.last_error == "gaierror: nodename nor servname provided"
+        track_unreachable(session, [(source.id, False, "")], now + timedelta(days=1))
+        assert source.last_error is None
+    finally:
+        session.rollback()
+        session.close()

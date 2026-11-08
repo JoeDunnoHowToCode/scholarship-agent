@@ -196,3 +196,25 @@ def test_new_url_task_reports_a_superseded_source() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_new_urls_are_only_searched_for_gone_sites_outside_the_catalogue() -> None:
+    # 11-09 使用者選 B、D：網站不在了才找；EACEA 目錄來的學程以目錄為準，不派 agent
+    session = SessionLocal()
+    try:
+        def marked(name: str, error: str, discovery: Discovery = Discovery.SEED) -> Source:
+            return Source(name=name, url=f"https://{name}.example/", kind=SourceKind.UNIVERSITY,
+                          unreachable_since=NOW.date(), last_error=error, discovery=discovery)
+
+        gone = marked("t-gone", "gaierror: nodename nor servname provided")
+        missing = marked("t-404", "PageGone: 首頁不存在（404）：https://t-404.example/")
+        slow = marked("t-slow", "httpx.ConnectTimeout: timed out")
+        listed = marked("t-cat", "gaierror: nodename nor servname provided", Discovery.CATALOGUE)
+        session.add_all([gone, missing, slow, listed])
+        session.flush()
+        targets = set(new_url_targets(session, NOW))
+        assert {gone.id, missing.id} <= targets
+        assert not {slow.id, listed.id} & targets
+    finally:
+        session.rollback()
+        session.close()

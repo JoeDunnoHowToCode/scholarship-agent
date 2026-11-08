@@ -9,6 +9,7 @@ from app.features.costs.usage import TAIPEI
 from app.features.discovery.candidates import EMPTY_LIMIT, WEEKLY_DECISIONS
 from app.features.discovery.intake import (
     add_candidates,
+    add_weekly_digest,
     decide_candidate,
     digest_items,
     pending_candidate_ids,
@@ -16,6 +17,7 @@ from app.features.discovery.intake import (
     track_extraction,
 )
 from app.features.discovery.tools import Submission
+from app.features.notifications.models import Event
 from app.features.pipeline.jobs import due_source_ids
 from app.features.scholarships.models import Cycle, Scholarship
 from app.features.sources.models import Discovery, Source, SourceKind, SourceStatus
@@ -143,6 +145,23 @@ def test_daily_flow_checks_candidates_and_reviews_them_after_extraction() -> Non
         # 種子和目錄來的來源不管
         seed = session.scalars(select(Source).where(Source.discovery != Discovery.SEARCH).limit(1)).one()
         assert review_after_extraction(session, seed, "類別 1", NOW) is None
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_weekly_digest_is_added_once_per_week() -> None:
+    session = SessionLocal()
+    try:
+        source = candidate(session, "https://test-digest.example/s")
+        scholarship(session, source, ["DK"], name="Copenhagen Scholarship")
+        decide_candidate(session, source, NOW)
+        session.flush()
+        assert add_weekly_digest(session, NOW) is True
+        assert add_weekly_digest(session, NOW) is False  # 同一週只送一次
+        year, week, _ = NOW.astimezone(TAIPEI).date().isocalendar()
+        event = session.scalars(select(Event).where(Event.dedup_key == f"discovery:{year}-W{week:02d}")).first()
+        assert event is not None
     finally:
         session.rollback()
         session.close()

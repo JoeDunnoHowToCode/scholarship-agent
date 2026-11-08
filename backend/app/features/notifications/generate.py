@@ -25,7 +25,7 @@ from app.features.notifications.rules import (
 )
 from app.features.profiles.service import get_profile
 from app.features.scholarships.models import Change, Cycle, Scholarship
-from app.shared.settings import settings
+from app.features.settings.service import effective
 
 TAIPEI = ZoneInfo("Asia/Taipei")
 CHANGE_WINDOW_DAYS = 14  # 只看最近 14 天的變更紀錄；更早的已經處理過
@@ -86,7 +86,7 @@ def generate(session: Session, user_id: int, now: datetime) -> dict[str, int]:
     today = now.astimezone(TAIPEI).date()
     writer = EventWriter(session, user_id, now)
     scores = best_scores(session, user_id)
-    threshold = settings.notify_threshold
+    threshold = effective(session, user_id).notify_threshold  # 設定頁可調（第 10 天段 6）
     rows = session.scalars(
         select(Scholarship)
         .where(Scholarship.duplicate_of.is_(None), Scholarship.source_id.is_not(None))

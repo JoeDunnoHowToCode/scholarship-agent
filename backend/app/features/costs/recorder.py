@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from app.features.costs.log import month_total_usd, record_call
 from app.features.costs.usage import NTD_PER_USD, over_cap
 from app.features.pipeline.errors import CostLimitError
+from app.features.profiles.service import CURRENT_USER_ID
+from app.features.settings.service import effective
 from app.shared.db import SessionLocal
-from app.shared.settings import settings
 
 
 class MonthlyCapError(CostLimitError):
@@ -39,7 +40,8 @@ class CostRecorder:
         # 每次都查資料庫的總額，不另外快取：別的程序（worker、指令）花的錢也要算進來
         with self._sessions() as session:
             spent = month_total_usd(session, self._clock())
-        cap = self.cap_ntd if self.cap_ntd is not None else settings.monthly_cap_ntd  # 骨架：段 6 改成讀資料庫
+            # 沒指定上限時，每次讀設定頁的設定：網頁上改了，下一次呼叫就生效
+            cap = self.cap_ntd if self.cap_ntd is not None else effective(session, CURRENT_USER_ID).monthly_cap_ntd
         if over_cap(spent, cap):
             raise MonthlyCapError(
                 f"本月 AI 已花約 NT${spent * NTD_PER_USD:,.0f}，達到每月上限 NT${cap:,.0f}"

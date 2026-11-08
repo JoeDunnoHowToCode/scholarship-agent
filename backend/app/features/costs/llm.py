@@ -12,5 +12,5 @@ def gemini(source_id: int | None = None, run_id: int | None = None, agent_run_id
     """source_id、run_id 是這些呼叫屬於哪個來源、哪一天的檢查（知道的話）；紀錄頁用來分。"""
     return GeminiLLM(
         settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute,
-        hook=CostRecorder(settings.monthly_cap_ntd, source_id, run_id, agent_run_id),
+        hook=CostRecorder(None, source_id, run_id, agent_run_id),  # 上限每次從設定頁的設定讀
     )

@@ -9,6 +9,7 @@ from app.features.costs.log import month_total_usd, record_call
 from app.features.costs.usage import NTD_PER_USD, over_cap
 from app.features.pipeline.errors import CostLimitError
 from app.shared.db import SessionLocal
+from app.shared.settings import settings
 
 
 class MonthlyCapError(CostLimitError):
@@ -20,14 +21,14 @@ class CostRecorder:
 
     def __init__(
         self,
-        cap_ntd: float,
+        cap_ntd: float | None,
         source_id: int | None = None,
         run_id: int | None = None,
         agent_run_id: int | None = None,
         sessions: Callable[[], Session] = SessionLocal,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
-        self.cap_ntd = cap_ntd
+        self.cap_ntd = cap_ntd  # None：每次從設定頁的設定讀（第 10 天段 6）
         self.source_id = source_id
         self.run_id = run_id
         self.agent_run_id = agent_run_id
@@ -38,9 +39,10 @@ class CostRecorder:
         # 每次都查資料庫的總額，不另外快取：別的程序（worker、指令）花的錢也要算進來
         with self._sessions() as session:
             spent = month_total_usd(session, self._clock())
-        if over_cap(spent, self.cap_ntd):
+        cap = self.cap_ntd if self.cap_ntd is not None else settings.monthly_cap_ntd  # 骨架：段 6 改成讀資料庫
+        if over_cap(spent, cap):
             raise MonthlyCapError(
-                f"本月 AI 已花約 NT${spent * NTD_PER_USD:,.0f}，達到每月上限 NT${self.cap_ntd:,.0f}"
+                f"本月 AI 已花約 NT${spent * NTD_PER_USD:,.0f}，達到每月上限 NT${cap:,.0f}"
             )
 
     def after_call(

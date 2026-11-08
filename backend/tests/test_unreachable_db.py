@@ -24,10 +24,7 @@ def test_three_failed_days_on_the_real_database() -> None:
         session.flush()
         third = taipei_date(start + timedelta(days=2))
         assert (source.fail_days, source.unreachable_since) == (3, third)
-        added = [e for e in session.new if isinstance(e, Event)] + list(
-            session.scalars(select(Event).where(Event.dedup_key == f"unreachable:{source.id}:{third}"))
-        )
-        assert any(e.dedup_key == f"unreachable:{source.id}:{third}" for e in added)
+        # 通知不再一則一則寫（11-08 使用者選 C），改由下一個測試檢查交給每日報告
         # 標記後：隔天不排，最後一次失敗的 7 天後才排
         assert source.id not in due_source_ids(session, third + timedelta(days=1))
         assert source.id in due_source_ids(session, third + timedelta(days=7))

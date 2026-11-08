@@ -34,7 +34,7 @@ from app.features.notifications.models import Event
 from app.features.notifications.send import send_events
 from app.features.pipeline import breaker, unreachable
 from app.features.pipeline.due import frequency_for, is_due
-from app.features.pipeline.errors import CostLimitError, classify
+from app.features.pipeline.errors import CostLimitError, classify, root_cause
 from app.features.pipeline.models import Run
 from app.features.pipeline.report import (
     recovered_message,
@@ -209,6 +209,14 @@ def handle_error(session: Session, source_id: int, error: Exception) -> dict[str
     detail = f"{type(error).__name__}: {error}"
     if kind == "retry":
         raise error  # RQ 依 RETRY 稍後重跑整件
+    if kind == "fail":
+        if not online():
+            raise error  # 電腦斷網時 DNS 也會說「網域不存在」：當成暫時的，交給 RQ 重試
+        # 重試也不會好（網域不存在、對方憑證有問題）：今天直接算失敗，不重試（11-08 使用者要求）
+        cause = root_cause(error)
+        detail = f"{type(cause).__name__}: {cause}"
+        print(f"unreachable 來源 {source_id}：{detail}")
+        return {"result": "unreachable", "detail": detail}
     if kind == "pause_ai":
         breaker.open_breaker(session, detail)
         session.commit()
@@ -220,13 +228,23 @@ def handle_error(session: Session, source_id: int, error: Exception) -> dict[str
 
 
 def outcome_of(source_id: int, is_failed: bool, exc_string: str | None, value: object) -> tuple[int, bool, str]:
-    """一件來源工作的結果：（來源 id, 今天算不算失敗, 錯誤說明）。"""
-    return source_id, False, ""  # 骨架
+    """一件來源工作的結果：（來源 id, 今天算不算失敗, 錯誤說明）。
+
+    重試完還失敗的取錯誤訊息最後一行；回報 unreachable 的（重試沒用、沒重試）也算失敗。
+    """
+    if is_failed:
+        lines = [line for line in (exc_string or "").splitlines() if line.strip()]
+        return source_id, True, lines[-1].strip()[:150] if lines else ""
+    if isinstance(value, dict) and value.get("result") == "unreachable":
+        return source_id, True, str(value.get("detail", ""))[:150]
+    return source_id, False, ""
 
 
 def result_key(is_failed: bool, value: object) -> str:
     """每日報告要數的結果代碼；今天算失敗的一律是 failed。"""
-    return "unknown"  # 骨架
+    if is_failed or (isinstance(value, dict) and value.get("result") == "unreachable"):
+        return "failed"
+    return str(value["result"]) if isinstance(value, dict) else "unknown"
 
 
 def summarize_dependencies() -> dict[str, int]:
@@ -236,11 +254,8 @@ def summarize_dependencies() -> dict[str, int]:
     if job is None:
         return {}
     for dependency in job.fetch_dependencies():
-        if dependency.is_failed:
-            counts["failed"] += 1
-            continue
-        value = dependency.return_value()
-        counts[value["result"] if isinstance(value, dict) else "unknown"] += 1
+        value = None if dependency.is_failed else dependency.return_value()
+        counts[result_key(dependency.is_failed, value)] += 1
     return dict(counts)
 
 
@@ -264,12 +279,10 @@ def source_outcomes() -> list[tuple[int, bool, str]]:
         return []
     outcomes = []
     for dependency in job.fetch_dependencies():
-        error = ""
-        if dependency.is_failed:
-            result = dependency.latest_result()
-            lines = [line for line in ((result.exc_string if result else "") or "").splitlines() if line.strip()]
-            error = lines[-1].strip()[:150] if lines else ""
-        outcomes.append((int(dependency.args[0]), dependency.is_failed, error))
+        result = dependency.latest_result() if dependency.is_failed else None
+        value = None if dependency.is_failed else dependency.return_value()
+        exc = result.exc_string if result is not None else None
+        outcomes.append(outcome_of(int(dependency.args[0]), dependency.is_failed, exc, value))
     return outcomes
 
 

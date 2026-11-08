@@ -83,3 +83,14 @@ def _hopeless(error: BaseException) -> bool:
             return True
         current = current.__cause__ if current.__cause__ is not None else current.__context__
     return False
+
+
+def root_cause(error: BaseException) -> BaseException:
+    """最裡面的原因（例如 httpx.ConnectError 裡的 socket.gaierror），錯誤說明用它才看得出是什麼問題。"""
+    current = error
+    for _ in range(MAX_LINKS):
+        inner = current.__cause__ if current.__cause__ is not None else current.__context__
+        if inner is None:
+            break
+        current = inner
+    return current

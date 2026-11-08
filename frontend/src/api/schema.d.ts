@@ -131,6 +131,141 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Settings */
+        get: operations["read_settings_api_settings_get"];
+        /** Update Settings */
+        put: operations["update_settings_api_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/breaker/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Breaker
+         * @description 處理好之後恢復 AI 步驟（和指令 breaker --reset 一樣，ADR-056）。
+         */
+        post: operations["reset_breaker_api_settings_breaker_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/discovery/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Agent Sources
+         * @description agent 加的來源（ADR-078），以及被停用、有寫原因的來源（例如被取代，ADR-095）。新的在前。
+         */
+        get: operations["list_agent_sources_api_discovery_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/discovery/sources/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Toggle Source
+         * @description 停用或恢復一個來源。恢復時清掉停用原因與「連續抽不到」的次數，從頭算。
+         */
+        patch: operations["toggle_source_api_discovery_sources__source_id__patch"];
+        trace?: never;
+    };
+    "/api/costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Costs */
+        get: operations["read_costs_api_costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Agent Runs
+         * @description 最近的 agent 執行，新的在前。
+         */
+        get: operations["list_agent_runs_api_agent_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent-runs/{run_id}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Agent Steps
+         * @description 某次執行的每一步，照順序；超過 30 天的沒有全文，只有摘要（ADR-089）。
+         */
+        get: operations["list_agent_steps_api_agent_runs__run_id__steps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -152,6 +287,73 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AgentRunOut */
+        AgentRunOut: {
+            /** Id */
+            id: number;
+            /** Task */
+            task: string;
+            /** Target */
+            target: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Result */
+            result: string | null;
+            /** Steps */
+            steps: number;
+            /** Ntd */
+            ntd: number;
+            /** Final Text */
+            final_text: string | null;
+        };
+        /** AgentSourceOut */
+        AgentSourceOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Url */
+            url: string;
+            /** Status */
+            status: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Review Note */
+            review_note: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Scholarships */
+            scholarships: number;
+        };
+        /** AgentStepOut */
+        AgentStepOut: {
+            /** Number */
+            number: number;
+            /** Kind */
+            kind: string;
+            /** Tool */
+            tool: string | null;
+            /** Args */
+            args: {
+                [key: string]: unknown;
+            } | null;
+            /** Summary */
+            summary: string;
+            /** Full Text */
+            full_text: string | null;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+        };
         /**
          * AmountOut
          * @description 獎學金給你的一筆錢與核對結果（ADR-070）。
@@ -196,6 +398,15 @@ export interface components {
             listed: components["schemas"]["ListedOut"][];
             /** Candidates */
             candidates: components["schemas"]["CandidateOut"][];
+        };
+        /** BreakerOut */
+        BreakerOut: {
+            /** Open */
+            open: boolean;
+            /** Reason */
+            reason: string | null;
+            /** Opened At */
+            opened_at: string | null;
         };
         /** CandidateOut */
         CandidateOut: {
@@ -243,6 +454,17 @@ export interface components {
             id: string;
             /** Where */
             where: string;
+        };
+        /** CostsOut */
+        CostsOut: {
+            /** Month Ntd */
+            month_ntd: number;
+            /** Cap Ntd */
+            cap_ntd: number;
+            /** By Feature */
+            by_feature: components["schemas"]["FeatureCost"][];
+            /** By Day */
+            by_day: components["schemas"]["DayCost"][];
         };
         /**
          * Country
@@ -298,6 +520,16 @@ export interface components {
             /** Verification */
             verification: string | null;
         };
+        /** DayCost */
+        DayCost: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Ntd */
+            ntd: number;
+        };
         /** EventOut */
         EventOut: {
             /** Id */
@@ -321,6 +553,15 @@ export interface components {
             created_at: string;
             /** Sent At */
             sent_at: string | null;
+        };
+        /** FeatureCost */
+        FeatureCost: {
+            /** Feature */
+            feature: string;
+            /** Calls */
+            calls: number;
+            /** Ntd */
+            ntd: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -613,6 +854,28 @@ export interface components {
              */
             computed_at: string;
         };
+        /** SettingsIn */
+        SettingsIn: {
+            /** Notify Threshold */
+            notify_threshold: number;
+            /** Monthly Cap Ntd */
+            monthly_cap_ntd: number;
+        };
+        /** SettingsOut */
+        SettingsOut: {
+            /** Notify Threshold */
+            notify_threshold: number;
+            /** Monthly Cap Ntd */
+            monthly_cap_ntd: number;
+            /** Cap Limit Ntd */
+            cap_limit_ntd: number;
+            breaker: components["schemas"]["BreakerOut"];
+        };
+        /** SourceToggle */
+        SourceToggle: {
+            /** Enabled */
+            enabled: boolean;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -857,6 +1120,216 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_settings_api_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+        };
+    };
+    update_settings_api_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_breaker_api_settings_breaker_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+        };
+    };
+    list_agent_sources_api_discovery_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSourceOut"][];
+                };
+            };
+        };
+    };
+    toggle_source_api_discovery_sources__source_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceToggle"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSourceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_costs_api_costs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostsOut"];
+                };
+            };
+        };
+    };
+    list_agent_runs_api_agent_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agent_steps_api_agent_runs__run_id__steps_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentStepOut"][];
                 };
             };
             /** @description Validation Error */

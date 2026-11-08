@@ -122,3 +122,19 @@ const TAIPEI = new Intl.DateTimeFormat("zh-TW", {
 export function taipeiTime(iso: string | null | undefined): string {
   return iso ? `${TAIPEI.format(new Date(iso))}（台灣時間）` : "—";
 }
+
+// 第 10 天段 6：發掘 agent 的任務與結果、來源狀態
+export const AGENT_TASK_NAMES: Record<string, string> = {
+  universities: "逐校找",
+  search: "搜尋補漏",
+  new_url: "找新網址",
+  smoke: "測試",
+};
+export const AGENT_RESULT_NAMES: Record<string, string> = {
+  done: "完成",
+  step_limit: "步數到上限",
+  cost_limit: "費用到上限",
+  stopped: "停止",
+  error: "出錯",
+};
+export const SOURCE_STATUS_NAMES: Record<string, string> = { candidate: "候選", approved: "已加入", rejected: "已排除" };

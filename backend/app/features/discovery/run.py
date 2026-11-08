@@ -19,6 +19,8 @@ from app.features.discovery.new_url import decide_new_url
 from app.features.discovery.runner import execute
 from app.features.discovery.tasks import new_url_task, search_task, university_task
 from app.features.discovery.tools import Page, Toolbox
+from app.features.discovery.universities import RESEARCH_AFTER
+from app.features.pipeline.errors import classify
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships.models import Scholarship
 from app.features.sources.models import Source, SourceKind
@@ -142,4 +144,49 @@ class Summary:
 
 def discover(deps: Deps, now: datetime, schools: list[int], search: bool, new_urls: list[int]) -> Summary:
     """依序跑：找新網址 → 搜尋補漏 → 逐校找。暫停 AI 的錯誤就整批停下；其他錯誤跳過那個任務。"""
-    return Summary([], None, 0, 0, 0, None)  # 骨架
+    summary = Summary([], None, 0, 0, 0, None)
+
+    def attempt(task: Callable[[], object]) -> tuple[bool, object]:
+        """跑一個任務：（成功了沒, 結果）。暫停 AI 的錯誤記在 summary.stopped，呼叫的人看到就停。"""
+        try:
+            return True, task()
+        # 故意接住所有錯誤：每個錯誤都要分類（ADR-056），一個任務出錯不拖垮整批
+        except Exception as error:  # noqa: BLE001
+            if classify(error) == "pause_ai":
+                summary.stopped = f"{type(error).__name__}: {error}"
+            else:
+                summary.errors += 1
+                print(f"discovery  任務出錯，跳過：{type(error).__name__}: {error}")
+            return False, None
+
+    for source_id in new_urls:
+        ok, result = attempt(lambda source_id=source_id: run_new_url(deps, source_id, now))
+        if summary.stopped:
+            return summary
+        if ok and isinstance(result, tuple):
+            summary.new_urls.append(result)
+    if search:
+        ok, result = attempt(lambda: run_search(deps, now))
+        if summary.stopped:
+            return summary
+        summary.searched = result if ok and isinstance(result, int) else None
+    for school_id in schools:
+        ok, result = attempt(lambda school_id=school_id: run_university(deps, school_id, now))
+        if summary.stopped:
+            return summary
+        summary.schools += 1
+        if ok and isinstance(result, int):
+            summary.candidates += result
+        elif not ok:
+            _retry_school_later(deps, school_id, now)
+    return summary
+
+
+def _retry_school_later(deps: Deps, school_id: int, now: datetime) -> None:
+    """出錯的學校 7 天後再試，不要每天都排第一個佔名額（「Claude 自行決定」第 29 點）。"""
+    with deps.sessions() as session:
+        school = session.get(University, school_id)
+        if school is not None:
+            school.last_result = "error"
+            school.last_searched_at = now - RESEARCH_AFTER + timedelta(days=7)
+            session.commit()

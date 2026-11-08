@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.core import prompts
 from app.core.llm.base import StructuredLLM
 from app.features.documents.checks import quote_in_source, quote_in_table_text
 from app.features.scholarships import countries, rules
@@ -32,13 +33,7 @@ Status = Literal[
     "incomplete",  # 截止日的年月日不齊全，不能建成申請期
 ]
 
-PROMPT = """你是查核員。下面每一項是從獎學金原文抽出的值，以及抽取時附上的原文引用。
-只根據引用本身判斷它是否支持這個值；引用沒寫到、寫得模糊、或要靠推測才成立，都算不支持。
-- deadline:N 的引用必須寫出那個日期（包括年份），而且適用對象（國籍、獎學金或自費）要和引用一致；民國年加 1911 就是西元年，例如 115 年＝2026 年
-- nationality 是 all 時，引用必須明確寫出開放所有國籍；listed 或 excluded 時，引用必須寫出那些國家
-
-{claims}
-"""
+PROMPT = prompts.load(PROMPT_VERSION)  # 文字在 backend/prompts/（ADR-088）
 
 
 class Verdict(BaseModel):

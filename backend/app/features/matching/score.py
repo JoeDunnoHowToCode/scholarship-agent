@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core import prompts
 from app.core.llm.base import StructuredLLM
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
 from app.features.matching import checks
@@ -34,17 +35,7 @@ from app.shared.settings import settings
 
 PROMPT_VERSION = "score-4"  # 改提示詞就要改版本號
 
-PROMPT = """你是留學獎學金顧問。依下面的資料，評估這位申請人和這個獎學金的這個類別在領域上有多契合：
-獎學金或學程的領域，和申請人的目前科系、想讀的領域有多契合。
-給 0–10 分，分數越高越契合，附一句繁體中文理由。只根據資料判斷，不要推測；
-資料沒寫或無法判斷時給 5 分，並在理由說明。
-
-獎學金：
-{scholarship}
-
-申請人：
-{applicant}
-"""
+PROMPT = prompts.load(PROMPT_VERSION)  # 文字在 backend/prompts/（ADR-088）
 
 # 給人看的中文名稱
 STATUS_NAMES = {"open": "開放中", "upcoming": "即將開放", "closed": "已截止", "estimated": "預估"}

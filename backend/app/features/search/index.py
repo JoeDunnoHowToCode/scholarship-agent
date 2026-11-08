@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core import prompts
 from app.core.fetch.text import content_hash, decode_snapshot
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM, LLMError, MissingApiKeyError
 from app.features.documents.chunking import Chunk as Piece
@@ -39,19 +40,9 @@ Topic = Literal[
     "quota", "degree", "application", "programme", "other",
 ]
 
-TABLE_PROMPT = """下面是從獎學金原文擷取的幾個表格，每個前面有編號。
-替每個表格寫一句中文說明，講清楚這個表格在列什麼（例如「各名額類別的名額與可去的國家」），
-讓人看說明就知道要不要打開整個表格。
+TABLE_PROMPT = prompts.load(TABLE_VERSION)  # 文字在 backend/prompts/（ADR-088）
 
-{tables}
-"""
-
-TOPIC_PROMPT = """下面是獎學金原文的幾個段落，每段前面有編號。替每一段標上它談到的主題（可以多個）：
-eligibility 申請資格、nationality 國籍限制、deadline 日期與截止、documents 要交的文件、amount 補助金額、
-quota 名額、degree 學位、application 申請方式與流程、programme 課程內容、other 其他（選單、聯絡方式等）。
-
-{chunks}
-"""
+TOPIC_PROMPT = prompts.load(TOPIC_VERSION)  # 文字在 backend/prompts/（ADR-088）
 
 
 class TableSummary(BaseModel):

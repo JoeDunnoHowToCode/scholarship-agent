@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 
+from app.core import prompts
 from app.core.llm.base import StructuredLLM
 from app.features.sources.links import Link
 
@@ -9,13 +10,7 @@ PROMPT_VERSION = "links-1"  # 改提示詞就要改版本號
 MAX_PICKS = 3  # 每個學程最多再抓 3 頁（docs/day-03.md「Claude 自行決定」第 5 點）
 MAX_CANDIDATES = 200  # 連結太多的網站只給前 200 個，避免提示詞太長
 
-PROMPT = """你在幫忙找留學獎學金的資訊。下面是「{name}」學程首頁（{url}）上的連結。
-請挑出最多 {max_picks} 個最可能寫著以下資訊的頁面：申請方式與截止日、獎學金（金額、名額、資格）、
-入學資格、要交的文件。只能從清單裡挑，網址要照抄；都不相關就回傳空清單。
-
-連結清單（連結文字 | 網址）：
-{links}
-"""
+PROMPT = prompts.load(PROMPT_VERSION)  # 文字在 backend/prompts/（ADR-088）
 
 
 class PickedLinks(BaseModel):

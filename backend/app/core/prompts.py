@@ -11,4 +11,6 @@ PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
 
 def load(version: str) -> str:
     """依版本號讀提示詞，例如 load("extract-12") 讀 prompts/extract/12.md。"""
-    return ""  # 骨架：段 1 實作
+    name, number = version.rsplit("-", 1)  # 從最後一個「-」切開：extract-12 → extract、12
+    # 檔案不存在時 read_text 會丟 FileNotFoundError：版本號打錯就馬上發現，不會送出空白提示詞
+    return (PROMPTS_DIR / name / f"{number}.md").read_text(encoding="utf-8")

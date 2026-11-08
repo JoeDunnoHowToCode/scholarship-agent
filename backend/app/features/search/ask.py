@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import any_, literal, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core import prompts
 from app.core.llm.base import Embedder, StructuredLLM
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM, MissingApiKeyError
 from app.features.scholarships import countries
@@ -38,33 +39,9 @@ ANSWER_VERSION = "answer-2"
 MATCH_THRESHOLD = 0.75  # 名稱對應的相似度門檻（「Claude 自行決定」第 11 點）
 TOP_CHUNKS = 8  # 語意搜尋取幾段（第 13 點）
 
-ROUTE_PROMPT = """你負責把使用者對留學獎學金資料庫的問題分類，並抽出參數。今天是 {today}。
-- lookup：問「某一個」獎學金的名額、學位、要交的文件、截止日、金額等
-- filter：要依條件「列出」多個獎學金（例如國籍、學位、國家、截止日範圍、現在能不能申請）
-- document：明確要針對某一份簡章或網頁整份來回答（例如「整理這份簡章的評審標準」）
-- semantic：其他問題，要在原文裡搜尋
-問題指名「某一個」獎學金時，就算帶有學位、國籍這些條件，也是 lookup，不是 filter。例如：
-- 「教育部留學獎學金北歐國家有幾個名額？可以讀碩士嗎？」→ lookup（scholarship：教育部留學獎學金）
-- 「台灣人可以申請、2 月以後截止的碩士獎學金有哪些？」→ filter
-- 「哪些學程的課程和人工智慧有關？」→ semantic
-- 「整理教育部簡章的評審標準」→ document（scholarship：教育部留學獎學金）
-scholarship 填問題裡提到的獎學金或學程名稱（照使用者的寫法）；沒提到就留空。
-topic 填問題最相關的主題，不確定就留空。
+ROUTE_PROMPT = prompts.load(ROUTE_VERSION)  # 文字在 backend/prompts/（ADR-088）
 
-問題：{question}
-"""
-
-ANSWER_PROMPT = """你是留學獎學金助理。只能根據下面的資料回答，資料沒寫的就說不知道，不要推測。
-- 每句重點後面附上出處編號，例如 [F2]、[C3]；citations 列出用到的所有編號
-- 標著「待確認」的資料，回答時也要說待確認
-- 規則有例外或附加條件時（例如「以博士為限，惟藝術學群得讀碩士」），要把例外和條件完整說出來，不能只講原則
-- 用繁體中文回答
-
-問題：{question}
-
-資料：
-{context}
-"""
+ANSWER_PROMPT = prompts.load(ANSWER_VERSION)  # 文字在 backend/prompts/（ADR-088）
 
 
 class Route(BaseModel):

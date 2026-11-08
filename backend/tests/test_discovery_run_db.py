@@ -1,9 +1,9 @@
 """三種發掘任務（ADR-080、083），在真的資料庫上跑：假的 AI、假的網頁，交易裡跑完就復原。"""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Self
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.llm.base import ChatMessage, ToolCall, ToolSpec, Turn
@@ -98,6 +98,8 @@ def test_search_runs_once_per_week() -> None:
     try:
         calls = [("search", {"query": "UK government master scholarship Taiwan"}),
                  ("submit", {"url": "https://test-gov.example/s", "reason": "政府獎學金"})]
+        # 真的資料庫裡可能已經有本週的搜尋紀錄（例如手動實跑過）：在交易裡先移到 8 天前，測完復原
+        session.execute(update(AgentRun).where(AgentRun.task == "search").values(started_at=NOW - timedelta(days=8)))
         first = run_search(deps(session, calls), NOW)
         assert first == 1
         assert session.scalars(select(Source).where(Source.url == "https://test-gov.example/s")).one().kind == SourceKind.INSTITUTION

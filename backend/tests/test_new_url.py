@@ -73,3 +73,15 @@ def test_a_different_programme_is_not_applied_but_reported() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_long_official_names_match_by_their_distinctive_words() -> None:
+    # 11-08 實跑：agent 找到 SERP 的新官網，網頁寫的是學程名稱的後半段，完整名稱沒有出現，原本的檢查誤判成對不上
+    name = "Erasmus Mundus Joint Master's programme in Surface, Electro, Radiation, and Photo-chemistry"
+    page = (
+        "Erasmus Mundus SERP Master About us General description Partners universities. "
+        "Programme overview “Surface, Electro-, Radiation, and Photo-Chemistry” The SERP+ master is a two-year programme."
+    )
+    assert same_programme([name, "master-serp.eu"], None, page) is True
+    # 只出現其中一部分的字（Surface、Chemistry）不算
+    assert same_programme([name], None, "Surface chemistry research group news") is False

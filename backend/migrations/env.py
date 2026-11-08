@@ -13,6 +13,7 @@ from app.features.profiles import models as profile_models  # noqa: F401
 # 載入資料表類別，Base.metadata 才認得它們
 from app.features.scholarships import models as scholarship_models  # noqa: F401
 from app.features.search import models as search_models  # noqa: F401
+from app.features.settings import models as settings_models  # noqa: F401
 from app.features.sources import models as source_models  # noqa: F401
 from app.shared.db import Base
 from app.shared.settings import settings

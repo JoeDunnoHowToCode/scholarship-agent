@@ -14,3 +14,8 @@ def load(version: str) -> str:
     name, number = version.rsplit("-", 1)  # 從最後一個「-」切開：extract-12 → extract、12
     # 檔案不存在時 read_text 會丟 FileNotFoundError：版本號打錯就馬上發現，不會送出空白提示詞
     return (PROMPTS_DIR / name / f"{number}.md").read_text(encoding="utf-8")
+
+
+def identify(text: str) -> str | None:
+    """送出去的文字是哪個提示詞的哪一版（ADR-089 記錄用）；認不出來回傳 None。"""
+    return None  # 骨架

@@ -1,6 +1,8 @@
 """Gemini 轉接頭（ADR-010、011、015、037）：透過 LangChain 呼叫 Gemini。"""
 
 import base64
+from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -58,13 +60,8 @@ class GeminiLLM:
         runnable = self._chat.with_structured_output(schema, include_raw=True)
         current = prompt
         for _ in range(MAX_RETRIES + 1):
-            self._limiter.wait()
-            try:
-                result: dict[str, Any] = runnable.invoke(current)  # type: ignore[assignment]
-            except Exception as failure:
-                # 轉接頭的邊界：把 Google 與 LangChain 的各種錯誤統一成 LLMError
-                raise LLMError(f"{type(failure).__name__}: {failure}") from failure
-            self._count(result["raw"])
+            result: dict[str, Any] = self._send(current, partial(runnable.invoke, current))
+            self._report(current, *self._count(result["raw"]), None)
             parsed = result["parsed"]
             if isinstance(parsed, schema):
                 return parsed
@@ -85,13 +82,9 @@ class GeminiLLM:
                 },
             ]
         )
-        self._limiter.wait()
-        try:
-            response = self._chat.invoke([message])
-        except Exception as error:
-            raise LLMError(f"{type(error).__name__}: {error}") from error
-        self._count(response)
-        return response.text
+        response = self._send(prompt, partial(self._chat.invoke, [message]))
+        self._report(prompt, *self._count(response), None)
+        return str(response.text)
 
     def cost_usd(self) -> float:
         return (
@@ -104,10 +97,31 @@ class GeminiLLM:
             f"約 US${self.cost_usd():.3f}（NT${self.cost_usd() * 32:.1f}）"
         )
 
-    def _count(self, message: Any) -> None:
+    def _send(self, prompt: str, send: Callable[[], Any]) -> Any:
+        """送出一次請求：呼叫前問用量回呼（可能被擋）、限速，失敗也記一筆。"""
+        if self._hook is not None:
+            self._hook.before_call()  # 例如本月已達上限：直接丟例外，不送給 Gemini
+        self._limiter.wait()
+        try:
+            return send()
+        except Exception as failure:
+            self._report(prompt, 0, 0, type(failure).__name__)
+            # 轉接頭的邊界：把 Google 與 LangChain 的各種錯誤統一成 LLMError
+            raise LLMError(f"{type(failure).__name__}: {failure}") from failure
+
+    def _report(self, prompt: str, input_tokens: int, output_tokens: int, error: str | None) -> None:
+        """把這一次的用量交給用量回呼（ADR-089）。"""
+        if self._hook is not None:
+            cost = (input_tokens * INPUT_PRICE_PER_M + output_tokens * OUTPUT_PRICE_PER_M) / 1_000_000
+            self._hook.after_call(prompt, self.model, input_tokens, output_tokens, cost, error)
+
+    def _count(self, message: Any) -> tuple[int, int]:
+        """累計這次執行的 tokens，並回傳這一次的（輸入, 輸出）。"""
         usage = getattr(message, "usage_metadata", None) or {}
-        self.input_tokens += usage.get("input_tokens", 0)
-        self.output_tokens += usage.get("output_tokens", 0)
+        input_tokens, output_tokens = usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+        self.input_tokens += input_tokens
+        self.output_tokens += output_tokens
+        return input_tokens, output_tokens
 
 
 class GeminiEmbedder:

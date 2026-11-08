@@ -1,7 +1,7 @@
 """找新網址（ADR-080）：抓不到的來源，由 agent 找現在的官方網址；確認是同一個學程才換。"""
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -77,9 +77,15 @@ def decide_new_url(session: Session, source: Source, new_url: str, page_text: st
     # 只差結尾的 / 也算同一個網址（目錄匯入的網址常有 /，agent 提議的常沒有）
     variants = {new_url.rstrip("/"), new_url.rstrip("/") + "/"}
     taken = session.scalar(select(Source.id).where(Source.url.in_(variants), Source.id != source.id))
+    same = same_programme(names, row.provider if row is not None else None, page_text)
     if taken is not None:
-        return False, f"這個網址已經是另一個來源（#{taken}）"
-    if not same_programme(names, row.provider if row is not None else None, page_text):
+        if same:
+            # 目錄已經把新網址加成另一個來源（例如 EACEA 學程換網址）：舊來源停用，避免重複（11-08 使用者選 B）
+            source.enabled, source.disabled_at = False, datetime.now(UTC)
+            source.review_note = f"已由 #{taken} 取代"
+            return False, f"已由另一個來源（#{taken}）取代，舊來源已停用"
+        return False, f"這個網址已經是另一個來源（#{taken}），但對不上同一個學程"
+    if not same:
         return False, "新網頁上找不到同一個學程的名稱或主辦單位"
     source.url = new_url
     source.fail_days, source.last_failed_on, source.unreachable_since = 0, None, None  # 回到每天檢查

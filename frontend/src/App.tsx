@@ -30,7 +30,10 @@ export default function App() {
       <ScrollToTop />
       <header className="border-b">
         <nav className="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
-          <span className="font-semibold">留學獎學金</span>
+          {/* 品牌名稱回首頁（UI 計畫 D5） */}
+          <NavLink to="/" className="font-semibold">
+            留學獎學金
+          </NavLink>
           {LINKS.map((link) => (
             <NavLink
               key={link.to}

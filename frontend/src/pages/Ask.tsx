@@ -16,6 +16,9 @@ const ROUTE_NAMES: Record<string, string> = {
   document: "讀整份文件",
 };
 
+// 範例問題（UI 計畫 D1）：點了直接填入問答框，不會自動送出（每題要花一點 AI 費用）
+const EXAMPLES = ["DEAI 要交哪些文件？", "有哪些現在開放申請、台灣人可以申請的碩士獎學金？", "Erasmus Mundus 獎學金每月補助多少？"];
+
 export default function Ask() {
   const [question, setQuestion] = useState("");
   const ask = useMutation({
@@ -23,7 +26,7 @@ export default function Ask() {
   });
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (question.trim()) ask.mutate(question.trim());
+    if (question.trim() && !ask.isPending) ask.mutate(question.trim()); // 快捷鍵在回答中也按得到，避免重複送出
   };
   const result = ask.data;
   return (
@@ -38,9 +41,19 @@ export default function Ask() {
             <Textarea
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
-              placeholder="例如：DEAI 要交哪些文件？"
+              placeholder="例如：DEAI 要交哪些文件？（⌘ / Ctrl + Enter 送出）"
               maxLength={500}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) submit(event);
+              }}
             />
+            <div className="flex flex-wrap gap-2">
+              {EXAMPLES.map((example) => (
+                <Button key={example} type="button" variant="outline" size="sm" onClick={() => setQuestion(example)}>
+                  {example}
+                </Button>
+              ))}
+            </div>
             <Button type="submit" disabled={ask.isPending || !question.trim()}>
               {ask.isPending ? "AI 回答中…" : "送出"}
             </Button>
@@ -81,7 +94,7 @@ export default function Ask() {
                 <p className="font-medium">出處</p>
                 <ul className="space-y-1">
                   {result.citations.map((c) => (
-                    <li key={c.id} className="break-all text-muted-foreground">
+                    <li key={c.id} className="wrap-anywhere text-muted-foreground">
                       [{c.id}] <Where where={c.where} />
                     </li>
                   ))}

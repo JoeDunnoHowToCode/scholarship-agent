@@ -127,4 +127,8 @@
   html {
     @apply font-sans;
     }
+  /* 用鍵盤（Tab）移到連結時看得到外框（UI 計畫 D5）；按鈕樣式的連結有自己的焦點樣式，會蓋過這裡 */
+  a:focus-visible {
+    @apply rounded-sm outline-2 outline-offset-2 outline-ring;
+    }
 }

@@ -45,7 +45,7 @@ export default function Notifications() {
                 <p key={index}>{line}</p>
               ))}
               {e.url && (
-                <a href={e.url} target="_blank" rel="noreferrer" className="break-all text-primary hover:underline">
+                <a href={e.url} target="_blank" rel="noreferrer" className="wrap-anywhere text-primary hover:underline">
                   {e.url}
                 </a>
               )}

@@ -181,16 +181,37 @@ export default function ScholarshipList() {
         </Alert>
       )}
       {list.data && (
-        <p className="text-sm text-muted-foreground">
-          共 {list.data.rows.length} 筆{searching && "，依和搜尋字的相關程度排序（語意搜尋最多取 30 筆）"}
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-muted-foreground">
+            共 {list.data.rows.length} 筆{searching && "，依和搜尋字的相關程度排序（語意搜尋最多取 30 筆）"}
+          </p>
+          {/* 有任何篩選或搜尋時，一鍵回到全部（UI 計畫 C2） */}
+          {params.size > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDraft("");
+                setParams({}, { replace: true });
+              }}
+            >
+              清除所有篩選
+            </Button>
+          )}
+        </div>
       )}
       {list.data?.rows.length === 0 && <p className="text-sm">沒有符合條件的獎學金，可以放寬篩選條件再試。</p>}
       {list.data?.rows.map((row, index) => (
         <div key={row.id} className="space-y-2">
           {/* 沒有搜尋時，時間狀態換了就寫一個分組標題（列表已經依時間狀態、分數排好）；搜尋時改在卡片上標 */}
           {!searching && (index === 0 || list.data.rows[index - 1].group !== row.group) && (
-            <h2 className="pt-4 text-base font-semibold">{row.group ? GROUP_NAMES[row.group] : "還沒評分"}</h2>
+            <h2 className="pt-4 text-base font-semibold">
+              {row.group ? GROUP_NAMES[row.group] : "還沒評分"}
+              {/* 每組幾筆（UI 計畫 C1） */}
+              <span className="ml-1 font-normal text-muted-foreground tabular-nums">
+                （{list.data.rows.filter((r) => r.group === row.group).length}）
+              </span>
+            </h2>
           )}
           <ScholarshipCard row={row} showGroup={searching} />
         </div>
@@ -229,7 +250,7 @@ function ScholarshipCard({ row, showGroup }: { row: Row; showGroup: boolean }) {
         </CardTitle>
         <CardDescription>{[row.name_zh, row.provider].filter(Boolean).join("｜")}</CardDescription>
         <CardAction>
-          <Badge variant={row.score === null ? "outline" : "default"}>
+          <Badge variant={row.score === null ? "outline" : "default"} className="tabular-nums">
             {row.score === null ? "未評分" : `${Math.round(row.score)} 分`}
           </Badge>
         </CardAction>
@@ -250,7 +271,7 @@ function ScholarshipCard({ row, showGroup }: { row: Row; showGroup: boolean }) {
           </span>
         </div>
         {/* 一律寫「申請日期」，不分有沒有填個人資料；後端已先挑適合你的那一輪（ADR-077，11-04 修改） */}
-        <p>申請日期：{row.deadline_line ?? "原文沒寫"}</p>
+        <p className="tabular-nums">申請日期：{row.deadline_line ?? "原文沒寫"}</p>
         {row.amount_headline && <p>補助：{row.amount_headline}</p>}
         {row.category && row.category !== row.name && (
           <p className="text-muted-foreground">分數來自類別：{row.category}</p>

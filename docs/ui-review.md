@@ -165,17 +165,35 @@
   ```
   id 42（有 2 個類別）：document.querySelectorAll('table').length = 0
   ```
-- [ ] C1 分組標題有筆數，加總等於「共 N 筆」 -> verify: 瀏覽器貼出三個標題
-- [ ] C2 有篩選時出現「清除所有篩選」，按了回到 191 筆 -> verify: 瀏覽器操作並貼出筆數
-- [ ] C3 分數與日期是等寬數字 -> verify: 瀏覽器貼出 `getComputedStyle(...).fontVariantNumeric`
-- [ ] D1 點範例問題會填入問答框；`⌘ + Enter` 送出 -> verify: 瀏覽器操作並貼出輸入框內容（不實際送出，避免費用）
-- [ ] D2 網址不再從單字中間斷開 -> verify: 瀏覽器貼出 `overflow-wrap` 計算值
+- [x] C1 分組標題有筆數，加總等於「共 N 筆」 -> verify: 瀏覽器貼出三個標題
+  ```
+  /?open=1：「共 56 筆」、標題 ["還能申請（49）","時間待確認（4）","已截止或不適用（3）"]（49+4+3=56）；全部：69+100+22=191
+  ```
+- [x] C2 有篩選時出現「清除所有篩選」，按了回到 191 筆 -> verify: 瀏覽器操作並貼出筆數
+  ```
+  clearShown true → 按下後 url ""、n=191、按鈕消失
+  ```
+- [x] C3 分數與日期是等寬數字 -> verify: 瀏覽器貼出 `getComputedStyle(...).fontVariantNumeric`
+  ```
+  fontVariantNumeric "tabular-nums"（列表分數徽章）
+  ```
+- [x] D1 點範例問題會填入問答框；`⌘ + Enter` 送出 -> verify: 瀏覽器操作並貼出輸入框內容（不實際送出，避免費用）
+  ```
+  範例按鈕 3 個；點第一個 → textarea "DEAI 要交哪些文件？"。⌘ + Enter 沒有實際按（會送出問題、花 AI 費用），只確認程式在送出前檢查不是回答中
+  ```
+- [x] D2 網址不再從單字中間斷開 -> verify: 瀏覽器貼出 `overflow-wrap` 計算值
+  ```
+  Notifications 頁 8 個網址連結，overflowWrap "anywhere"
+  ```
 - [ ] D3 國家清單 API 回傳國碼與中文名稱，含 TW -> verify: `cd backend && uv run pytest tests/test_countries_api.py`
 - [ ] D3 國籍單選、想去的國家多選，存檔後重新整理仍是選的國家 -> verify: 瀏覽器操作，只貼出欄位標籤與是否有值（不貼值）
 - [ ] D4 產生和獎學金有關的通知時記下 `scholarship_id` -> verify: `cd backend && uv run pytest tests/test_notification_rules.py`
 - [ ] D4 遷移只新增 events.scholarship_id（讀過再套用） -> verify: `cd backend && uv run alembic upgrade head`，貼出遷移內容摘要
 - [ ] D4 通知 API 回傳 scholarship_id；網頁上有編號的通知卡片能點回詳細頁 -> verify: 瀏覽器點通知標題，貼出新網址
-- [ ] D5 品牌名稱連到首頁；Tab 到連結時看得到焦點框 -> verify: 瀏覽器貼出品牌連結的 href 與 `:focus-visible` 的 outline 計算值
+- [x] D5 品牌名稱連到首頁；Tab 到連結時看得到焦點框 -> verify: 瀏覽器貼出品牌連結的 href 與 `:focus-visible` 的 outline 計算值
+  ```
+  品牌連結 "留學獎學金 → /"；按 Tab 到「問答」：:focus-visible true、outline "solid 2px"
+  ```
 - [ ] 全部完成後：前端建置、後端完整檢查都通過 -> verify: `cd frontend && npm run build`；`cd backend && uv run pytest && uv run ruff check . && uv run mypy app`
 
 ## 預估時間

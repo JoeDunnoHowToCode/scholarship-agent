@@ -5,33 +5,41 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from functools import partial
 
-from sqlalchemy import exists, select
+import httpx
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from app.core import prompts
+from app.core.fetch.http import HttpFetcher
 from app.core.llm.base import ToolCallingLLM
-from app.features.costs.usage import TAIPEI
+from app.features.costs.llm import gemini
+from app.features.costs.usage import NTD_PER_USD, TAIPEI
 from app.features.discovery.intake import add_candidates
 from app.features.discovery.models import AgentRun, University
 from app.features.discovery.new_url import decide_new_url
-from app.features.discovery.runner import execute
+from app.features.discovery.runner import execute, real_toolbox
+from app.features.discovery.services import fetch_page
 from app.features.discovery.tasks import new_url_task, search_task, university_task
 from app.features.discovery.tools import Page, Toolbox
-from app.features.discovery.universities import RESEARCH_AFTER
+from app.features.discovery.universities import PER_DAY, RESEARCH_AFTER, todays_batch
+from app.features.notifications.generate import add_system_event
 from app.features.pipeline.errors import classify
+from app.features.pipeline.report import new_url_digest_message
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships.models import Scholarship
 from app.features.sources.models import Source, SourceKind
 from app.shared.db import SessionLocal
+from app.shared.settings import settings
 
 UNIVERSITY_VERSION = "agent-university-1"
 SEARCH_VERSION = "agent-search-1"
 NEW_URL_VERSION = "agent-new-url-1"
 STEPS = {"universities": 15, "search": 25, "new_url": 15}  # 「Claude 自行決定」第 5 點
 SUBMISSIONS = {"universities": 3, "search": 10, "new_url": 1}
+MAX_COST_NTD = 2.0  # 每次 agent 執行最多花多少（「Claude 自行決定」第 5 點）
 NEW_URL_EVERY = timedelta(days=7)  # 同一個來源 7 天找一次新網址（和 ADR-080 的每 7 天重試一致）
 
 
@@ -191,3 +199,70 @@ def _retry_school_later(deps: Deps, school_id: int, now: datetime) -> None:
             school.last_result = "error"
             school.last_searched_at = now - RESEARCH_AFTER + timedelta(days=7)
             session.commit()
+
+
+def real_deps(http: httpx.Client, fetcher: HttpFetcher, max_cost_usd: float) -> Deps:
+    """連網的版本：Gemini（費用記到每次執行）、Tavily、現有的抓取程式。"""
+    return Deps(
+        make_llm=lambda run_id: gemini(agent_run_id=run_id),
+        toolbox=lambda starts, limit: real_toolbox(http, fetcher, starts, limit),
+        read=lambda url: fetch_page(fetcher, url),
+        max_cost_usd=max_cost_usd,
+    )
+
+
+def schools_left_today(session: Session, now: datetime, per_day: int = PER_DAY) -> list[int]:
+    """今天還能找的學校：每天最多 per_day 所，今天已經找過的算進去（工作重跑也不會多找）。"""
+    today = datetime.combine(now.astimezone(TAIPEI).date(), datetime.min.time(), TAIPEI)
+    done = session.scalar(select(func.count()).select_from(University).where(University.last_searched_at >= today))
+    return [school.id for school in todays_batch(session, now, max(0, per_day - int(done or 0)))]
+
+
+def notify_new_urls(session: Session, results: list[tuple[str, str, str]], now: datetime) -> bool:
+    """找新網址的結果一天合成一則（ADR-093）；全部都沒找到就不送。呼叫的人負責 commit。"""
+    message = new_url_digest_message(results)
+    if message is None:
+        return False
+    title, lines = message
+    return add_system_event(session, CURRENT_USER_ID, f"new-url-day:{now.astimezone(TAIPEI).date()}", title, lines, now)
+
+
+def describe(summary: Summary) -> str:
+    searched = "這週已搜尋過" if summary.searched is None else f"新增候選 {summary.searched}"
+    found = sum(1 for kind, _, _ in summary.new_urls if kind == "replaced")
+    text = (
+        f"找新網址 {len(summary.new_urls)} 個（換了 {found}）；搜尋補漏：{searched}；"
+        f"逐校找 {summary.schools} 所、新增候選 {summary.candidates}；出錯跳過 {summary.errors}"
+    )
+    return text + (f"；暫停：{summary.stopped}" if summary.stopped else "")
+
+
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="手動跑發掘任務（每天收尾後也會自動跑）")
+    parser.add_argument("--universities", type=int, default=0, help="逐校找幾所")
+    parser.add_argument("--search", action="store_true", help="搜尋補漏（每週一次，這週跑過就略過）")
+    parser.add_argument("--new-urls", type=int, default=0, help="替幾個抓不到的來源找新網址")
+    parser.add_argument("--max-cost", type=float, default=MAX_COST_NTD, help="每次 agent 執行的 AI 費用上限（新台幣）")
+    args = parser.parse_args()
+    now = datetime.now(UTC)
+    with SessionLocal() as session:
+        schools = [s.id for s in todays_batch(session, now, args.universities)] if args.universities else []
+        targets = new_url_targets(session, now)[: args.new_urls]
+    with httpx.Client() as http:
+        fetcher = HttpFetcher(settings.fetch_min_interval_seconds)
+        try:
+            summary = discover(real_deps(http, fetcher, args.max_cost / NTD_PER_USD), now, schools, args.search, targets)
+        finally:
+            fetcher.close()
+    with SessionLocal() as session:
+        notify_new_urls(session, summary.new_urls, now)
+        session.commit()
+    print(describe(summary))
+    for kind, name, detail in summary.new_urls:
+        print(f"  {kind:<9} {name}　{detail}")
+
+
+if __name__ == "__main__":
+    main()

@@ -27,6 +27,15 @@ from app.features.discovery.intake import (
     pending_candidate_ids,
     review_after_extraction,
 )
+from app.features.discovery.run import (
+    MAX_COST_NTD,
+    describe,
+    discover,
+    new_url_targets,
+    notify_new_urls,
+    real_deps,
+    schools_left_today,
+)
 from app.features.discovery.trace import clear_old_texts
 from app.features.matching.score import score_all
 from app.features.notifications.generate import add_system_event, generate
@@ -63,6 +72,7 @@ RESULT_TTL = 2 * 24 * 3600  # 工作的結果留 2 天，收尾時才讀得到�
 SOURCE_MAX_COST_NTD = 5.0  # 一個來源平常不到 NT$1（第 6 天重抽 180 筆約 NT$34）；超過代表有異常
 SCORE_MAX_COST_NTD = 20.0
 NTD_PER_USD = 32  # 和其他指令一樣的粗估匯率
+DISCOVERY_TIMEOUT = 4 * 60 * 60  # 發掘工作最多跑 4 小時（30 所學校，每所幾分鐘）
 
 
 def queue() -> Queue:
@@ -346,7 +356,33 @@ def finish_daily_run(run_id: int) -> str:
             )
             add_system_event(session, CURRENT_USER_ID, f"run:{run.id}", title, lines, finished)
     notify_soon()
+    # 收尾後放一件發掘工作（ADR-080、083）：agent 跑得久，另外一件，不拖慢每日報告
+    queue().enqueue(discover_today, job_timeout=DISCOVERY_TIMEOUT, result_ttl=RESULT_TTL)
     return f"收尾完成：來源 {sources}；申請期 {dict(cycles)}；評分 {scores}；通知事件 {events}"
+
+
+def discover_today() -> str:
+    """每天收尾後的發掘工作（ADR-080、083）：找新網址 → 搜尋補漏（每週）→ 逐校找（每天最多 30 所）。"""
+    now = datetime.now(UTC)
+    with SessionLocal() as session:
+        if breaker.is_open(session):
+            return "斷路器打開中：今天不跑發掘"
+        targets, schools = new_url_targets(session, now), schools_left_today(session, now)
+    with httpx.Client() as http:
+        fetcher = HttpFetcher(settings.fetch_min_interval_seconds)
+        try:
+            summary = discover(real_deps(http, fetcher, MAX_COST_NTD / NTD_PER_USD), now, schools, True, targets)
+        finally:
+            fetcher.close()
+    with SessionLocal() as session:
+        if summary.stopped:
+            breaker.open_breaker(session, summary.stopped)  # 例如本月 AI 達到上限（ADR-013、049）
+            session.commit()
+            notify_breaker(session)
+        if notify_new_urls(session, summary.new_urls, now):
+            session.commit()
+            notify_soon()
+    return describe(summary)
 
 
 def start_run(session: Session, run: Run, source_ids: list[int]) -> None:

@@ -5,15 +5,18 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.features.costs.usage import TAIPEI
 from app.features.discovery.candidates import EMPTY_LIMIT, WEEKLY_DECISIONS
 from app.features.discovery.intake import (
     add_candidates,
     decide_candidate,
     digest_items,
     pending_candidate_ids,
+    review_after_extraction,
     track_extraction,
 )
 from app.features.discovery.tools import Submission
+from app.features.pipeline.jobs import due_source_ids
 from app.features.scholarships.models import Cycle, Scholarship
 from app.features.sources.models import Discovery, Source, SourceKind, SourceStatus
 from app.shared.db import SessionLocal
@@ -119,6 +122,27 @@ def test_agent_sources_are_disabled_after_three_empty_extractions() -> None:
         )
         _, _, disabled = digest_items(session, NOW)
         assert ("Moved programme", f"連續 {EMPTY_LIMIT} 次抽不到有效獎學金") in disabled
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_daily_flow_checks_candidates_and_reviews_them_after_extraction() -> None:
+    session = SessionLocal()
+    try:
+        source = candidate(session, "https://test-daily.example/s")
+        # 候選排進今天的檢查
+        assert source.id in due_source_ids(session, NOW.astimezone(TAIPEI).date())
+        scholarship(session, source, ["FI"])
+        # 抽完：候選就決定
+        assert review_after_extraction(session, source, "類別 1、文件 3", NOW) == "approved"
+        # 已加入的 agent 來源：內容沒變、只有無關內容變了，都不算一次抽取
+        assert review_after_extraction(session, source, "unchanged", NOW) is None
+        assert review_after_extraction(session, source, "noise", NOW) is None
+        assert source.empty_extractions == 0
+        # 種子和目錄來的來源不管
+        seed = session.scalars(select(Source).where(Source.discovery != Discovery.SEARCH).limit(1)).one()
+        assert review_after_extraction(session, seed, "類別 1", NOW) is None
     finally:
         session.rollback()
         session.close()

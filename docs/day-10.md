@@ -97,7 +97,7 @@
 1. `llm_calls` 資料表與遷移
 2. 用量回呼介面；Gemini 轉接頭在呼叫前後叫它
 3. 寫資料庫的實作：
-   - 呼叫前：查本月（台灣時間的月份）總額，加上的話超過上限，就打開斷路器、丟錯誤
+   - 呼叫前：查本月（台灣時間的月份）總額，達到上限就丟 `MonthlyCapError`（它是現有的 `CostLimitError`，背景工作遇到會打開斷路器並通知）
    - 呼叫後：寫一筆紀錄，包括失敗的呼叫
 4. 現有指令與 RQ 工作改成都帶這個回呼，每個呼叫都標上功能名稱
 5. `uv run python -m app.features.costs`：印出本月總額、依功能分、最近 7 天每天的總額
@@ -196,13 +196,38 @@
   Success: no issues found in 93 source files
   ```
 
-### 段 2
-- [ ] 一次呼叫的費用依 tokens 與價格算對 -> verify: `cd backend && uv run pytest tests/test_costs.py -q`
-- [ ] 本月總額以台灣時間的月份計算 -> verify: `cd backend && uv run pytest tests/test_costs.py -q`
-- [ ] 加上這次會超過上限時，呼叫前就擋下、打開斷路器 -> verify: `cd backend && uv run pytest tests/test_costs.py -q`
-- [ ] 成功與失敗的呼叫都寫進 `llm_calls` -> verify: `cd backend && uv run pytest tests/test_costs_db.py -q`
-- [ ] `costs` 指令印出本月總額與依功能分 -> verify: `cd backend && uv run python -m app.features.costs`
-- [ ] 每日報告多一行今日 AI 費用 -> verify: `cd backend && uv run pytest tests/test_pipeline_messages.py -q`
+### 段 2（11-08 完成）
+- [x] 一次呼叫的費用依 tokens 與價格算對 -> verify: `cd backend && uv run pytest tests/test_llm_hook.py -q`
+  ```
+  紅（ec73125 骨架後）：4 failed（after_call 沒被叫、DID NOT RAISE）
+  綠（3ce7ee5）：4 passed in 0.22s
+  ```
+- [x] 本月總額以台灣時間的月份計算 -> verify: `cd backend && uv run pytest tests/test_costs.py -q`
+  ```
+  紅：2 failed in 0.02s　綠（40b42da）：2 passed in 0.01s
+  ```
+- [x] 本月總額達到上限時，下一次呼叫前就擋下；背景工作遇到會打開斷路器 -> verify: `cd backend && uv run pytest tests/test_costs_db.py -q`
+  ```
+  紅（447158d）：assert 0.0 == 1.0　綠（3ee05e6）：2 passed in 0.33s
+  ```
+- [x] 成功與失敗的呼叫都寫進 `llm_calls`，並認出提示詞版本 -> verify: `cd backend && uv run pytest tests/test_costs_db.py tests/test_prompts.py -q`
+  ```
+  紅（c4bfd2f）：assert [] == [('links', 'l...imeoutError')]　綠（558da53）：1 passed
+  identify 紅（d4203f6）：assert None == 'links-1'　綠（b7fd352）：15 passed
+  實測（b85bc91）：一次 ask 寫入 route route-2 324/87 tokens、answer answer-2 2122/66 tokens
+  ```
+- [x] `costs` 指令印出本月總額與依功能分 -> verify: `cd backend && uv run python -m app.features.costs`
+  ```
+  本月 AI 費用：約 NT$0.04（上限 NT$7,000）
+  依功能（本月）：answer 1 次、route 1 次
+  最近 7 天（台灣日期）：11-08  約 NT$0.04
+  ```
+- [x] 每日報告多一行今日 AI 費用 -> verify: `cd backend && uv run pytest tests/test_pipeline_messages.py -q`
+  ```
+  紅（d2c5a91）：assert ['這輪產生 1 則通知'] == [...]　綠（4da0688）：6 passed
+  真的資料庫上跑一次：「AI 費用：今天約 NT$0.04，本月約 NT$0（上限 NT$7,000）」
+  完整檢查：220 passed；ruff、mypy 無問題
+  ```
 
 ### 段 3
 - [ ] Gemini 3.5 Flash-Lite 的函式呼叫實際可用 -> verify: `cd backend && uv run python -m app.features.discovery.agent --smoke --max-cost 1`
@@ -260,3 +285,7 @@
 12. 同一學程檢查：新網頁的可見文字裡，要找得到學程名稱或縮寫（不分大小寫、忽略標點）以及主辦單位名稱的其中一個主要字
 13. 設定存在資料庫的 `app_settings`（和 ADR-026 把來源設定放資料庫一致）；資料庫還沒有值時，用 `.env` 的預設值（例如現在的 `notify_threshold`）
 14. gitleaks 用 Homebrew 安裝；hook 檔放進 git，換電腦時再執行一次 `git config core.hooksPath .githooks`
+15. （段 2 實作時）提示詞版本不改呼叫的地方：`prompts.identify` 從送出的文字反查是哪個提示詞（比對提示詞裡固定的文字片段），功能名稱就是提示詞名稱（例如 `extract`）；認不出來記成 `unknown`
+16. （段 2 實作時）上限只看「本月總額有沒有達到上限」，不預估這次會花多少，所以最多超過一次呼叫的錢（和 ADR-089 一致）；計畫原本寫「加上這次會超過」，已改
+17. （段 2 實作時）所有 Gemini 都由 `costs.gemini()` 建立；每個來源的抽取記下 `source_id`，`run_id` 先不填（工作裡拿不到，紀錄頁先用日期分）
+18. （段 2 實作時）嵌入（向量）呼叫不記錄：LangChain 的嵌入介面不回傳 tokens，費用也很小；之後要記再加

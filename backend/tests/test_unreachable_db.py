@@ -34,3 +34,29 @@ def test_three_failed_days_on_the_real_database() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_marked_and_recovered_sources_go_into_the_daily_report() -> None:
+    # 11-08 使用者選 C：不再一則一則送，收尾時交給每日檢查報告
+    session = SessionLocal()
+    try:
+        source = session.scalars(select(Source).where(Source.manual_reason.is_(None)).limit(1)).one()
+        source.fail_days, source.last_failed_on, source.unreachable_since = 0, None, None
+        start = datetime(2026, 11, 6, 2, 0, tzinfo=UTC)
+        results = [
+            track_unreachable(session, [(source.id, True, "gaierror: nodename nor servname provided")], start + timedelta(days=day))
+            for day in range(3)
+        ]
+        session.flush()
+        third = taipei_date(start + timedelta(days=2))
+        assert results[0] == ([], []) and results[1] == ([], [])
+        marked, recovered = results[2]
+        assert [error for _, error in marked] == ["gaierror: nodename nor servname provided"] and recovered == []
+        assert session.scalars(select(Event).where(Event.dedup_key == f"unreachable:{source.id}:{third}")).first() is None
+        # 之後抓到了：交給報告的「抓得到了」
+        later = start + timedelta(days=9)
+        _, recovered = track_unreachable(session, [(source.id, False, "")], later)
+        assert recovered == [marked[0][0]]
+    finally:
+        session.rollback()
+        session.close()

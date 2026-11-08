@@ -111,3 +111,30 @@ def test_discovery_digest_lists_added_rejected_and_disabled() -> None:
     assert "排除的原因：留學國家不在歐洲 2、國籍規定排除台灣 1" in lines
     assert "停用：Old programme（連續 3 次抽不到有效獎學金）" in lines
     assert lines[-1] == "不對的來源可以在網頁的設定頁停用"
+
+
+def test_report_lists_newly_unreachable_and_recovered_sources() -> None:
+    # 11-08 使用者選 C：抓不到、抓得到了不再一則一則送，併進每日檢查報告
+    _, lines = report.report_message(
+        local_date=date(2026, 11, 9),
+        started_at=datetime(2026, 11, 9, 0, 10, tzinfo=UTC),
+        finished_at=datetime(2026, 11, 9, 2, 0, tzinfo=UTC),
+        sources={"extracted": 2, "unchanged": 100, "failed": 3},
+        new_events=0,
+        skipped=[],
+        marked=[("MAGMA", "gaierror: [Errno 8] nodename nor servname provided"), ("REPLAY", "httpx.ConnectTimeout: timed out")],
+        recovered=["CyberMACS"],
+    )
+    assert "新標記抓不到 2 個（之後每 7 天試一次）：" in lines
+    assert "・MAGMA：網域不存在" in lines and "・REPLAY：連線逾時" in lines
+    assert "抓得到了 1 個，回到每天檢查：CyberMACS" in lines
+
+
+def test_error_kinds_in_plain_words() -> None:
+    assert report.error_kind("gaierror: [Errno 8] nodename nor servname provided, or not known") == "網域不存在"
+    assert report.error_kind("httpx.ConnectError: [Errno 8] nodename nor servname provided") == "網域不存在"
+    assert report.error_kind("httpx.ConnectTimeout: timed out") == "連線逾時"
+    assert report.error_kind("TemporaryFetchError: robots.txt 暫時無法讀取（520）") == "對方伺服器錯誤"
+    assert report.error_kind("SSLCertVerificationError: certificate verify failed") == "對方憑證或加密設定有問題"
+    assert report.error_kind("httpx.ConnectError: [SSL: UNSAFE_LEGACY_RENEGOTIATION_DISABLED]") == "對方憑證或加密設定有問題"
+    assert report.error_kind("httpx.HTTPStatusError: 404 Not Found") == "其他：httpx.HTTPStatusError: 404 Not Found"

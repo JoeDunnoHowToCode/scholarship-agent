@@ -22,7 +22,11 @@ from app.core.fetch.http import HttpFetcher
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM
 from app.features.costs.llm import gemini
 from app.features.costs.summary import summarize
-from app.features.discovery.intake import pending_candidate_ids, review_after_extraction
+from app.features.discovery.intake import (
+    add_weekly_digest,
+    pending_candidate_ids,
+    review_after_extraction,
+)
 from app.features.discovery.trace import clear_old_texts
 from app.features.matching.score import score_all
 from app.features.notifications.generate import add_system_event, generate
@@ -293,6 +297,7 @@ def finish_daily_run(run_id: int) -> str:
     with SessionLocal() as session, session.begin():
         track_unreachable(session, source_outcomes(), datetime.now(UTC))  # 天天抓不到的來源（ADR-080）
         clear_old_texts(session, datetime.now(UTC))  # agent 步驟的全文只留 30 天（ADR-089）
+        add_weekly_digest(session, datetime.now(UTC))  # 發掘 agent 的每週摘要（ADR-078）
         events = generate(session, CURRENT_USER_ID, datetime.now(UTC))  # 通知事件（ADR-062）
         run = session.get(Run, run_id)
         if run is not None:

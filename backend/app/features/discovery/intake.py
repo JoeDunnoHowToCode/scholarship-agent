@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.features.costs.usage import TAIPEI
 from app.features.discovery.candidates import (
     EMPTY_LIMIT,
     Facts,
@@ -16,6 +17,9 @@ from app.features.discovery.candidates import (
     next_empty,
 )
 from app.features.discovery.tools import Submission
+from app.features.notifications.generate import add_system_event
+from app.features.pipeline.report import discovery_digest_message
+from app.features.profiles.service import CURRENT_USER_ID
 from app.features.scholarships.models import Scholarship
 from app.features.sources.models import Discovery, Source, SourceKind, SourceStatus
 
@@ -143,4 +147,10 @@ def review_after_extraction(session: Session, source: Source, summary: str, now:
 
 def add_weekly_digest(session: Session, now: datetime) -> bool:
     """這週（台灣時間的 ISO 週）第一次收尾時，加一則發掘的每週摘要；最近 7 天沒有動靜就不送。回傳有沒有加。"""
-    return False  # 骨架
+    added, rejected, disabled = digest_items(session, now)
+    if not (added or rejected or disabled):
+        return False  # 「Claude 自行決定」第 25 點：沒有動靜就不打擾
+    year, week, _ = now.astimezone(TAIPEI).date().isocalendar()
+    title, lines = discovery_digest_message(added, rejected, disabled)
+    # 去重鍵用週次：同一週不管收尾幾次都只送一則
+    return add_system_event(session, CURRENT_USER_ID, f"discovery:{year}-W{week:02d}", title, lines, now)

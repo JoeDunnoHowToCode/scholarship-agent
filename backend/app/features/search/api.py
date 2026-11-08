@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.llm.gemini import GeminiEmbedder, GeminiLLM, LLMError, MissingApiKeyError
+from app.core.llm.gemini import GeminiEmbedder, LLMError, MissingApiKeyError
+from app.features.costs.llm import gemini
 from app.features.pipeline import breaker
 from app.features.scholarships.models import EMBEDDING_DIMENSIONS
 from app.features.search import ask
@@ -65,7 +66,7 @@ def ask_question(data: AskIn, session: DbSession) -> AskOut:
     if breaker.is_open(session):
         raise HTTPException(status_code=503, detail="斷路器打開中，AI 步驟暫停（ADR-056）")
     try:
-        llm = GeminiLLM(settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute)
+        llm = gemini()
         embedder = GeminiEmbedder(
             settings.embedding_model, settings.google_api_key, EMBEDDING_DIMENSIONS,
             settings.llm_requests_per_minute,

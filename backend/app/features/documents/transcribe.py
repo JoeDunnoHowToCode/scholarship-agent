@@ -15,6 +15,7 @@ from pypdf import PdfWriter
 from app.core import prompts
 from app.core.fetch.text import pdf_to_text
 from app.core.llm.base import PdfReader
+from app.features.costs.llm import gemini
 from app.features.documents.checks import unverified_numbers
 
 PROMPT_VERSION = "transcribe-1"  # 改提示詞就要改版本號，舊的轉錄稿會自動重做
@@ -61,16 +62,13 @@ def transcribe(reader: PdfReader, pdf_path: Path) -> tuple[str, list[str]]:
 
 
 def main() -> None:
-    from app.core.llm.gemini import GeminiLLM, MissingApiKeyError
-    from app.shared.settings import settings
+    from app.core.llm.gemini import MissingApiKeyError
 
     parser = argparse.ArgumentParser(description="把 PDF 快照轉錄成 Markdown 並核對數字")
     parser.add_argument("path", type=Path, help="PDF 快照檔")
     args = parser.parse_args()
     try:
-        llm = GeminiLLM(
-            settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute
-        )
+        llm = gemini()
     except MissingApiKeyError as error:
         sys.exit(str(error))
     transcript, unverified = transcribe(llm, args.path)

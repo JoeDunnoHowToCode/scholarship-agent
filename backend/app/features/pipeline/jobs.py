@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.fetch.http import HttpFetcher
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM
+from app.features.costs.llm import gemini
 from app.features.matching.score import score_all
 from app.features.notifications.generate import add_system_event, generate
 from app.features.notifications.models import Event
@@ -163,7 +164,7 @@ def process_source(source_id: int) -> dict[str, str]:
                 return {"result": "fetch_only", "detail": "斷路器打開中：只抓取，不抽取"}
             if not session.scalar(select(exists().where(Snapshot.source_id == source.id))):
                 return {"result": "skipped", "detail": "沒有快照可以抽"}
-            llm = GeminiLLM(settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute)
+            llm = gemini(source_id=source.id)
             summary = extract_source(session, llm, source)
             session.commit()
             spent = sum(x.cost_usd() for x in (llm, picker_llm) if x is not None) * NTD_PER_USD
@@ -229,7 +230,7 @@ def score_today() -> dict[str, Any]:
         profile = get_profile(session, CURRENT_USER_ID)
         if profile is None:
             return {"skipped": "還沒有個人資料"}
-        llm = GeminiLLM(settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute)
+        llm = gemini()
         counts: dict[str, Any] = score_all(session, llm, settings.llm_model, profile, SCORE_MAX_COST_NTD)
         return counts
 

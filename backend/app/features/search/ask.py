@@ -23,7 +23,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core import prompts
 from app.core.llm.base import Embedder, StructuredLLM
-from app.core.llm.gemini import GeminiEmbedder, GeminiLLM, MissingApiKeyError
+from app.core.llm.gemini import GeminiEmbedder, MissingApiKeyError
+from app.features.costs.llm import gemini
 from app.features.scholarships import countries
 from app.features.scholarships.dedup import normalize_name
 from app.features.scholarships.models import EMBEDDING_DIMENSIONS, Cycle, Scholarship
@@ -255,7 +256,7 @@ def main() -> None:
     parser.add_argument("question")
     args = parser.parse_args()
     try:
-        llm = GeminiLLM(settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute)
+        llm = gemini()
         embedder = GeminiEmbedder(
             settings.embedding_model, settings.google_api_key, EMBEDDING_DIMENSIONS,
             settings.llm_requests_per_minute,

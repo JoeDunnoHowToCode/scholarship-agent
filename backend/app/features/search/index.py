@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core import prompts
 from app.core.fetch.text import content_hash, decode_snapshot
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM, LLMError, MissingApiKeyError
+from app.features.costs.llm import gemini
 from app.features.documents.chunking import Chunk as Piece
 from app.features.documents.chunking import chunk_html, chunk_transcript
 from app.features.documents.transcribe import cache_path
@@ -184,7 +185,7 @@ def main() -> None:
     parser.add_argument("--max-cost", type=float, help="這次執行的 AI 費用上限（新台幣）")
     args = parser.parse_args()
     try:
-        llm = GeminiLLM(settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute)
+        llm = gemini()
         embedder = GeminiEmbedder(
             settings.embedding_model, settings.google_api_key, EMBEDDING_DIMENSIONS,
             settings.llm_requests_per_minute,

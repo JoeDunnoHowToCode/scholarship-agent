@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core import prompts
 from app.core.llm.base import StructuredLLM
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
+from app.features.costs.llm import gemini
 from app.features.matching import checks
 from app.features.matching.models import Match
 from app.features.matching.scoring import CheckResult, apply_caps
@@ -259,7 +260,7 @@ def main() -> None:
     parser.add_argument("--max-cost", type=float, help="這次執行的 AI 費用上限（新台幣）")
     args = parser.parse_args()
     try:
-        llm = GeminiLLM(settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute)
+        llm = gemini()
     except MissingApiKeyError as error:
         sys.exit(str(error))
     # expire_on_commit=False：commit 之後不要把已讀進來的資料標成過期，

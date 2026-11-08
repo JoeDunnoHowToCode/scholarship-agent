@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session
 from app.core.fetch.base import BlockedError, Fetcher
 from app.core.fetch.http import HttpFetcher
 from app.core.fetch.text import content_hash, decode_snapshot, pdf_to_text
-from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
+from app.core.llm.gemini import LLMError, MissingApiKeyError
+from app.features.costs.llm import gemini
 from app.features.scholarships.extract import documents
 from app.features.scholarships.models import Scholarship
 from app.features.sources.fetch import SNAPSHOT_DIR, report, save_raw
@@ -91,9 +92,7 @@ def main() -> None:
     parser.add_argument("--max-cost", type=float, help="這次執行的 AI 費用上限（新台幣）")
     args = parser.parse_args()
     try:
-        llm = GeminiLLM(
-            settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute
-        )
+        llm = gemini()
     except MissingApiKeyError as error:
         sys.exit(str(error))
 

@@ -22,6 +22,7 @@ from app.core.fetch.base import BlockedError, Fetcher, FetchResult, TemporaryFet
 from app.core.fetch.http import HttpFetcher
 from app.core.fetch.text import content_hash, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
+from app.features.costs.llm import gemini
 from app.features.sources.links import Link, candidate_links
 from app.features.sources.models import FetchMethod, Snapshot, Source, SourceStatus
 from app.features.sources.pagination import missing_pages_warning, pagination_urls
@@ -165,9 +166,7 @@ def make_picker() -> tuple[LinkPicker | None, GeminiLLM | None]:
     from app.features.sources.pick import pick_links  # 只有挑連結時才需要
 
     try:
-        llm = GeminiLLM(
-            settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute
-        )
+        llm = gemini()
     except MissingApiKeyError as error:
         print(f"{error}；這次不挑連結，只抓首頁", file=sys.stderr)
         return None, None

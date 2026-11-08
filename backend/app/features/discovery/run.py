@@ -128,3 +128,18 @@ def new_url_targets(session: Session, now: datetime) -> list[int]:
         select(Source.id).where(Source.unreachable_since.is_not(None), Source.enabled.is_(True)).order_by(Source.id)
     )
     return [source_id for source_id in rows if f"source:{source_id}" not in recent]
+
+
+@dataclass
+class Summary:
+    new_urls: list[tuple[str, str, str]]  # 找新網址的結果
+    searched: int | None  # 搜尋補漏新增幾個候選；這週已經搜尋過是 None
+    schools: int  # 逐校找了幾所
+    candidates: int  # 逐校找新增幾個候選
+    errors: int  # 出錯跳過的任務數
+    stopped: str | None  # 暫停 AI 的原因（例如每月上限）；有值代表整批停下
+
+
+def discover(deps: Deps, now: datetime, schools: list[int], search: bool, new_urls: list[int]) -> Summary:
+    """依序跑：找新網址 → 搜尋補漏 → 逐校找。暫停 AI 的錯誤就整批停下；其他錯誤跳過那個任務。"""
+    return Summary([], None, 0, 0, 0, None)  # 骨架

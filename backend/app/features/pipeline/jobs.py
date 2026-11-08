@@ -43,7 +43,12 @@ from app.features.notifications.models import Event
 from app.features.notifications.send import send_events
 from app.features.pipeline import breaker, unreachable
 from app.features.pipeline.due import frequency_for, is_due
-from app.features.pipeline.errors import CostLimitError, classify, root_cause
+from app.features.pipeline.errors import (
+    CostLimitError,
+    classify,
+    hopeless_cause,
+    root_cause,
+)
 from app.features.pipeline.models import Run
 from app.features.pipeline.report import (
     report_message,
@@ -221,7 +226,7 @@ def handle_error(session: Session, source_id: int, error: Exception) -> dict[str
         if not online():
             raise error  # 電腦斷網時 DNS 也會說「網域不存在」：當成暫時的，交給 RQ 重試
         # 重試也不會好（網域不存在、對方憑證有問題）：今天直接算失敗，不重試（11-08 使用者要求）
-        cause = root_cause(error)
+        cause = hopeless_cause(error) or root_cause(error)  # 例如 gaierror、PageGone，報告才分得出種類
         detail = f"{type(cause).__name__}: {cause}"
         print(f"unreachable 來源 {source_id}：{detail}")
         return {"result": "unreachable", "detail": detail}
@@ -308,6 +313,8 @@ def track_unreachable(
         source = session.get(Source, source_id)
         if source is None:
             continue
+        # 為什麼抓不到（11-09 使用者選 B）：失敗就記下這次的錯誤（沒有錯誤訊息就保留上次的），成功就清掉
+        source.last_error = (error or source.last_error) if failed else None
         state = (source.fail_days, source.last_failed_on, source.unreachable_since)
         (source.fail_days, source.last_failed_on, source.unreachable_since), notice = unreachable.next_state(
             state, failed, today

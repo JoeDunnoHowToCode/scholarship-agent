@@ -27,10 +27,10 @@ from app.features.discovery.tools import Page, Toolbox
 from app.features.discovery.universities import PER_DAY, RESEARCH_AFTER, todays_batch
 from app.features.notifications.generate import add_system_event
 from app.features.pipeline.errors import classify
-from app.features.pipeline.report import new_url_digest_message
+from app.features.pipeline.report import new_url_digest_message, site_gone
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships.models import Scholarship
-from app.features.sources.models import Source, SourceKind
+from app.features.sources.models import Discovery, Source, SourceKind
 from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
@@ -138,10 +138,15 @@ def new_url_targets(session: Session, now: datetime) -> list[int]:
     """今天要找新網址的來源：被標成抓不到（ADR-080）、還啟用中、7 天內沒找過。"""
     searched = select(AgentRun.target).where(AgentRun.task == "new_url", AgentRun.started_at >= now - NEW_URL_EVERY)
     recent = {target for target in session.scalars(searched) if target}
-    rows = session.scalars(
-        select(Source.id).where(Source.unreachable_since.is_not(None), Source.enabled.is_(True)).order_by(Source.id)
-    )
-    return [source_id for source_id in rows if f"source:{source_id}" not in recent]
+    rows = session.execute(
+        select(Source.id, Source.last_error).where(
+            Source.unreachable_since.is_not(None),
+            Source.enabled.is_(True),
+            Source.discovery != Discovery.CATALOGUE,  # EACEA 學程以目錄為準（11-09 使用者選 D）
+        ).order_by(Source.id)
+    ).tuples()
+    # 網站不在了才找（11-09 使用者選 B）：伺服器錯誤、逾時這類暫時故障只重試
+    return [sid for sid, error in rows if site_gone(error) and f"source:{sid}" not in recent]
 
 
 @dataclass

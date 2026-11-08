@@ -27,7 +27,7 @@ def classify(error: BaseException) -> Kind:
     我們的 Gemini 轉接頭會把 Google 的錯誤包成 LLMError，原本的錯誤（含狀態碼）在裡面。
     """
     # 先往裡面找有沒有「重試也不會好」的原因：httpx 把它包在 ConnectError 裡，外層會被當成一般連線問題
-    if _hopeless(error):
+    if hopeless_cause(error) is not None:
         return "fail"
     current: BaseException | None = error
     for _ in range(MAX_LINKS):
@@ -69,22 +69,25 @@ def _kind_of(error: BaseException) -> Kind | None:
     return None
 
 
-def _hopeless(error: BaseException) -> bool:
-    """網域不存在、對方憑證驗證失敗、對方用太舊的加密協商：都要對方修，當天重試沒用（11-08 使用者要求）。"""
+def hopeless_cause(error: BaseException) -> BaseException | None:
+    """網域不存在、首頁不見了、對方憑證驗證失敗、對方用太舊的加密協商：都要對方修，當天重試沒用。
+
+    回傳讓它判定為「重試沒用」的那個例外（錯誤說明用它），都不是就回傳 None。
+    """
     current: BaseException | None = error
     for _ in range(MAX_LINKS):
         if current is None:
-            return False
+            return None
         if isinstance(current, PageGone):
-            return True  # 首頁 404、410：重試也一樣（11-09 使用者選 C）
+            return current  # 首頁 404、410：重試也一樣（11-09 使用者選 C）
         if isinstance(current, socket.gaierror) and current.errno == socket.EAI_NONAME:
-            return True  # 網域查不到（暫時查不到是 EAI_AGAIN，照舊重試）
+            return current  # 網域查不到（暫時查不到是 EAI_AGAIN，照舊重試）
         if isinstance(current, ssl.SSLCertVerificationError):
-            return True
+            return current
         if isinstance(current, ssl.SSLError) and getattr(current, "reason", None) == "UNSAFE_LEGACY_RENEGOTIATION_DISABLED":
-            return True
+            return current
         current = current.__cause__ if current.__cause__ is not None else current.__context__
-    return False
+    return None
 
 
 def root_cause(error: BaseException) -> BaseException:

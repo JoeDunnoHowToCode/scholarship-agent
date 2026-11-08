@@ -120,6 +120,8 @@ def new_url_mismatch_message(name: str, url: str, reason: str) -> Message:
 def error_kind(error: str) -> str:
     """抓不到的原因換成白話的種類（11-08：抓不到的通知併進每日報告）。"""
     lowered = error.lower()
+    if error.startswith("PageGone"):
+        return "頁面不存在（" + ("410" if "410" in error else "404") + "）"
     if "nodename nor servname" in lowered or "name or service not known" in lowered or "gaierror" in lowered:
         return "網域不存在"
     if "timeout" in lowered or "timed out" in lowered:
@@ -150,3 +152,11 @@ def new_url_digest_message(results: list[tuple[str, str, str]]) -> Message | Non
     lines += [f"對不上，沒換：{name}　{detail}" for name, detail in mismatched]
     lines.append("沒換的 7 天後再找一次")
     return title, lines
+
+
+# 這些種類代表「網站不在了」：才值得派 agent 找新官網（11-09 使用者選 B）；伺服器錯誤、逾時只重試
+GONE_KINDS = frozenset({"網域不存在", "頁面不存在（404）", "頁面不存在（410）", "對方憑證或加密設定有問題"})
+
+
+def site_gone(error: str | None) -> bool:
+    return error is not None and error_kind(error) in GONE_KINDS

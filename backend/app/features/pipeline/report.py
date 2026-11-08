@@ -91,3 +91,10 @@ def unreachable_message(name: str, url: str, error: str, last_ok: date | None) -
 def recovered_message(name: str, url: str) -> Message:
     """標記成抓不到的來源又抓得到了（ADR-080）。"""
     return f"抓得到了：{name}", [f"網址：{url}", "回到每天檢查"]
+
+
+def discovery_digest_message(
+    added: list[tuple[str, str]], rejected: list[tuple[str, str]], disabled: list[tuple[str, str]]
+) -> Message:
+    """發掘 agent 的每週摘要（ADR-078）：加入（名稱, 網址）、排除與停用（名稱, 原因）。"""
+    return "", []  # 骨架

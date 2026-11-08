@@ -60,6 +60,12 @@ def report_message(
     if ai_cost is not None:
         today_ntd, month_ntd, cap_ntd = ai_cost
         lines.append(f"AI 費用：今天約 NT${today_ntd:,.2f}，本月約 NT${month_ntd:,.0f}（上限 NT${cap_ntd:,.0f}）")
+    if marked:
+        # 連續 3 天抓不到（ADR-080）：併進報告，不再一則一則送（11-08 使用者選 C）
+        lines.append(f"新標記抓不到 {len(marked)} 個（之後每 7 天試一次）：")
+        lines += [f"・{name}：{error_kind(error)}" for name, error in marked]
+    if recovered:
+        lines.append(f"抓得到了 {len(recovered)} 個，回到每天檢查：" + "、".join(recovered))
     for skipped_day, waited in skipped:
         reason = "沒有單獨檢查：在等前一輪收尾" if waited else "沒有檢查：那天電腦沒開或沒有網路"
         lines.append(f"{day(skipped_day)} {reason}")
@@ -128,4 +134,13 @@ def new_url_mismatch_message(name: str, url: str, reason: str) -> Message:
 
 def error_kind(error: str) -> str:
     """抓不到的原因換成白話的種類（11-08：抓不到的通知併進每日報告）。"""
-    return ""  # 骨架
+    lowered = error.lower()
+    if "nodename nor servname" in lowered or "name or service not known" in lowered or "gaierror" in lowered:
+        return "網域不存在"
+    if "timeout" in lowered or "timed out" in lowered:
+        return "連線逾時"
+    if "ssl" in lowered or "certificate" in lowered:
+        return "對方憑證或加密設定有問題"
+    if "robots.txt 暫時無法讀取" in error or "5xx" in lowered or "server error" in lowered:
+        return "對方伺服器錯誤"
+    return f"其他：{error[:80]}"

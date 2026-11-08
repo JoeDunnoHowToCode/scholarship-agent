@@ -37,10 +37,8 @@ from app.features.pipeline.due import frequency_for, is_due
 from app.features.pipeline.errors import CostLimitError, classify, root_cause
 from app.features.pipeline.models import Run
 from app.features.pipeline.report import (
-    recovered_message,
     report_message,
     stale_message,
-    unreachable_message,
     waiting_message,
 )
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
@@ -286,9 +284,16 @@ def source_outcomes() -> list[tuple[int, bool, str]]:
     return outcomes
 
 
-def track_unreachable(session: Session, outcomes: list[tuple[int, bool, str]], now: datetime) -> None:
-    """依今天的結果更新每個來源的失敗天數（ADR-080）；第 3 個失敗的日子通知你，恢復了也通知你。"""
+def track_unreachable(
+    session: Session, outcomes: list[tuple[int, bool, str]], now: datetime
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """依今天的結果更新每個來源的失敗天數（ADR-080）。
+
+    回傳（今天新標記抓不到的（名稱, 錯誤）, 今天恢復的名稱），交給每日報告（11-08 使用者選 C，不再一則一則送）。
+    """
     today = taipei_date(now)
+    marked: list[tuple[str, str]] = []
+    recovered: list[str] = []
     for source_id, failed, error in outcomes:
         source = session.get(Source, source_id)
         if source is None:
@@ -302,12 +307,10 @@ def track_unreachable(session: Session, outcomes: list[tuple[int, bool, str]], n
         row = session.scalars(select(Scholarship).where(Scholarship.source_id == source_id)).first()
         name = row.name if row else source.name
         if notice == "unreachable":
-            last_ok = taipei_date(source.last_checked_at) if source.last_checked_at else None
-            title, lines = unreachable_message(name, source.url, error, last_ok)
-            add_system_event(session, CURRENT_USER_ID, f"unreachable:{source_id}:{today}", title, lines, now)
+            marked.append((name, error))
         else:
-            title, lines = recovered_message(name, source.url)
-            add_system_event(session, CURRENT_USER_ID, f"recovered:{source_id}:{today}", title, lines, now)
+            recovered.append(name)
+    return marked, recovered
 
 
 def finish_daily_run(run_id: int) -> str:
@@ -318,7 +321,7 @@ def finish_daily_run(run_id: int) -> str:
     dedup.main()  # 規則去重（ADR-048），自己開交易、印出結果
     scores = score_today()
     with SessionLocal() as session, session.begin():
-        track_unreachable(session, source_outcomes(), datetime.now(UTC))  # 天天抓不到的來源（ADR-080）
+        marked, recovered = track_unreachable(session, source_outcomes(), datetime.now(UTC))  # ADR-080
         clear_old_texts(session, datetime.now(UTC))  # agent 步驟的全文只留 30 天（ADR-089）
         add_weekly_digest(session, datetime.now(UTC))  # 發掘 agent 的每週摘要（ADR-078）
         events = generate(session, CURRENT_USER_ID, datetime.now(UTC))  # 通知事件（ADR-062）
@@ -338,7 +341,8 @@ def finish_daily_run(run_id: int) -> str:
                 settings.monthly_cap_ntd,
             )
             title, lines = report_message(
-                run.local_date, run.started_at, finished, sources, new_events, skipped_days(session, run), ai_cost
+                run.local_date, run.started_at, finished, sources, new_events, skipped_days(session, run), ai_cost,
+                marked, recovered,
             )
             add_system_event(session, CURRENT_USER_ID, f"run:{run.id}", title, lines, finished)
     notify_soon()

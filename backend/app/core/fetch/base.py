@@ -30,3 +30,12 @@ class Fetcher(Protocol):
     def get(
         self, url: str, *, etag: str | None = None, last_modified: str | None = None
     ) -> FetchResult: ...
+
+
+class PageGone(Exception):
+    """來源的首頁回 404 或 410：頁面不見了（可能搬家）。這天算失敗、不重試（11-09 使用者選 C）。"""
+
+    def __init__(self, url: str, status: int) -> None:
+        super().__init__(f"首頁不存在（{status}）：{url}")
+        self.url = url
+        self.status = status

@@ -3,6 +3,7 @@
 這裡只產生文字（純函式，好測試）；tick 與收尾工作把它寫成系統事件，各自一則、不併進摘要。
 """
 
+from collections import Counter
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -10,6 +11,9 @@ TAIPEI = ZoneInfo("Asia/Taipei")
 
 # 系統通知的標題，以及內容的每一行
 Message = tuple[str, list[str]]
+
+
+DIGEST_LISTED = 10  # 每週摘要最多列幾個加入的來源（「Claude 自行決定」第 24 點）
 
 
 def day(value: date) -> str:
@@ -97,4 +101,14 @@ def discovery_digest_message(
     added: list[tuple[str, str]], rejected: list[tuple[str, str]], disabled: list[tuple[str, str]]
 ) -> Message:
     """發掘 agent 的每週摘要（ADR-078）：加入（名稱, 網址）、排除與停用（名稱, 原因）。"""
-    return "", []  # 骨架
+    title = f"本週新來源：加入 {len(added)}、排除 {len(rejected)}、停用 {len(disabled)}"
+    lines = [f"加入：{name}　{url}" for name, url in added[:DIGEST_LISTED]]
+    if len(added) > DIGEST_LISTED:
+        lines.append(f"（還有 {len(added) - DIGEST_LISTED} 個，見網頁的設定頁）")
+    if rejected:
+        # 排除的不逐一列名稱，只統計原因：用來看規則是不是太嚴或太鬆
+        reasons = Counter(reason for _, reason in rejected)
+        lines.append("排除的原因：" + "、".join(f"{reason} {n}" for reason, n in reasons.most_common()))
+    lines += [f"停用：{name}（{reason}）" for name, reason in disabled]
+    lines.append("不對的來源可以在網頁的設定頁停用")
+    return title, lines

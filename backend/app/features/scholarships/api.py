@@ -167,6 +167,9 @@ class ScholarshipDetail(BaseModel):
     coverage: str | None
     amount: str | None
     amounts: list[AmountOut]
+    # 頁首的重點摘要（ADR-090）：和列表卡片同一行申請日期、同一句補助
+    deadline_line: str | None
+    amount_headline: str | None
     language_requirements: str | None
     other_eligibility: str | None
     requires_admission: bool | None
@@ -431,7 +434,11 @@ def read_scholarship(scholarship_id: int, session: DbSession) -> ScholarshipDeta
         text = describe_change(change.field, change.old_value, change.new_value, today=today)
         if text is not None:
             changes.append(ChangeOut(changed_at=change.changed_at, text=text))
+    profile = get_profile(session, CURRENT_USER_ID)
+    shown = card_cycle(list(row.cycles), profile.nationality if profile else None)  # 國籍只在本機用來挑申請期
     return ScholarshipDetail(
+        deadline_line=describe_cycle(shown, datetime.now(UTC)) if shown else None,
+        amount_headline=amounts.headline(amount_items(row.extracted)),
         id=row.id,
         name=row.name,
         name_zh=row.name_zh,

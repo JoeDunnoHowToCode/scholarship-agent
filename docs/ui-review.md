@@ -105,13 +105,34 @@
 
 ## 檢查清單
 
-- [ ] A1 篩選存在網址：打開「只看開放中的」→ 點進一筆 → 上一頁，開關仍開、仍是 56 筆 -> verify: `cd frontend && npm run build`，瀏覽器執行上述步驟，貼出筆數與開關狀態
-- [ ] A1 重新整理後篩選仍在：網址 `/?open=1` 重新整理後仍是 56 筆 -> verify: 瀏覽器重新整理，貼出筆數
-- [ ] A2 整張卡片可點：點卡片的申請日期那一行會進詳細頁 -> verify: 瀏覽器點卡片內文，貼出新網址
-- [ ] A2 鍵盤只有一個停留點：Tab 經過一張卡片只停一次 -> verify: 瀏覽器數卡片內可聚焦元素數量，貼出結果（應為 1）
-- [ ] A3 詳細頁從頁首開始：列表捲到 3000px 後點進詳細頁，`scrollY` 為 0 -> verify: 瀏覽器貼出 `scrollY`
-- [ ] A3 上一頁保留位置：回列表後 `scrollY` 接近 3000 -> verify: 瀏覽器貼出 `scrollY`
-- [ ] A4 回列表保留篩選：開篩選 → 進詳細頁 → 點「← 回列表」，篩選仍在 -> verify: 瀏覽器貼出筆數
+- [x] A1 篩選存在網址：打開「只看開放中的」→ 點進一筆 → 上一頁，開關仍開、仍是 56 筆 -> verify: `cd frontend && npm run build`，瀏覽器執行上述步驟，貼出筆數與開關狀態
+  ```
+  urlAfterSwitch "?open=1"、countOn 56 → 點卡片 → 回列表：backUrl "/?open=1"、backCount 56、switchOn "true"
+  ```
+- [x] A1 重新整理後篩選仍在：網址 `/?open=1` 重新整理後仍是 56 筆 -> verify: 瀏覽器重新整理，貼出筆數
+  ```
+  reload 後 url "?open=1"、n 56
+  ```
+- [x] A2 整張卡片可點：點卡片的申請日期那一行會進詳細頁 -> verify: 瀏覽器點卡片內文，貼出新網址
+  ```
+  點卡片內「申請日期」那一行（elementFromPoint 是 P）→ afterCardClick "/scholarships/178"
+  ```
+- [x] A2 鍵盤只有一個停留點：Tab 經過一張卡片只停一次 -> verify: 瀏覽器數卡片內可聚焦元素數量，貼出結果（應為 1）
+  ```
+  focusablesInCard 1
+  ```
+- [x] A3 詳細頁從頁首開始：列表捲到 3000px 後點進詳細頁，`scrollY` 為 0 -> verify: 瀏覽器貼出 `scrollY`
+  ```
+  listScroll 5416 → detailScroll 0
+  ```
+- [x] A3 上一頁保留位置：回列表後 `scrollY` 接近 3000 -> verify: 瀏覽器貼出 `scrollY`
+  ```
+  backScroll 5416
+  ```
+- [x] A4 回列表保留篩選：開篩選 → 進詳細頁 → 點「← 回列表」，篩選仍在 -> verify: 瀏覽器貼出筆數
+  ```
+  點「← 回列表」→ backUrl "/?open=1"、backCount 56
+  ```
 - [ ] B1 官方網站是主要按鈕，1280px 時和標題同一列在右側、375px 時換到標題下方 -> verify: 瀏覽器在 1280 與 375 量按鈕尺寸並貼出
 - [ ] B2 頁首摘要列顯示申請日期、補助、分數 -> verify: 瀏覽器讀出摘要列的標籤文字
 - [ ] B3 四個頁籤，預設「申請」；點「評分」後網址有 `?tab=score`，重新整理仍在評分頁籤 -> verify: 瀏覽器列出頁籤與目前網址

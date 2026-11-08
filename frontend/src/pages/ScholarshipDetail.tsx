@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 
 import { api, unwrap, type Schemas } from "@/api/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -49,9 +49,7 @@ export default function ScholarshipDetail() {
   const d = detail.data;
   return (
     <div className="space-y-4">
-      <Link to="/" className="text-sm text-muted-foreground hover:underline">
-        ← 回列表
-      </Link>
+      <BackToList />
       <div className="space-y-1">
         <h1 className="text-xl font-semibold">{d.name}</h1>
         <p className="text-muted-foreground">{[d.name_zh, d.provider].filter(Boolean).join("｜")}</p>
@@ -193,6 +191,25 @@ export default function ScholarshipDetail() {
         )}
       </Section>
     </div>
+  );
+}
+
+// 從列表點進來的用「上一頁」，篩選和捲動位置都保留；直接打開網址的才連到首頁（UI 計畫 A4）
+function BackToList() {
+  const fromList = (useLocation().state as { fromList?: boolean } | null)?.fromList;
+  const navigate = useNavigate();
+  return (
+    <Link
+      to="/"
+      onClick={(event) => {
+        if (!fromList) return;
+        event.preventDefault();
+        navigate(-1);
+      }}
+      className="text-sm text-muted-foreground hover:underline"
+    >
+      ← 回列表
+    </Link>
   );
 }
 

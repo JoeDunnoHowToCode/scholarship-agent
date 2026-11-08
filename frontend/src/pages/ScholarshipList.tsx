@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { api, unwrap, type Schemas } from "@/api/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -27,17 +27,43 @@ const DEGREE_ITEMS = [
   ...Object.entries(DEGREE_NAMES).map(([value, label]) => ({ value, label })),
 ];
 
+// 篩選條件存在網址參數（UI 計畫 A1）：按上一頁、重新整理、分享網址都保得住，例如 /?open=1&degree=master
+const PARAM_NAMES: Record<keyof Filters, string> = {
+  q: "q",
+  country: "country",
+  degree: "degree",
+  openOnly: "open",
+  after: "after",
+  before: "before",
+};
+
+function filtersFrom(params: URLSearchParams): Filters {
+  return {
+    q: params.get("q") ?? "",
+    country: params.get("country") ?? ALL,
+    degree: params.get("degree") ?? ALL,
+    openOnly: params.get("open") === "1",
+    after: params.get("after") ?? "",
+    before: params.get("before") ?? "",
+  };
+}
+
+// 預設值（空字串、「全部」、關閉）不寫進網址，網址保持乾淨
+function paramsFrom(filters: Filters): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, name] of Object.entries(PARAM_NAMES) as [keyof Filters, string][]) {
+    const value = filters[key];
+    if (value === true) params.set(name, "1");
+    else if (typeof value === "string" && value !== "" && value !== ALL) params.set(name, value);
+  }
+  return params;
+}
+
 export default function ScholarshipList() {
-  const [filters, setFilters] = useState<Filters>({
-    q: "",
-    country: ALL,
-    degree: ALL,
-    openOnly: false,
-    after: "",
-    before: "",
-  });
+  const [params, setParams] = useSearchParams();
+  const filters = filtersFrom(params);
   // 搜尋框打字時先存在這裡，按 Enter 或「搜尋」才送出（每次搜尋要算一次向量）
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(filters.q);
   // 沒填的條件不送（undefined 不會出現在網址上）
   const query = {
     q: filters.q || undefined,
@@ -59,7 +85,8 @@ export default function ScholarshipList() {
     queryFn: async () => unwrap(await api.GET("/api/scholarships")),
   });
   const countryItems = [{ value: ALL, label: "所有國家" }, ...countriesOf(everything.data?.rows ?? [])];
-  const update = (change: Partial<Filters>) => setFilters((current) => ({ ...current, ...change }));
+  // replace：改篩選不多留一筆瀏覽紀錄，上一頁直接回到上一個頁面
+  const update = (change: Partial<Filters>) => setParams(paramsFrom({ ...filters, ...change }), { replace: true });
   const search = (event: FormEvent) => {
     event.preventDefault();
     update({ q: draft.trim() });
@@ -173,15 +200,30 @@ export default function ScholarshipList() {
 }
 
 function ScholarshipCard({ row, showGroup }: { row: Row; showGroup: boolean }) {
+  const navigate = useNavigate();
   const flags = [
     ...row.unclear.map((check) => `${nameOf(CHECK_NAMES, check)}待確認`),
     ...row.failed.map((check) => `${nameOf(CHECK_NAMES, check)}不符合`),
   ];
   return (
-    <Card size="sm">
+    // 整張卡片可點（UI 計畫 A2）：點卡片任何地方都進詳細頁；鍵盤與螢幕閱讀器仍用標題連結，只停一次。
+    // 不用「連結的 ::after 蓋住整張卡片」：CardHeader 是 container，會把 ::after 限制在標題那一塊
+    <Card
+      size="sm"
+      onClick={() => {
+        if (window.getSelection()?.toString()) return; // 正在選取文字（例如複製名稱）時不換頁
+        navigate(`/scholarships/${row.id}`, { state: { fromList: true } });
+      }}
+      className="cursor-pointer transition-colors hover:bg-muted/50 has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring"
+    >
       <CardHeader>
         <CardTitle>
-          <Link to={`/scholarships/${row.id}`} className="hover:underline">
+          <Link
+            to={`/scholarships/${row.id}`}
+            state={{ fromList: true }}
+            onClick={(event) => event.stopPropagation()}
+            className="outline-none"
+          >
             {row.name}
           </Link>
         </CardTitle>

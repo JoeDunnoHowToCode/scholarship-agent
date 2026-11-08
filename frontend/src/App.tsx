@@ -1,4 +1,5 @@
-import { NavLink, Route, Routes } from "react-router";
+import { useEffect } from "react";
+import { NavLink, Route, Routes, useLocation, useNavigationType } from "react-router";
 
 import Ask from "@/pages/Ask";
 import Notifications from "@/pages/Notifications";
@@ -13,9 +14,20 @@ const LINKS = [
   { to: "/notifications", label: "通知" },
 ];
 
+// 換頁時捲到頁首（UI 計畫 A3）；按上一頁、下一頁（POP）時不動，讓瀏覽器回到原本的位置
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  const navigationType = useNavigationType();
+  useEffect(() => {
+    if (navigationType !== "POP") window.scrollTo(0, 0);
+  }, [pathname, navigationType]);
+  return null;
+}
+
 export default function App() {
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <ScrollToTop />
       <header className="border-b">
         <nav className="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
           <span className="font-semibold">留學獎學金</span>

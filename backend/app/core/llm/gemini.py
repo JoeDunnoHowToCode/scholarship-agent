@@ -5,11 +5,17 @@ from collections.abc import Callable
 from functools import partial
 from typing import Any
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from pydantic import BaseModel, SecretStr
 
-from app.core.llm.base import ChatMessage, ToolSpec, Turn, UsageHook
+from app.core.llm.base import ChatMessage, ToolCall, ToolSpec, Turn, UsageHook
 from app.core.llm.ratelimit import RateLimiter
 
 # Gemini 3.5 Flash-Lite 每百萬 tokens 的價格（美元，Gemini API 定價頁；docs/spec.md 成本粗估）
@@ -87,8 +93,20 @@ class GeminiLLM:
         return str(response.text)
 
     def step(self, messages: list[ChatMessage], tools: list[ToolSpec]) -> Turn:
-        """agent 的一步（ADR-082）：符合 ToolCallingLLM 插座。"""
-        return Turn(ChatMessage("assistant", ""), 0, 0, 0.0)  # 骨架
+        """agent 的一步（ADR-082）：符合 ToolCallingLLM 插座。迴圈本身在 features/discovery，這裡只負責一次呼叫。"""
+        # 工具照 Gemini 函式宣告的格式（名稱、說明、參數的 JSON Schema）交出去
+        bound = self._chat.bind_tools(
+            [{"name": tool.name, "description": tool.description, "parameters": tool.parameters} for tool in tools]
+        )
+        # 費用紀錄用系統訊息（任務說明）認出是哪個提示詞（ADR-089）
+        system = next((m.content for m in messages if m.role == "system"), "")
+        reply = self._send(system, partial(bound.invoke, [_to_langchain(m) for m in messages]))
+        input_tokens, output_tokens = self._count(reply)
+        self._report(system, input_tokens, output_tokens, None)
+        calls = [ToolCall(str(call.get("id") or ""), call["name"], dict(call["args"])) for call in reply.tool_calls]
+        message = ChatMessage("assistant", reply.text or "", calls, raw=reply)
+        cost = (input_tokens * INPUT_PRICE_PER_M + output_tokens * OUTPUT_PRICE_PER_M) / 1_000_000
+        return Turn(message, input_tokens, output_tokens, cost)
 
     def cost_usd(self) -> float:
         return (
@@ -126,6 +144,22 @@ class GeminiLLM:
         self.input_tokens += input_tokens
         self.output_tokens += output_tokens
         return input_tokens, output_tokens
+
+
+def _to_langchain(message: ChatMessage) -> BaseMessage:
+    """我們的訊息 → LangChain 的訊息。AI 的回覆有原始訊息就原封不動送回（裡面有 Gemini 3 需要的 thought signature）。"""
+    if message.role == "assistant":
+        if isinstance(message.raw, AIMessage):
+            return message.raw
+        return AIMessage(
+            content=message.content,
+            tool_calls=[{"name": c.name, "args": c.args, "id": c.id} for c in message.tool_calls],
+        )
+    if message.role == "tool":
+        return ToolMessage(content=message.content, tool_call_id=message.tool_call_id or "", name=message.name)
+    if message.role == "system":
+        return SystemMessage(content=message.content)
+    return HumanMessage(content=message.content)
 
 
 class GeminiEmbedder:

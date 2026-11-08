@@ -79,3 +79,18 @@ def test_unreachable_and_recovered_messages() -> None:
     title, lines = report.recovered_message("SpreeAfrica", "http://www.spreeafrica.com/")
     assert title == "抓得到了：SpreeAfrica"
     assert lines == ["網址：http://www.spreeafrica.com/", "回到每天檢查"]
+
+
+def test_report_shows_the_day_and_month_ai_cost() -> None:
+    # ADR-089：每天知道 AI 花了多少，和本月累計離上限多遠
+    _, lines = report.report_message(
+        local_date=date(2026, 11, 8),
+        started_at=datetime(2026, 11, 8, 0, 10, tzinfo=UTC),
+        finished_at=datetime(2026, 11, 8, 2, 0, tzinfo=UTC),
+        sources={"extracted": 5, "unchanged": 100},
+        new_events=1,
+        skipped=[],
+        ai_cost=(3.456, 120.4, 7000),  # 今天、本月、上限（新台幣）
+    )
+    # 接在「這輪產生幾則通知」後面
+    assert lines[2:4] == ["這輪產生 1 則通知", "AI 費用：今天約 NT$3.46，本月約 NT$120（上限 NT$7,000）"]

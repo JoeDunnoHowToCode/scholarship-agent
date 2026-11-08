@@ -9,13 +9,13 @@ import argparse
 import sys
 import zlib
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from email.message import Message
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.fetch.base import (
@@ -38,6 +38,7 @@ from app.shared.settings import settings
 # 原始檔放在 backend/data/snapshots/（ADR-019，不進 git）
 SNAPSHOT_DIR = Path(__file__).resolve().parents[3] / "data" / "snapshots"
 MAX_PAGES = 50  # 翻頁最多 50 頁，避免無限翻下去
+RETIRE_AFTER = timedelta(days=30)  # 這麼久都抓不到的網址不再去抓（11-09 使用者選 C）
 
 # 挑連結的函式：(學程名稱, 首頁網址, 候選連結) → 挑中的網址
 LinkPicker = Callable[[str, str, list[Link]], list[str]]
@@ -83,8 +84,12 @@ def fetch_source(
 ) -> None:
     source.last_checked_at = datetime.now(UTC)
     # 要檢查的網址：來源網址、以前快照過的頁面（翻頁遇到 304 也能繼續）、這次找到的翻頁連結
+    # 超過 30 天都抓不到的網址（例如換網址前的舊網站、早就消失的子頁）不再去抓（11-09 使用者選 C）
     known = session.scalars(
-        select(Snapshot.url).where(Snapshot.source_id == source.id).distinct()
+        select(Snapshot.url)
+        .where(Snapshot.source_id == source.id)
+        .group_by(Snapshot.url)
+        .having(func.max(func.coalesce(Snapshot.seen_at, Snapshot.fetched_at)) >= datetime.now(UTC) - RETIRE_AFTER)
     ).all()
     queue = [source.url, *(url for url in known if url != source.url)]
     seen: set[str] = set()
@@ -108,18 +113,24 @@ def fetch_source(
         except httpx.HTTPStatusError as error:
             status = error.response.status_code
             report("error", str(status), url)
-            if status >= 500:
-                raise  # 伺服器出錯：交給呼叫的人決定，背景工作會稍後重試（ADR-056）
+            if status >= 500 and url == source.url:
+                raise  # 首頁的伺服器出錯：交給呼叫的人決定，背景工作會稍後重試（ADR-056）
             if url == source.url and status in (404, 410):
                 # 首頁不見了：學程可能搬家，這天算失敗（11-09 使用者選 C）；以前會默默沿用舊資料
                 raise PageGone(url, status) from error
             continue  # 子頁消失了（404）：繼續檢查下一頁
         except httpx.HTTPError as error:
             report("error", type(error).__name__, url)
-            raise  # 網路錯誤或逾時：交給呼叫的人決定，背景工作會稍後重試（ADR-056）
+            if url == source.url:
+                raise  # 首頁網路錯誤或逾時：交給呼叫的人決定，背景工作會稍後重試（ADR-056）
+            # 子頁或舊網址連不上：跳過這一頁，不讓整個來源失敗（換網址後舊網站常常已經不在，11-09 發現）
+            continue
 
         checked += 1
+        now = datetime.now(UTC)
         if result.status == 304:
+            if latest is not None:
+                latest.seen_at = now  # 沒變也算這一輪還抓得到
             report("unchanged", "304", url)
             continue
         # 依 Content-Type 判斷：網頁來源也可能有 PDF 快照（學程補抓的申請說明，ADR-044）
@@ -129,13 +140,16 @@ def fetch_source(
         digest = content_hash(text)
         changed = not (latest and latest.content_hash == digest)
         if not changed:
+            if latest is not None:
+                latest.seen_at = now
             report("unchanged", digest[:12], url)
         else:
             session.add(
                 Snapshot(
                     source_id=source.id,
                     url=url,
-                    fetched_at=datetime.now(UTC),
+                    fetched_at=now,
+                    seen_at=now,
                     content_hash=digest,
                     file_path=save_raw(source, digest, result, is_pdf),
                     http_status=result.status,

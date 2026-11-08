@@ -9,7 +9,7 @@
 
 import argparse
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, exists, select
@@ -60,6 +60,7 @@ OUTLINE_VERSION = "outline-8"
 SECTION_VERSION = "section-12"
 # 只補金額的提示詞（ADR-074）；改了提示詞就要改號碼
 AMOUNTS_VERSION = "amounts-1"
+SEEN_WINDOW = timedelta(days=7)  # 抽取只用這麼多天內還抓得到的網址（11-09 使用者選 C）
 # 網頁合併後超過這個長度才切段（docs/day-03.md「Claude 自行決定」第 6 點）
 LONG_TEXT_CHARS = 100_000
 
@@ -81,6 +82,12 @@ def documents(session: Session, source: Source) -> list[Snapshot]:
     # 首頁排第一，其他照網址排序，讓輸入順序固定
     ordered = sorted(urls, key=lambda url: (url != source.url, url))
     latest = [s for url in ordered if (s := latest_snapshot(session, source.id, url))]
+    # 只用最近一輪還抓得到的網址（11-09 使用者選 C）：換網址前的舊網站、消失的子頁不再混進抽取；
+    # 容許 7 天，某天子頁剛好逾時也不會被排除
+    seen = [s.seen_at or s.fetched_at for s in latest]
+    if seen:
+        newest = max(seen)
+        latest = [s for s in latest if (s.seen_at or s.fetched_at) >= newest - SEEN_WINDOW]
     unique: dict[str, Snapshot] = {}
     for snapshot in latest:
         unique.setdefault(snapshot.content_hash, snapshot)

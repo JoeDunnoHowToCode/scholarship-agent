@@ -16,3 +16,11 @@ def test_cap_is_reached_at_the_exact_amount() -> None:
     # 每月上限 NT$7,000 ＝ US$218.75（匯率 32）
     assert over_cap(218.75, 7000) is True
     assert over_cap(218.74, 7000) is False
+
+
+def test_cap_check_ignores_floating_point_noise() -> None:
+    # 11-09 找到的偶發失敗：同樣的金額，加的順序不同，最後幾位小數就不同
+    # （資料庫加總 0.6，Python 加出 0.6000000000000001）；金額剛好等於上限時必須擋下
+    spent_from_database = 0.1 + (0.2 + 0.3)
+    cap_from_python = ((0.1 + 0.2) + 0.3) * 32
+    assert over_cap(spent_from_database, cap_from_python) is True

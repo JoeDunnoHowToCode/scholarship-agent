@@ -13,6 +13,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    func,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -39,8 +40,9 @@ class Discovery(enum.StrEnum):
 
 
 class SourceStatus(enum.StrEnum):
-    CANDIDATE = "candidate"  # 候選
-    APPROVED = "approved"  # 已核准
+    CANDIDATE = "candidate"  # 候選：agent 提交的，還沒評分（ADR-078）
+    APPROVED = "approved"  # 已核准：每天檢查
+    REJECTED = "rejected"  # 已排除：規則沒過；留著網址，agent 再提交同一個就直接略過
 
 
 def _text_enum(enum_cls: type[enum.Enum]) -> Enum:
@@ -89,6 +91,14 @@ class Source(Base):
     fail_days: Mapped[int] = mapped_column(server_default=text("0"))
     last_failed_on: Mapped[date | None] = mapped_column(Date)
     unreachable_since: Mapped[date | None] = mapped_column(Date)
+    # 發掘 agent 加的來源（ADR-078）：什麼時候提交、哪次執行提交的、什麼時候決定加入或排除、為什麼
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    agent_run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("agent_runs.id", ondelete="SET NULL"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_note: Mapped[str | None] = mapped_column(Text)  # 排除或停用的原因
+    # 連續幾次抽不到有效獎學金；到 3 次就停用（「Claude 自行決定」第 11 點）
+    empty_extractions: Mapped[int] = mapped_column(server_default=text("0"))
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Snapshot(Base):

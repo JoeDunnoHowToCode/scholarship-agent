@@ -179,7 +179,7 @@
 | 同一學程檢查與換網址 | `tests/test_new_url.py` | `features/discovery/new_url.py` |
 | 三種任務、每天的發掘串接 | `tests/test_discovery_run_db.py` | `features/discovery/run.py` |
 | 重試沒用的錯誤當天直接算失敗（ADR-094） | `tests/test_pipeline_errors.py`、`tests/test_pipeline_outcomes.py` | `features/pipeline/errors.py`、`jobs.py` |
-| 設定 API（門檻、上限範圍、停用來源） | `tests/test_settings_api.py` | `features/settings/api.py` |
+| 設定 API（門檻、上限範圍、斷路器、停用與恢復來源） | `tests/test_settings_api.py` | `features/settings/api.py`、`service.py` |
 | 紀錄 API | `tests/test_costs_api.py` | `features/costs/api.py` |
 
 ## 完成標準
@@ -336,17 +336,38 @@
   完整檢查：286 passed；ruff、mypy 無問題
   ```
 
-### 段 6
-- [ ] 通知門檻只收 0–100、每月上限只收 1–7,000 -> verify: `cd backend && uv run pytest tests/test_settings_api.py -q`
-- [ ] agent 加的來源可以停用 -> verify: `cd backend && uv run pytest tests/test_settings_api.py -q`
-- [ ] 紀錄 API 回傳本月總額、依功能分、最近的 agent 執行與步驟 -> verify: `cd backend && uv run pytest tests/test_costs_api.py -q`
-- [ ] 前端型別檢查與建置通過 -> verify: `cd frontend && npm run gen:api && npm run build`
-- [ ] 設定頁與紀錄頁在瀏覽器正常顯示 -> verify: 瀏覽器開 `http://127.0.0.1:8000/settings` 與 `/logs`，用 read_page 檢查標籤（不截評分理由與個資）
+### 段 6（11-09 完成）
+- [x] 通知門檻只收 0–100、每月上限只收 1–7,000 -> verify: `cd backend && uv run pytest tests/test_settings_api.py -q`
+- [x] agent 加的來源可以停用 -> verify: `cd backend && uv run pytest tests/test_settings_api.py -q`
+  ```
+  紅（c08d3b3）：7 failed（assert (0, 0.0, 7000.0) == (60, 7000.0, 7000)、DID NOT RAISE MonthlyCapError、assert (7086 in {}) …）
+  綠（64a7ab7）：11 passed（含紀錄 API）
+  另外：每月上限、通知門檻改成每次讀設定頁的設定（存檔後下一次 AI 呼叫、下一次產生通知就生效）
+  ```
+- [x] 紀錄 API 回傳本月總額、依功能分、最近的 agent 執行與步驟 -> verify: `cd backend && uv run pytest tests/test_costs_api.py -q`
+- [x] 前端型別檢查與建置通過 -> verify: `cd frontend && npm run gen:api && npm run build`
+  ```
+  ✓ built in 388ms
+  ```
+- [x] 設定頁與紀錄頁在瀏覽器正常顯示 -> verify: 瀏覽器開 `http://127.0.0.1:8000/`，從導覽列點「設定」與「紀錄」，用 read_page、find 與 JavaScript 檢查標籤（不讀評分理由與個資）
+  ```
+  設定頁：通知門檻、每月上限兩個欄位與存檔按鈕；斷路器「正常」、關著時沒有恢復按鈕；agent 來源 16 筆，每筆有開關
+  紀錄頁：本月 AI 費用、依功能、最近 7 天；agent 執行 15 筆，點「看每一步」顯示 9 步（第 1 步・AI 回覆（tokens 603/23））
+  console 沒有錯誤；沒有按存檔或切換開關（真的資料）
+  發現：直接打開 /settings、/logs（以及第 9 天就有的 /notifications、/profile）會回 404，只有從首頁進去換頁才正常
+  ```
 
 ### 全部
-- [ ] 完整檢查全過 -> verify: `cd backend && uv run pytest && uv run ruff check . && uv run mypy app`
-- [ ] 學習卡寫完（每段一張） -> verify: `ls docs/learning/day-10.md`
-- [ ] `docs/progress.md`、`docs/spec.md`、#27 筆記更新 -> verify: `grep -n "ADR-078" docs/spec.md && grep -n "第 10 天" docs/progress.md`
+- [x] 完整檢查全過 -> verify: `cd backend && uv run pytest && uv run ruff check . && uv run mypy app`
+  ```
+  305 passed；ruff：All checks passed!；mypy：no issues found in 119 source files；前端 ✓ built
+  注意：背景 worker 跑每日檢查時，比較「本月總額前後差」的測試偶爾會失敗（worker 同時寫入真的費用），見段 6 的發現
+  ```
+- [x] 學習卡寫完（每段一張） -> verify: `ls docs/learning/day-10.md`
+  ```
+  docs/learning/day-10.md：第 1–6 張
+  ```
+- [x] `docs/progress.md`、`docs/spec.md`、#27 筆記更新 -> verify: `grep -n "ADR-078" docs/spec.md && grep -n "第 10 天" docs/progress.md`
 
 ## Claude 自行決定（小問題，請事後檢查）
 
@@ -390,3 +411,10 @@
 1. 抽取時，同一個來源歷來抓過的每個網址的最新快照都會一起給 AI。換網址之後，舊網站最後一次的快照也還會被一起抽，可能把舊資料混進來
 2. 搜尋補漏不知道已經有哪些來源，例如提交了 Chevening 的總頁，而種子已經有 Chevening 台灣頁；靠規則去重（ADR-048）處理，之後可以考慮把已知來源告訴 agent
 3. 每天的發掘工作在收尾後才跑，所以 agent 找到的候選要到隔天的每日檢查才會評分
+35. （段 6 實作時）設定頁的來源清單除了 agent 加的，也列出「被停用、有寫原因」的來源（例如 ADR-095 被取代的），兩種都可以停用或恢復；恢復時清掉原因和「連續抽不到」的次數
+36. （段 6 實作時）每月上限與通知門檻每次使用時讀資料庫（`app_settings`），沒設定就用 `.env`；讀出來的上限再保險一次不超過 NT$7,000
+
+## 段 6 實作時的發現（之後處理）
+
+1. 直接打開網頁的子頁面（例如 `/settings`、`/notifications`、`/scholarships/1`）會回 404，只有從首頁進去、在網頁內換頁才正常；第 9 天就有，按重新整理或從外部連結進來都會遇到
+2. 背景 worker 跑每日檢查時會寫入真的 AI 費用紀錄；幾個用「本月總額前後差」驗證的資料庫測試，偶爾會因此對不上而失敗（11-09 跑 6 次失敗 1 次）

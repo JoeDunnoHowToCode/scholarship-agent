@@ -4,12 +4,12 @@
 """
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup, Tag
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.features.sources.fetch import SNAPSHOT_DIR, latest_snapshot
@@ -72,9 +72,35 @@ def _homepage_in_description(card: Tag) -> str | None:
 def upsert_programme(session: Session, catalogue_id: int, entry: CatalogueEntry, listed: set[str]) -> str:
     """寫入目錄裡的一個學程，回傳 added（新增）、kept（已有）、moved（學程換了網址，更新原本那一筆）。
 
-    listed 是這次目錄裡所有學程的網址。
+    listed 是這次目錄裡所有學程的網址。學程換網址時，目錄只會列新網址；
+    以前用網址分辨學程，會新增一筆、舊的那筆一直抓不到（11-08 的 SERP），現在以目錄為準直接改網址（11-09 使用者選 D）。
     """
-    return ""  # 骨架
+    existing = session.scalars(select(Source).where(Source.url == entry.url)).first()
+    if existing is not None:
+        existing.name, existing.parent_id = entry.name, catalogue_id  # 不動抓取狀態（例如需人工的原因）
+        return "kept"
+    # 同名（不分大小寫）、網址已經不在目錄裡的目錄來源：就是同一個學程換了網址；同名的不只一個就不猜，照舊新增
+    twins = session.scalars(
+        select(Source).where(
+            Source.parent_id == catalogue_id,
+            func.lower(Source.name) == entry.name.lower(),
+            Source.url.not_in(listed),
+        )
+    ).all()
+    if len(twins) == 1:
+        moved = twins[0]
+        moved.url, moved.name = entry.url, entry.name
+        # 換了網址：失敗紀錄歸零，回到每天檢查
+        moved.fail_days, moved.last_failed_on, moved.unreachable_since, moved.last_error = 0, None, None, None
+        session.flush()
+        return "moved"
+    session.add(Source(
+        name=entry.name, url=entry.url,
+        kind=SourceKind.UNIVERSITY,  # Erasmus Mundus 學程由多所大學合辦
+        parent_id=catalogue_id, discovery=Discovery.CATALOGUE,
+    ))
+    session.flush()
+    return "added"
 
 
 def import_programmes(session: Session) -> None:
@@ -94,23 +120,11 @@ def import_programmes(session: Session) -> None:
         for entry in parse_catalogue(html):
             entries.setdefault(entry.url, entry)
 
+    outcomes: Counter[str] = Counter()
     for entry in entries.values():
-        statement = (
-            insert(Source)
-            .values(
-                name=entry.name,
-                url=entry.url,
-                kind=SourceKind.UNIVERSITY,  # Erasmus Mundus 學程由多所大學合辦
-                parent_id=catalogue.id,
-                discovery=Discovery.CATALOGUE,
-            )
-            # 已存在就只更新名稱與上層來源，不動抓取狀態（例如需人工的原因）
-            .on_conflict_do_update(
-                index_elements=[Source.url],
-                set_={"name": entry.name, "parent_id": catalogue.id},
-            )
-        )
-        session.execute(statement)
+        outcomes[upsert_programme(session, catalogue.id, entry, set(entries))] += 1
+    if outcomes["moved"]:
+        print(f"目錄裡有 {outcomes['moved']} 個學程換了網址，已更新原本的來源")
     print(f"解析出 {len(entries)} 個學程（{len(urls)} 頁）；頁面寫的總數：{total}")
     if total != len(entries):
         # ADR-031：EACEA 改版時要能發現解析器壞掉

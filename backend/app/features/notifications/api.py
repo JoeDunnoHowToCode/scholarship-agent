@@ -24,6 +24,7 @@ class EventOut(BaseModel):
     id: int
     kind: str  # new_scholarship、new_cycle、deadline、change、system
     title: str
+    scholarship_id: int | None  # 和哪一筆獎學金有關（ADR-092）；系統通知是空的
     lines: list[str]
     url: str | None
     status: str  # pending 待送、sent 已送、failed 失敗
@@ -44,6 +45,7 @@ def list_events(session: DbSession, limit: Annotated[int, Query(ge=1, le=200)] =
             id=e.id,
             kind=e.kind,
             title=e.payload["title"],
+            scholarship_id=e.scholarship_id,
             lines=e.payload["lines"],
             url=e.payload["url"],
             status=e.status,

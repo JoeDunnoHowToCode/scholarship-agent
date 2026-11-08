@@ -199,9 +199,15 @@
   ```
   標籤 ["國籍（必填）",…,"想去的國家（選填，可選多個）"]；國籍是 combobox 且有值；API 250 國；打「SE」只剩「瑞典SE」，Enter 選到；打「芬」Enter 選到芬蘭；按 × 移除芬蘭；Enter 不會送出表單（攔截計數 0）。存檔後重新整理：沒有另外驗證，見下方「驗證時的意外」
   ```
-- [ ] D4 產生和獎學金有關的通知時記下 `scholarship_id` -> verify: `cd backend && uv run pytest tests/test_notification_rules.py`
-- [ ] D4 遷移只新增 events.scholarship_id（讀過再套用） -> verify: `cd backend && uv run alembic upgrade head`，貼出遷移內容摘要
-- [ ] D4 通知 API 回傳 scholarship_id；網頁上有編號的通知卡片能點回詳細頁 -> verify: 瀏覽器點通知標題，貼出新網址
+- [x] D4 產生和獎學金有關的通知時記下 `scholarship_id` -> verify: `cd backend && uv run pytest tests/test_notification_rules.py`
+  ```
+  已經有了：events 表本來就有 scholarship_id，產生通知時就會填（generate.py:73）。開發資料庫：new_cycle 8/8、change 6/6、new_scholarship 24/24、cycle_opened 2/2 有填，system 0/16
+  ```
+- ~~D4 遷移只新增 events.scholarship_id~~：不需要，欄位本來就有（ADR-092 已更正）
+- [x] D4 通知 API 回傳 scholarship_id；網頁上有編號的通知卡片能點回詳細頁 -> verify: 瀏覽器點通知標題，貼出新網址
+  ```
+  test_events_api_db.py：紅燈 AttributeError: 'EventOut' object has no attribute 'scholarship_id'；綠燈後 254 passed。瀏覽器：24 張通知卡片中 8 張標題有連結，點第一張 → /scholarships/159，有標題
+  ```
 - [x] D5 品牌名稱連到首頁；Tab 到連結時看得到焦點框 -> verify: 瀏覽器貼出品牌連結的 href 與 `:focus-visible` 的 outline 計算值
   ```
   品牌連結 "留學獎學金 → /"；按 Tab 到「問答」：:focus-visible true、outline "solid 2px"

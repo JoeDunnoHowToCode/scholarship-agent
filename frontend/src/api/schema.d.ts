@@ -306,6 +306,8 @@ export interface components {
             kind: string;
             /** Title */
             title: string;
+            /** Scholarship Id */
+            scholarship_id: number | null;
             /** Lines */
             lines: string[];
             /** Url */

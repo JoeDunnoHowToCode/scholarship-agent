@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { Link } from "react-router";
+
 import { api, unwrap } from "@/api/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +30,16 @@ export default function Notifications() {
       {events.data.map((e) => (
         <Card key={e.id} size="sm">
           <CardHeader>
-            <CardTitle>{e.title}</CardTitle>
+            <CardTitle>
+              {/* 和某一筆獎學金有關的通知，標題連到詳細頁（ADR-092）；系統通知沒有連結 */}
+              {e.scholarship_id ? (
+                <Link to={`/scholarships/${e.scholarship_id}`} className="hover:underline">
+                  {e.title}
+                </Link>
+              ) : (
+                e.title
+              )}
+            </CardTitle>
             <CardDescription>
               {nameOf(EVENT_KIND_NAMES, e.kind)}｜產生於 {taipeiTime(e.created_at)}
               {e.sent_at && `｜送出於 ${taipeiTime(e.sent_at)}`}

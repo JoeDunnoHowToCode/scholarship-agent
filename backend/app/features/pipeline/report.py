@@ -112,3 +112,13 @@ def discovery_digest_message(
     lines += [f"停用：{name}（{reason}）" for name, reason in disabled]
     lines.append("不對的來源可以在網頁的設定頁停用")
     return title, lines
+
+
+def new_url_found_message(name: str, old: str, new: str) -> Message:
+    """找新網址（ADR-080）：確認是同一個學程，已經換網址。"""
+    return f"找到新網址：{name}", [f"舊：{old}", f"新：{new}", "回到每天檢查，資料會照常抓取與核對"]
+
+
+def new_url_mismatch_message(name: str, url: str, reason: str) -> Message:
+    """找新網址（ADR-080）：agent 提議的網址對不上，沒有換。"""
+    return f"新網址對不上，沒有換：{name}", [f"agent 找到：{url}", f"原因：{reason}", "7 天後再找一次"]

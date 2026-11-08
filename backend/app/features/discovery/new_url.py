@@ -3,8 +3,14 @@
 import re
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.features.costs.usage import TAIPEI
+from app.features.notifications.generate import add_system_event
+from app.features.pipeline.report import new_url_found_message, new_url_mismatch_message
+from app.features.profiles.service import CURRENT_USER_ID
+from app.features.scholarships.models import Scholarship
 from app.features.sources.models import Source
 
 # 主辦單位名稱裡太常見、不能用來辨認的字
@@ -42,4 +48,18 @@ def apply_new_url(session: Session, source: Source, new_url: str, page_text: str
 
     呼叫的人負責 commit。
     """
-    return False  # 骨架
+    row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
+    names = [source.name] + ([row.name] if row is not None else [])
+    taken = session.scalar(select(Source.id).where(Source.url == new_url, Source.id != source.id))
+    key = f"new-url:{source.id}:{now.astimezone(TAIPEI).date()}"  # 同一個來源同一天只通知一次
+    if taken is None and same_programme(names, row.provider if row is not None else None, page_text):
+        old = source.url
+        source.url = new_url
+        source.fail_days, source.last_failed_on, source.unreachable_since = 0, None, None  # 回到每天檢查
+        title, lines = new_url_found_message(source.name, old, new_url)
+        add_system_event(session, CURRENT_USER_ID, key, title, lines, now)
+        return True
+    reason = "這個網址已經是另一個來源" if taken is not None else "新網頁上找不到同一個學程的名稱或主辦單位"
+    title, lines = new_url_mismatch_message(source.name, new_url, reason)
+    add_system_event(session, CURRENT_USER_ID, key, title, lines, now)
+    return False

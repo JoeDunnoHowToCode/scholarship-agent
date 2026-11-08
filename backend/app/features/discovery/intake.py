@@ -20,6 +20,8 @@ from app.features.scholarships.models import Scholarship
 from app.features.sources.models import Discovery, Source, SourceKind, SourceStatus
 
 WEEK = timedelta(days=7)
+# extract_source 的這些摘要代表這次沒有真的重抽（ADR-079）
+NOT_EXTRACTED = frozenset({"unchanged", "noise"})
 
 
 def add_candidates(
@@ -130,4 +132,10 @@ def review_after_extraction(session: Session, source: Source, summary: str, now:
 
     回傳 approved、rejected、disabled，或 None（不是 agent 的來源、或這次沒有重抽）。
     """
-    return None  # 骨架
+    if source.discovery != Discovery.SEARCH:
+        return None  # 種子、目錄來的來源不受這套規則管
+    if source.status == SourceStatus.CANDIDATE:
+        return decide_candidate(session, source, now)
+    if summary in NOT_EXTRACTED:
+        return None  # 內容沒變、只有無關內容變了：不算一次抽取
+    return "disabled" if track_extraction(session, source, now) else None

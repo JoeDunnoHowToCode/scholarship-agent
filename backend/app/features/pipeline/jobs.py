@@ -22,6 +22,7 @@ from app.core.fetch.http import HttpFetcher
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM
 from app.features.costs.llm import gemini
 from app.features.costs.summary import summarize
+from app.features.discovery.intake import pending_candidate_ids, review_after_extraction
 from app.features.discovery.trace import clear_old_texts
 from app.features.matching.score import score_all
 from app.features.notifications.generate import add_system_event, generate
@@ -119,7 +120,8 @@ def due_source_ids(session: Session, today: date) -> list[int]:
         .options(selectinload(Scholarship.cycles))
         .order_by(Source.id)
     ).all()
-    due: list[int] = []
+    # 發掘 agent 的候選（ADR-078）：每天排進檢查，抽完後決定加入或排除；受每週上限
+    due: list[int] = pending_candidate_ids(session, datetime.now(UTC))
     for source, row in rows:
         stale, recheck = False, None
         if row is not None:
@@ -169,6 +171,10 @@ def process_source(source_id: int) -> dict[str, str]:
             llm = gemini(source_id=source.id)
             summary = extract_source(session, llm, source)
             session.commit()
+            review = review_after_extraction(session, source, summary, datetime.now(UTC))  # ADR-078
+            session.commit()
+            if review in ("approved", "rejected"):
+                return {"result": f"candidate_{review}", "detail": source.review_note or source.name}
             spent = sum(x.cost_usd() for x in (llm, picker_llm) if x is not None) * NTD_PER_USD
             if spent > SOURCE_MAX_COST_NTD:
                 raise CostLimitError(f"來源 {source_id} 花了 NT${spent:.1f}，超過 NT${SOURCE_MAX_COST_NTD}")

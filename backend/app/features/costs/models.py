@@ -15,6 +15,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.features.pipeline.models import Run
+from app.features.sources.models import Source
 from app.shared.db import Base
 
 
@@ -33,5 +35,5 @@ class LLMCall(Base):
     cost_usd: Mapped[float] = mapped_column(Float)
     error: Mapped[str | None] = mapped_column(Text)  # 失敗的錯誤種類；成功是空白
     # 是哪個來源、哪一天的檢查花的（指令手動執行時可能都是空白）
-    source_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("sources.id", ondelete="SET NULL"))
-    run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("runs.id", ondelete="SET NULL"))
+    source_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey(Source.id, ondelete="SET NULL"))
+    run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey(Run.id, ondelete="SET NULL"))

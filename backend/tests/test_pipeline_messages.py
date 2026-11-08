@@ -136,3 +136,12 @@ def test_new_url_results_are_one_message_a_day() -> None:
         "沒換的 7 天後再找一次",
     ]
     assert report.new_url_digest_message([("not_found", "MAGMA", "")]) is None  # 全部沒找到：不送
+
+
+def test_new_url_message_lists_superseded_sources() -> None:
+    # 11-08 使用者選 B：舊來源被目錄裡的新來源取代、自動停用，也寫進當天的找新網址通知
+    message = report.new_url_digest_message([("superseded", "SERP", "已由另一個來源（#3801）取代，舊來源已停用")])
+    assert message is not None
+    title, lines = message
+    assert title == "找新網址：換了 0 個、對不上 0 個、沒找到 0 個、被取代停用 1 個"
+    assert lines[0] == "被取代停用：SERP　已由另一個來源（#3801）取代，舊來源已停用"

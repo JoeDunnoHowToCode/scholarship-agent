@@ -178,3 +178,21 @@ def test_discover_skips_a_broken_task_but_stops_at_the_monthly_cap() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_new_url_task_reports_a_superseded_source() -> None:
+    session = SessionLocal()
+    try:
+        session.add(Source(name="CyberMACS new", url="https://new-cyber.example/", kind=SourceKind.UNIVERSITY))
+        old = Source(name="Master of Applied Cybersecurity", url="https://old-cyber-b.example/", kind=SourceKind.UNIVERSITY,
+                     unreachable_since=NOW.date())
+        session.add(old)
+        session.flush()
+        calls = [("search", {"query": "Master of Applied Cybersecurity"}),
+                 ("submit", {"url": "https://new-cyber.example/", "reason": "官方網站"})]
+        result = run_new_url(deps(session, calls), old.id, NOW)
+        assert result is not None and result[0] == "superseded"
+        assert old.enabled is False
+    finally:
+        session.rollback()
+        session.close()

@@ -6,6 +6,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import partial
 
 from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
@@ -160,18 +161,18 @@ def discover(deps: Deps, now: datetime, schools: list[int], search: bool, new_ur
             return False, None
 
     for source_id in new_urls:
-        ok, result = attempt(lambda source_id=source_id: run_new_url(deps, source_id, now))
+        ok, result = attempt(partial(run_new_url, deps, source_id, now))
         if summary.stopped:
             return summary
         if ok and isinstance(result, tuple):
             summary.new_urls.append(result)
     if search:
-        ok, result = attempt(lambda: run_search(deps, now))
+        ok, result = attempt(partial(run_search, deps, now))
         if summary.stopped:
             return summary
         summary.searched = result if ok and isinstance(result, int) else None
     for school_id in schools:
-        ok, result = attempt(lambda school_id=school_id: run_university(deps, school_id, now))
+        ok, result = attempt(partial(run_university, deps, school_id, now))
         if summary.stopped:
             return summary
         summary.schools += 1

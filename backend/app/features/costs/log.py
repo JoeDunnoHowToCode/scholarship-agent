@@ -20,13 +20,14 @@ def record_call(
     error: str | None,
     source_id: int | None = None,
     run_id: int | None = None,
+    agent_run_id: int | None = None,
 ) -> None:
     """記一筆 AI 呼叫；功能與提示詞版本從送出的文字認出來。"""
     version = prompts.identify(prompt)
     session.add(LLMCall(
         feature=version.rsplit("-", 1)[0] if version else "unknown",  # extract-12 → extract
         prompt_version=version, model=model, input_tokens=input_tokens, output_tokens=output_tokens,
-        cost_usd=cost_usd, error=error, source_id=source_id, run_id=run_id,
+        cost_usd=cost_usd, error=error, source_id=source_id, run_id=run_id, agent_run_id=agent_run_id,
     ))
 
 

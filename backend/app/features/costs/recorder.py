@@ -23,12 +23,14 @@ class CostRecorder:
         cap_ntd: float,
         source_id: int | None = None,
         run_id: int | None = None,
+        agent_run_id: int | None = None,
         sessions: Callable[[], Session] = SessionLocal,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self.cap_ntd = cap_ntd
         self.source_id = source_id
         self.run_id = run_id
+        self.agent_run_id = agent_run_id
         self._sessions = sessions
         self._clock = clock
 
@@ -46,6 +48,7 @@ class CostRecorder:
     ) -> None:
         with self._sessions() as session:
             record_call(
-                session, prompt, model, input_tokens, output_tokens, cost_usd, error, self.source_id, self.run_id
+                session, prompt, model, input_tokens, output_tokens, cost_usd, error,
+                self.source_id, self.run_id, self.agent_run_id,
             )
             session.commit()

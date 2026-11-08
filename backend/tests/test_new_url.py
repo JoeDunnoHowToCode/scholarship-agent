@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
-from app.features.discovery.new_url import apply_new_url, same_programme
+from app.features.discovery.new_url import apply_new_url, decide_new_url, same_programme
 from app.features.notifications.models import Event
 from app.features.sources.models import Source, SourceKind
 from app.shared.db import SessionLocal
@@ -85,3 +85,23 @@ def test_long_official_names_match_by_their_distinctive_words() -> None:
     assert same_programme([name, "master-serp.eu"], None, page) is True
     # 只出現其中一部分的字（Surface、Chemistry）不算
     assert same_programme([name], None, "Surface chemistry research group news") is False
+
+
+def test_a_url_that_differs_only_by_the_trailing_slash_is_already_taken() -> None:
+    # 11-08 實跑：EACEA 目錄已經把 SERP 的新網址 https://master-serp.com/ 加成另一個來源；
+    # agent 提議 https://master-serp.com（沒有結尾的 /），不能再換一次造成重複
+    session = SessionLocal()
+    try:
+        now = datetime.now(UTC)
+        session.add(Source(name="SERP new", url="https://test-serp-new.example/", kind=SourceKind.UNIVERSITY))
+        old = Source(name="Surface Electro Radiation Photo chemistry", url="https://test-serp-old.example/",
+                     kind=SourceKind.UNIVERSITY, unreachable_since=now.date())
+        session.add(old)
+        session.flush()
+        page = "Surface, Electro-, Radiation, and Photo-Chemistry master"
+        replaced, reason = decide_new_url(session, old, "https://test-serp-new.example", page)
+        assert (replaced, old.url) == (False, "https://test-serp-old.example/")
+        assert "另一個來源" in reason
+    finally:
+        session.rollback()
+        session.close()

@@ -6,7 +6,12 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, SecretStr
 
-from app.core.llm.gemini import INPUT_PRICE_PER_M, OUTPUT_PRICE_PER_M, GeminiLLM, LLMError
+from app.core.llm.gemini import (
+    INPUT_PRICE_PER_M,
+    OUTPUT_PRICE_PER_M,
+    GeminiLLM,
+    LLMError,
+)
 
 
 class Answer(BaseModel):

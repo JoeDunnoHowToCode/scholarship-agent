@@ -35,6 +35,8 @@ def report_message(
     new_events: int,
     skipped: list[tuple[date, bool]],
     ai_cost: tuple[float, float, float] | None = None,
+    marked: list[tuple[str, str]] | None = None,
+    recovered: list[str] | None = None,
 ) -> Message:
     """每日檢查報告：哪一天、何時開始與收尾（台灣時間）、來源結果、這輪產生幾則通知。
 
@@ -122,3 +124,8 @@ def new_url_found_message(name: str, old: str, new: str) -> Message:
 def new_url_mismatch_message(name: str, url: str, reason: str) -> Message:
     """找新網址（ADR-080）：agent 提議的網址對不上，沒有換。"""
     return f"新網址對不上，沒有換：{name}", [f"agent 找到：{url}", f"原因：{reason}", "7 天後再找一次"]
+
+
+def error_kind(error: str) -> str:
+    """抓不到的原因換成白話的種類（11-08：抓不到的通知併進每日報告）。"""
+    return ""  # 骨架

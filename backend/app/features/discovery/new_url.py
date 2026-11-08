@@ -74,9 +74,11 @@ def decide_new_url(session: Session, source: Source, new_url: str, page_text: st
     """判斷並套用（不發通知）：（有沒有換, 沒換的原因）。每天的發掘工作用它，最後一天合成一則通知（ADR-093）。"""
     row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
     names = [source.name] + ([row.name] if row is not None else [])
-    taken = session.scalar(select(Source.id).where(Source.url == new_url, Source.id != source.id))
+    # 只差結尾的 / 也算同一個網址（目錄匯入的網址常有 /，agent 提議的常沒有）
+    variants = {new_url.rstrip("/"), new_url.rstrip("/") + "/"}
+    taken = session.scalar(select(Source.id).where(Source.url.in_(variants), Source.id != source.id))
     if taken is not None:
-        return False, "這個網址已經是另一個來源"
+        return False, f"這個網址已經是另一個來源（#{taken}）"
     if not same_programme(names, row.provider if row is not None else None, page_text):
         return False, "新網頁上找不到同一個學程的名稱或主辦單位"
     source.url = new_url

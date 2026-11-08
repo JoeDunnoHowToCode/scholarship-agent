@@ -87,3 +87,8 @@ def names_for(code: str) -> list[str]:
                 names.append(getattr(country, field))
     names += ALIASES.get(code, [])
     return list(dict.fromkeys(names))  # 去掉重複，保留第一次出現的順序
+
+
+def all_codes() -> list[str]:
+    """我們接受的所有國碼（ISO 3166-1 加上 EXTRA_CODES），依國碼排序；個人資料頁的國家選單用（ADR-091）。"""
+    return sorted({c.alpha_2 for c in pycountry.countries} | set(EXTRA_CODES))

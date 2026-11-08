@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.features.pipeline.jobs import score_soon
@@ -14,6 +15,7 @@ from app.features.profiles.service import (
     save_profile,
     to_out,
 )
+from app.features.scholarships import countries
 from app.shared.db import get_session
 
 # FastAPI 的依賴注入：每個請求自動拿到一個資料庫 Session（Annotated 是目前建議的寫法）
@@ -39,3 +41,14 @@ def write_profile(data: ProfileIn, session: DbSession) -> ProfileOut:
     if row.version != before:
         score_soon()  # 第 9 天：內容真的改了（版本號加一），評分在背景重新算（全部重評約 NT$4 以內）
     return to_out(row)
+
+
+class CountryOption(BaseModel):
+    code: str  # ISO 3166-1 兩碼國碼，存檔用
+    name: str  # 中文名稱，選單上顯示
+
+
+@router.get("/countries")
+def list_countries() -> list[CountryOption]:
+    """個人資料頁的國家選單（ADR-091）：完整清單，依國碼排序；中文名稱的排序交給瀏覽器。"""
+    return [CountryOption(code=code, name=countries.chinese_name(code)) for code in countries.all_codes()]

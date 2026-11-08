@@ -94,3 +94,20 @@ def test_report_shows_the_day_and_month_ai_cost() -> None:
     )
     # 接在「這輪產生幾則通知」後面
     assert lines[2:4] == ["這輪產生 1 則通知", "AI 費用：今天約 NT$3.46，本月約 NT$120（上限 NT$7,000）"]
+
+
+def test_discovery_digest_lists_added_rejected_and_disabled() -> None:
+    # ADR-078：每週告訴你 agent 加了哪些來源，看到不對再停用
+    added = [(f"Scholarship {n}", f"https://u{n}.eu/s") for n in range(12)]
+    title, lines = report.discovery_digest_message(
+        added=added,
+        rejected=[("A", "留學國家不在歐洲"), ("B", "留學國家不在歐洲"), ("C", "國籍規定排除台灣")],
+        disabled=[("Old programme", "連續 3 次抽不到有效獎學金")],
+    )
+    assert title == "本週新來源：加入 12、排除 3、停用 1"
+    # 加入的最多列 10 個，其餘只寫數量
+    assert lines[:2] == ["加入：Scholarship 0　https://u0.eu/s", "加入：Scholarship 1　https://u1.eu/s"]
+    assert "（還有 2 個，見網頁的設定頁）" in lines
+    assert "排除的原因：留學國家不在歐洲 2、國籍規定排除台灣 1" in lines
+    assert "停用：Old programme（連續 3 次抽不到有效獎學金）" in lines
+    assert lines[-1] == "不對的來源可以在網頁的設定頁停用"

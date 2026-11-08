@@ -7,8 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.llm.base import ChatMessage, ToolCall, ToolSpec, Turn
-from app.features.discovery.models import University
-from app.features.discovery.run import Deps, run_new_url, run_search, run_university
+from app.features.discovery.models import AgentRun, University
+from app.features.discovery.run import (
+    Deps,
+    new_url_targets,
+    run_new_url,
+    run_search,
+    run_university,
+)
 from app.features.discovery.tools import Page, SearchHit, Toolbox
 from app.features.sources.links import Link
 from app.features.sources.models import Discovery, Source, SourceKind, SourceStatus
@@ -116,6 +122,25 @@ def test_new_url_task_replaces_a_matching_url_and_waits_7_days() -> None:
         assert "https://old-cyber.example/" in detail and "https://new-cyber.example/" in detail
         assert (source.url, source.unreachable_since) == ("https://new-cyber.example/", None)
         assert run_new_url(deps(session, []), source.id, NOW) is None  # 7 天內不再找
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_new_url_targets_are_unreachable_enabled_and_not_searched_this_week() -> None:
+    session = SessionLocal()
+    try:
+        due = Source(name="T due", url="https://t-due.example/", kind=SourceKind.UNIVERSITY, unreachable_since=NOW.date())
+        off = Source(name="T off", url="https://t-off.example/", kind=SourceKind.UNIVERSITY, unreachable_since=NOW.date(), enabled=False)
+        fine = Source(name="T fine", url="https://t-fine.example/", kind=SourceKind.UNIVERSITY)
+        recent = Source(name="T recent", url="https://t-recent.example/", kind=SourceKind.UNIVERSITY, unreachable_since=NOW.date())
+        session.add_all([due, off, fine, recent])
+        session.flush()
+        session.add(AgentRun(task="new_url", target=f"source:{recent.id}", started_at=NOW))
+        session.flush()
+        targets = new_url_targets(session, NOW)
+        assert due.id in targets
+        assert not {off.id, fine.id, recent.id} & set(targets)
     finally:
         session.rollback()
         session.close()

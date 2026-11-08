@@ -119,3 +119,20 @@ def test_error_kinds_in_plain_words() -> None:
     assert report.error_kind("SSLCertVerificationError: certificate verify failed") == "對方憑證或加密設定有問題"
     assert report.error_kind("httpx.ConnectError: [SSL: UNSAFE_LEGACY_RENEGOTIATION_DISABLED]") == "對方憑證或加密設定有問題"
     assert report.error_kind("httpx.HTTPStatusError: 404 Not Found") == "其他：httpx.HTTPStatusError: 404 Not Found"
+
+
+def test_new_url_results_are_one_message_a_day() -> None:
+    # ADR-093：找新網址的結果一天合成一則
+    title, lines = report.new_url_digest_message([
+        ("replaced", "CyberMACS", "https://old.example/ → https://new.example/"),
+        ("mismatch", "REPLAY", "https://other.example/（新網頁上找不到同一個學程的名稱或主辦單位）"),
+        ("not_found", "MAGMA", ""),
+        ("not_found", "SERP", ""),
+    ]) or ("", [])
+    assert title == "找新網址：換了 1 個、對不上 1 個、沒找到 2 個"
+    assert lines == [
+        "換了：CyberMACS　https://old.example/ → https://new.example/",
+        "對不上，沒換：REPLAY　https://other.example/（新網頁上找不到同一個學程的名稱或主辦單位）",
+        "沒換的 7 天後再找一次",
+    ]
+    assert report.new_url_digest_message([("not_found", "MAGMA", "")]) is None  # 全部沒找到：不送

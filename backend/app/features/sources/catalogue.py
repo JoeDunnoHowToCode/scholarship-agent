@@ -69,6 +69,14 @@ def _homepage_in_description(card: Tag) -> str | None:
     return None
 
 
+def upsert_programme(session: Session, catalogue_id: int, entry: CatalogueEntry, listed: set[str]) -> str:
+    """寫入目錄裡的一個學程，回傳 added（新增）、kept（已有）、moved（學程換了網址，更新原本那一筆）。
+
+    listed 是這次目錄裡所有學程的網址。
+    """
+    return ""  # 骨架
+
+
 def import_programmes(session: Session) -> None:
     """讀 EACEA 目錄每一頁最新的快照，把學程寫成子來源（以網址 upsert，重跑不會重複）。"""
     catalogue = session.scalars(select(Source).where(Source.url == CATALOGUE_URL)).one()

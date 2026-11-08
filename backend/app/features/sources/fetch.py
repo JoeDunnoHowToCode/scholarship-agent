@@ -18,7 +18,13 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.fetch.base import BlockedError, Fetcher, FetchResult, TemporaryFetchError
+from app.core.fetch.base import (
+    BlockedError,
+    Fetcher,
+    FetchResult,
+    PageGone,
+    TemporaryFetchError,
+)
 from app.core.fetch.http import HttpFetcher
 from app.core.fetch.text import content_hash, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
@@ -104,7 +110,10 @@ def fetch_source(
             report("error", str(status), url)
             if status >= 500:
                 raise  # 伺服器出錯：交給呼叫的人決定，背景工作會稍後重試（ADR-056）
-            continue  # 例如某一頁消失了（404）：繼續檢查下一頁
+            if url == source.url and status in (404, 410):
+                # 首頁不見了：學程可能搬家，這天算失敗（11-09 使用者選 C）；以前會默默沿用舊資料
+                raise PageGone(url, status) from error
+            continue  # 子頁消失了（404）：繼續檢查下一頁
         except httpx.HTTPError as error:
             report("error", type(error).__name__, url)
             raise  # 網路錯誤或逾時：交給呼叫的人決定，背景工作會稍後重試（ADR-056）

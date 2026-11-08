@@ -7,7 +7,7 @@ from typing import Literal
 import httpx
 from google.genai.errors import APIError
 
-from app.core.fetch.base import BlockedError, TemporaryFetchError
+from app.core.fetch.base import BlockedError, PageGone, TemporaryFetchError
 from app.core.llm.gemini import ExtractionError, MissingApiKeyError
 
 # fail：當天直接算失敗、不重試（重試也不會好）；跨天仍照 ADR-080 數「連續幾天失敗」
@@ -75,6 +75,8 @@ def _hopeless(error: BaseException) -> bool:
     for _ in range(MAX_LINKS):
         if current is None:
             return False
+        if isinstance(current, PageGone):
+            return True  # 首頁 404、410：重試也一樣（11-09 使用者選 C）
         if isinstance(current, socket.gaierror) and current.errno == socket.EAI_NONAME:
             return True  # 網域查不到（暫時查不到是 EAI_AGAIN，照舊重試）
         if isinstance(current, ssl.SSLCertVerificationError):

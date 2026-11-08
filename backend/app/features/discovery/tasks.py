@@ -22,3 +22,18 @@ def search_task(profile: Profile | None, today: date) -> str:
         f"入學年度：{today.year}、{today.year + 1}（找現在或接下來會開放申請的）\n"
         f"{who}"
     )
+
+
+def university_task(name: str, country: str, homepage: str) -> str:
+    """逐校找的任務：只有學校的公開資料，沒有個人資料。"""
+    return f"學校：{name}\n國家：{country}\n首頁：{homepage}"
+
+
+def new_url_task(programme: str, scholarship: str | None, provider: str | None, old_url: str) -> str:
+    """找新網址的任務：只有學程的公開資料。"""
+    return (
+        f"學程名稱：{programme}\n"
+        f"獎學金名稱：{scholarship or '原文沒寫'}\n"
+        f"主辦單位：{provider or '原文沒寫'}\n"
+        f"舊網址（連不上）：{old_url}"
+    )

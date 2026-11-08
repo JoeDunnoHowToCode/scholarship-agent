@@ -129,3 +129,11 @@ def error_kind(error: str) -> str:
     if "robots.txt 暫時無法讀取" in error or "5xx" in lowered or "server error" in lowered:
         return "對方伺服器錯誤"
     return f"其他：{error[:80]}"
+
+
+def new_url_digest_message(results: list[tuple[str, str, str]]) -> Message | None:
+    """一天的找新網址結果合成一則（ADR-093）：results 是（replaced／mismatch／not_found, 名稱, 說明）。
+
+    沒有換、也沒有對不上的（全部都沒找到）就不送，回傳 None。
+    """
+    return None  # 骨架

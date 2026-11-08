@@ -118,3 +118,8 @@ def run_new_url(deps: Deps, source_id: int, now: datetime) -> tuple[str, str, st
         replaced, reason = decide_new_url(session, source, url, page.text)
         session.commit()
     return ("replaced", name, f"{old} → {url}") if replaced else ("mismatch", name, f"{url}（{reason}）")
+
+
+def new_url_targets(session: Session, now: datetime) -> list[int]:
+    """今天要找新網址的來源：被標成抓不到（ADR-080）、還啟用中、7 天內沒找過。"""
+    return []  # 骨架

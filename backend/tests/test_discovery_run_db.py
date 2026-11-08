@@ -134,7 +134,8 @@ def test_new_url_task_replaces_a_matching_url_and_waits_7_days() -> None:
 def test_new_url_targets_are_unreachable_enabled_and_not_searched_this_week() -> None:
     session = SessionLocal()
     try:
-        due = Source(name="T due", url="https://t-due.example/", kind=SourceKind.UNIVERSITY, unreachable_since=NOW.date())
+        due = Source(name="T due", url="https://t-due.example/", kind=SourceKind.UNIVERSITY, unreachable_since=NOW.date(),
+                     last_error="gaierror: nodename nor servname provided")  # 網站不在了才找（11-09 使用者選 B）
         off = Source(name="T off", url="https://t-off.example/", kind=SourceKind.UNIVERSITY, unreachable_since=NOW.date(), enabled=False)
         fine = Source(name="T fine", url="https://t-fine.example/", kind=SourceKind.UNIVERSITY)
         recent = Source(name="T recent", url="https://t-recent.example/", kind=SourceKind.UNIVERSITY, unreachable_since=NOW.date())

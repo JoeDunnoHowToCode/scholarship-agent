@@ -4,6 +4,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.features.costs import models as cost_models  # noqa: F401
+from app.features.discovery import models as discovery_models  # noqa: F401
 from app.features.matching import models as match_models  # noqa: F401
 from app.features.notifications import models as notification_models  # noqa: F401
 from app.features.pipeline import models as pipeline_models  # noqa: F401

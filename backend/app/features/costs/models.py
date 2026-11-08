@@ -15,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.features.discovery.models import AgentRun
 from app.features.pipeline.models import Run
 from app.features.sources.models import Source
 from app.shared.db import Base
@@ -37,3 +38,4 @@ class LLMCall(Base):
     # 是哪個來源、哪一天的檢查花的（指令手動執行時可能都是空白）
     source_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey(Source.id, ondelete="SET NULL"))
     run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey(Run.id, ondelete="SET NULL"))
+    agent_run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey(AgentRun.id, ondelete="SET NULL"))

@@ -177,6 +177,8 @@
 | 每週摘要訊息 | `tests/test_pipeline_messages.py` | `features/pipeline/report.py` |
 | 大學名單與每批挑選 | `tests/test_universities.py` | `features/discovery/universities.py` |
 | 同一學程檢查與換網址 | `tests/test_new_url.py` | `features/discovery/new_url.py` |
+| 三種任務、每天的發掘串接 | `tests/test_discovery_run_db.py` | `features/discovery/run.py` |
+| 重試沒用的錯誤當天直接算失敗（ADR-094） | `tests/test_pipeline_errors.py`、`tests/test_pipeline_outcomes.py` | `features/pipeline/errors.py`、`jobs.py` |
 | 設定 API（門檻、上限範圍、停用來源） | `tests/test_settings_api.py` | `features/settings/api.py` |
 | 紀錄 API | `tests/test_costs_api.py` | `features/costs/api.py` |
 
@@ -302,12 +304,37 @@
   完整檢查：260 passed；ruff、mypy 無問題
   ```
 
-### 段 5
-- [ ] 大學名單從官方出處建立，每個名單記下出處 -> verify: `cd backend && uv run pytest tests/test_universities.py -q`
-- [ ] 每批只挑還沒找過、或超過一年沒找的學校 -> verify: `cd backend && uv run pytest tests/test_universities.py -q`
-- [ ] 新網頁找得到學程名稱和主辦單位才換網址，並重設抓不到的狀態 -> verify: `cd backend && uv run pytest tests/test_new_url.py -q`
-- [ ] 對不上就不換，只通知 -> verify: `cd backend && uv run pytest tests/test_new_url.py -q`
-- [ ] 實跑：逐校找 10 所、搜尋補漏 1 次、找新網址 1 次，貼出提交、加入、排除數與費用 -> verify: `cd backend && uv run python -m app.features.discovery.run --universities 10 --search --new-urls 1 --max-cost 20`
+### 段 5（11-09 完成）
+- [x] 大學名單從官方出處建立，每個名單記下出處 -> verify: `cd backend && uv run pytest tests/test_universities.py -q`
+  ```
+  紅（967ea63）：assert 0 == 2　綠（ecc50af）：2 passed
+  種子（44457b8）：320 所，英國 187（England 156、Scotland 18、Wales 8、NI 5）、瑞典 42、芬蘭 35、挪威 35、丹麥 16、冰島 5
+  載入：種子 320 所，新增 320 所
+  ```
+- [x] 每批只挑還沒找過、或超過一年沒找的 -> verify: `cd backend && uv run pytest tests/test_universities.py -q`
+- [x] 新網頁找得到學程名稱和主辦單位才換網址，並重設抓不到的狀態 -> verify: `cd backend && uv run pytest tests/test_new_url.py -q`
+- [x] 對不上就不換，只通知 -> verify: `cd backend && uv run pytest tests/test_new_url.py -q`
+  ```
+  同一學程 紅（482e161 前）：3 failed　綠（482e161）：4 passed
+  換網址 紅：assert False is True（測試欄位名稱經使用者同意修正 d2a2cde）　綠（8070d02）：6 passed
+  實跑發現的兩個 bug：長名稱（紅 9aef484、綠 be6e82c）、結尾的 /（紅 19474ac、綠 4bb3a65）
+  目錄已有新網址就停用舊來源（ADR-095）：紅 d110934、綠 ac45024；通知 紅 1a2d078、綠 79d0c51
+  現在：9 passed
+  ```
+- [x] 三種任務寫回結果、搜尋每週一次、找新網址每 7 天一次、出錯跳過但到上限就停 -> verify: `cd backend && uv run pytest tests/test_discovery_run_db.py -q`
+  ```
+  紅（後於 09923a8）：3 failed　綠（3c1a6f9）：3 passed
+  discover 紅（e8ca4bf）：assert (0, 0, None) == (2, 2, None)　綠（4b4055b，mypy 修正 25df8a7）
+  現在：7 passed
+  ```
+- [x] 實跑：逐校找 10 所、搜尋補漏 1 次、找新網址 1 次，貼出提交、加入、排除數與費用 -> verify: `cd backend && uv run python -m app.features.discovery.run --universities 10 --search --new-urls 1 --max-cost 2`
+  ```
+  11-08 搜尋補漏＋找新網址：搜尋新增候選 8（Chevening、瑞典 SI、法國 Eiffel、義大利外交部、荷蘭 NL Scholarship、Stipendium Hungaricum、DAAD、UPF）；找新網址 SERP 判成對不上（bug，已修），之後套用 ADR-095：#16 停用，「已由 #3801 取代」
+  11-09 逐校找 10 所（丹麥）：done 10、新增候選 5、出錯 0，合計 NT$4.39（每所 NT$0.05–1.18）
+  提示詞 v2（cc518cf）重試 ITU、RMC：各 5 步，各提交 1 頁（v1 只讀丹麥文首頁就放棄）
+  加入或排除：候選會在下一次每日檢查抽取後依四條規則決定
+  完整檢查：286 passed；ruff、mypy 無問題
+  ```
 
 ### 段 6
 - [ ] 通知門檻只收 0–100、每月上限只收 1–7,000 -> verify: `cd backend && uv run pytest tests/test_settings_api.py -q`
@@ -351,3 +378,15 @@
 26. （段 4 實作時）候選被網站擋（ADR-028）時，和其他來源一樣標成需人工，不自動排除，也不算進每週上限
 27. （段 4 實作時）候選的名稱先用網址，抽出獎學金後換成獎學金名稱；之後每次重抽也跟著更新
 28. （段 4 實作時）「有效獎學金」和加入的規則相同：四條規則都過才算；已加入的來源之後變成舊資料或不在歐洲，也會被算成一次抽不到
+29. （段 5 實作時）逐校找出錯的學校 7 天後再試，不要每天都排第一個佔名額；正常找完的一年後再找
+30. （段 5 實作時）每次執行最多提交：逐校找 3 頁、搜尋補漏 10 個、找新網址 1 個；手動指令的 `--max-cost` 是「每次 agent 執行」的上限（預設 NT$2）
+31. （段 5 實作時）找新網址時，agent 提議的網址由程式自己再抓一次，用我們抓到的內容做同一學程檢查，不相信 agent 說的
+32. （段 5 實作時）同一學程檢查：完整名稱、破折號後的縮寫，或名稱裡至少 3 個特別字全部出現在網頁上；只差結尾 `/` 的網址算同一個
+33. （段 5 實作時）逐校找的提示詞第 2 版：首頁是當地語言就先找英文版，至少看 3 頁才放棄（11-09 實跑丹麥學校發現）
+34. （段 5 實作時）大學名單由 `backend/scripts/build_universities.py` 從官方出處建立；冰島 7 所裡農業大學網站跳出驗證碼（不繞過）、Hólar 已併入冰島大學，所以只有 5 所；芬蘭國防大學官方資料沒有網址，不收
+
+## 段 5 實作時的發現（之後處理）
+
+1. 抽取時，同一個來源歷來抓過的每個網址的最新快照都會一起給 AI。換網址之後，舊網站最後一次的快照也還會被一起抽，可能把舊資料混進來
+2. 搜尋補漏不知道已經有哪些來源，例如提交了 Chevening 的總頁，而種子已經有 Chevening 台灣頁；靠規則去重（ADR-048）處理，之後可以考慮把已知來源告訴 agent
+3. 每天的發掘工作在收尾後才跑，所以 agent 找到的候選要到隔天的每日檢查才會評分

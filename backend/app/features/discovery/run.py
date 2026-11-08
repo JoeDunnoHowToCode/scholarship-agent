@@ -127,8 +127,11 @@ def run_new_url(deps: Deps, source_id: int, now: datetime) -> tuple[str, str, st
         if source is None:
             return None
         replaced, reason = decide_new_url(session, source, url, page.text)
+        superseded = not replaced and not source.enabled  # 目錄裡已有新來源，舊的被停用（11-08 使用者選 B）
         session.commit()
-    return ("replaced", name, f"{old} → {url}") if replaced else ("mismatch", name, f"{url}（{reason}）")
+    if replaced:
+        return "replaced", name, f"{old} → {url}"
+    return ("superseded", name, reason) if superseded else ("mismatch", name, f"{url}（{reason}）")
 
 
 def new_url_targets(session: Session, now: datetime) -> list[int]:

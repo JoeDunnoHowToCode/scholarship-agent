@@ -138,11 +138,15 @@ def new_url_digest_message(results: list[tuple[str, str, str]]) -> Message | Non
     """
     replaced = [(name, detail) for kind, name, detail in results if kind == "replaced"]
     mismatched = [(name, detail) for kind, name, detail in results if kind == "mismatch"]
-    if not replaced and not mismatched:
+    superseded = [(name, detail) for kind, name, detail in results if kind == "superseded"]
+    if not replaced and not mismatched and not superseded:
         return None
     missing = sum(1 for kind, _, _ in results if kind == "not_found")
     title = f"找新網址：換了 {len(replaced)} 個、對不上 {len(mismatched)} 個、沒找到 {missing} 個"
-    lines = [f"換了：{name}　{detail}" for name, detail in replaced]
+    if superseded:
+        title += f"、被取代停用 {len(superseded)} 個"
+    lines = [f"被取代停用：{name}　{detail}" for name, detail in superseded]
+    lines += [f"換了：{name}　{detail}" for name, detail in replaced]
     lines += [f"對不上，沒換：{name}　{detail}" for name, detail in mismatched]
     lines.append("沒換的 7 天後再找一次")
     return title, lines

@@ -30,6 +30,7 @@ def report_message(
     sources: dict[str, int],
     new_events: int,
     skipped: list[tuple[date, bool]],
+    ai_cost: tuple[float, float, float] | None = None,
 ) -> Message:
     """每日檢查報告：哪一天、何時開始與收尾（台灣時間）、來源結果、這輪產生幾則通知。
 

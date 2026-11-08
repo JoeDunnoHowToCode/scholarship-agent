@@ -67,3 +67,15 @@ def test_modules_use_the_file_matching_their_version() -> None:
 def test_unknown_version_raises() -> None:
     with pytest.raises(FileNotFoundError):
         prompts.load("extract-999")
+
+
+def test_identify_finds_the_version_from_the_sent_text() -> None:
+    # 費用紀錄要記「哪個提示詞的哪一版」：從實際送出的文字（已經填好變數）認出來，呼叫的地方不用改
+    sent = pick.PROMPT.format(name="MULTICOM", url="https://example.eu", max_picks=3, links="- Apply | /apply")
+    assert prompts.identify(sent) == "links-1"
+    # 結構化輸出重試時會在後面附上錯誤說明，還是認得出來
+    assert prompts.identify(sent + "\n\n上一次的回答不符合格式") == "links-1"
+    # 沒有變數的提示詞（PDF 轉錄）照樣認得
+    assert prompts.identify(transcribe.PROMPT) == "transcribe-1"
+    # 不是任何提示詞
+    assert prompts.identify("hello") is None

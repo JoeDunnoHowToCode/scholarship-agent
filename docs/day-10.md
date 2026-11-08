@@ -165,10 +165,13 @@
 | 提示詞搬過去文字不變 | `tests/test_prompts.py` | `core/prompts.py` |
 | 費用計算、本月總額、呼叫前擋上限 | `tests/test_costs.py` | `features/costs/` |
 | 呼叫紀錄真的寫進資料庫（交易回滾） | `tests/test_costs_db.py` | `features/costs/` |
+| 轉接頭的工具呼叫 | `tests/test_llm_tools.py` | `core/llm/gemini.py` |
 | agent 迴圈的停止條件與錯誤處理 | `tests/test_agent_loop.py` | `features/discovery/agent.py` |
+| 一次執行的紀錄（結果、步數、費用） | `tests/test_agent_runner_db.py` | `features/discovery/runner.py` |
+| Tavily、讀網頁、本月搜尋次數 | `tests/test_agent_services.py` | `features/discovery/services.py` |
 | 三種工具 | `tests/test_agent_tools.py` | `features/discovery/tools.py` |
 | 假個資不會送出去 | `tests/test_agent_privacy.py` | `features/discovery/` |
-| 全文 30 天清理 | `tests/test_trace_cleanup.py` | `features/discovery/` |
+| 每一步的紀錄與全文 30 天清理 | `tests/test_agent_trace_db.py` | `features/discovery/trace.py` |
 | 候選規則、每週上限、自動停用 | `tests/test_candidates.py` | `features/discovery/candidates.py` |
 | 每週摘要訊息 | `tests/test_pipeline_messages.py` | `features/pipeline/report.py` |
 | 大學名單與每批挑選 | `tests/test_universities.py` | `features/discovery/universities.py` |
@@ -229,19 +232,53 @@
   完整檢查：220 passed；ruff、mypy 無問題
   ```
 
-### 段 3
-- [ ] Gemini 3.5 Flash-Lite 的函式呼叫實際可用 -> verify: `cd backend && uv run python -m app.features.discovery.agent --smoke --max-cost 1`
-- [ ] AI 說完成時迴圈停止 -> verify: `cd backend && uv run pytest tests/test_agent_loop.py -q`
-- [ ] 步數到上限時停止並記下結果 -> verify: `cd backend && uv run pytest tests/test_agent_loop.py -q`
-- [ ] 不存在的工具與工具出錯都變成工具結果，不讓程式當掉 -> verify: `cd backend && uv run pytest tests/test_agent_loop.py -q`
-- [ ] 費用到上限時停止 -> verify: `cd backend && uv run pytest tests/test_agent_loop.py -q`
-- [ ] `submit` 拒收這次沒看過的網址 -> verify: `cd backend && uv run pytest tests/test_agent_tools.py -q`
-- [ ] `read_page` 截斷文字並列出連結 -> verify: `cd backend && uv run pytest tests/test_agent_tools.py -q`
-- [ ] `search` 超過每月次數上限就回報錯誤 -> verify: `cd backend && uv run pytest tests/test_agent_tools.py -q`
-- [ ] 假國籍與假姓名的記號不出現在送給 AI 與 Tavily 的文字裡 -> verify: `cd backend && uv run pytest tests/test_agent_privacy.py -q`
-- [ ] 超過 30 天的全文被清掉，數字與摘要保留 -> verify: `cd backend && uv run pytest tests/test_trace_cleanup.py -q`
-- [ ] 每一步都寫進 `agent_steps`，trace 指令照順序印出 -> verify: `cd backend && uv run python -m app.features.discovery.trace <smoke 的 agent_run_id>`
-- [ ] commit 假金鑰會被 gitleaks 擋下 -> verify: `cd "$(mktemp -d)" && git init -q && printf 'GOOGLE_API_KEY=AIzaSyA1234567890abcdefghijklmnopqrstuv\n' > leak.env && git add leak.env && gitleaks git --pre-commit --staged .; echo "exit=$?"`（預期 exit 不是 0）（假金鑰，只用來測試；gitleaks:allow）
+### 段 3（11-08 完成）
+- [x] Gemini 3.5 Flash-Lite 的函式呼叫實際可用 -> verify: `cd backend && uv run python -m app.features.discovery.runner --smoke --max-cost 1`
+  ```
+  agent_runs #23：done，4 步，約 NT$0.18
+  提交： ['https://www.lunduniversity.lu.se/study/admission-degree-studies/scholarships-and-awards/lund-university-global-scholarship']
+  llm_calls：agent-smoke-1 共 4 筆，都連到 agent_run 23
+  ```
+- [x] 轉接頭把對話轉成 Gemini 的格式、回傳工具呼叫 -> verify: `cd backend && uv run pytest tests/test_llm_tools.py -q`
+  ```
+  紅（ed3aef7）：2 failed　綠（5adef5d）：2 passed
+  ```
+- [x] AI 說完成時迴圈停止 -> verify: `cd backend && uv run pytest tests/test_agent_loop.py -q`
+- [x] 步數到上限時停止並記下結果 -> verify: `cd backend && uv run pytest tests/test_agent_loop.py -q`
+- [x] 不存在的工具與工具出錯都變成工具結果，不讓程式當掉 -> verify: `cd backend && uv run pytest tests/test_agent_loop.py -q`
+- [x] 費用到上限時停止 -> verify: `cd backend && uv run pytest tests/test_agent_loop.py -q`
+  ```
+  紅（6d072be）：5 failed in 0.03s　綠（e68b07d）：5 passed in 0.01s
+  ```
+- [x] `submit` 拒收這次沒看過的網址 -> verify: `cd backend && uv run pytest tests/test_agent_tools.py -q`
+- [x] `read_page` 截斷文字並列出連結 -> verify: `cd backend && uv run pytest tests/test_agent_tools.py -q`
+- [x] `search` 超過每月次數上限就回報錯誤 -> verify: `cd backend && uv run pytest tests/test_agent_tools.py tests/test_agent_services.py -q`
+  ```
+  工具 紅（9861ed2）：7 failed　綠（d022b82）：7 passed
+  Tavily、讀網頁、本月次數 紅（1068787 骨架後）：6 failed　綠（b4a7903）：6 passed
+  ```
+- [x] 假國籍與假姓名的記號不出現在送給 AI 與 Tavily 的文字裡 -> verify: `cd backend && uv run pytest tests/test_agent_privacy.py -q`
+  ```
+  紅：assert ('Computer Science' in '')　綠（fcf217c）：1 passed
+  ```
+- [x] 超過 30 天的全文被清掉，數字與摘要保留 -> verify: `cd backend && uv run pytest tests/test_agent_trace_db.py -q`
+  ```
+  紅（c4ec56b）：2 failed　綠（4b0413a）：2 passed
+  ```
+- [x] 每一步都寫進 `agent_steps`，trace 指令照順序印出 -> verify: `cd backend && uv run python -m app.features.discovery.trace 23`
+  ```
+  #23 smoke ：done，4 步，約 US$0.0056
+    1 model [tokens 466/18]  呼叫 search(...)
+    1 tool  search {"query": "Lund University Global Scholarship"}
+    2 model  呼叫 read_page(...)　3 model  呼叫 submit(...)　4 model（結束）
+  執行紀錄（結果、步數、費用，出錯記成 error）：tests/test_agent_runner_db.py 2 passed（紅 e8c4336、綠 b042f81）
+  ```
+- [x] commit 假金鑰會被 gitleaks 擋下 -> verify: `cd "$(mktemp -d)" && git init -q && printf 'GOOGLE_API_KEY=AIzaSyA1234567890abcdefghijklmnopqrstuv\n' > leak.env && git add leak.env && gitleaks git --pre-commit --staged .; echo "exit=$?"`（預期 exit 不是 0）（假金鑰，只用來測試；gitleaks:allow）
+  ```
+  暫存 repo 裡 commit 假金鑰：leaks found: 1，commit 沒有建立；一般檔案照常 commit
+  整個 git 歷史 691 個 commit：唯一的發現是這一行的假金鑰（已加 gitleaks:allow）
+  完整檢查：245 passed；ruff、mypy 無問題
+  ```
 
 ### 段 4
 - [ ] 四條規則全部符合才加入，否則標成已排除並記下原因 -> verify: `cd backend && uv run pytest tests/test_candidates.py -q`
@@ -289,3 +326,7 @@
 16. （段 2 實作時）上限只看「本月總額有沒有達到上限」，不預估這次會花多少，所以最多超過一次呼叫的錢（和 ADR-089 一致）；計畫原本寫「加上這次會超過」，已改
 17. （段 2 實作時）所有 Gemini 都由 `costs.gemini()` 建立；每個來源的抽取記下 `source_id`，`run_id` 先不填（工作裡拿不到，紀錄頁先用日期分）
 18. （段 2 實作時）嵌入（向量）呼叫不記錄：LangChain 的嵌入介面不回傳 tokens，費用也很小；之後要記再加
+19. （段 3 實作時）`read_page` 也只能打開這次看過的網址（任務給的網址、搜尋結果、讀過的頁面上的連結），和 `submit` 一樣，避免 AI 編造網址浪費抓取
+20. （段 3 實作時）步數＝呼叫 AI 的次數；一步裡 AI 可能同時呼叫好幾個工具
+21. （段 3 實作時）工具說明放在 `prompts/tool-*/1.md`，smoke 任務說明在 `prompts/agent-smoke/1.md`；Tavily 用 httpx 直接呼叫，不另外裝 tavily 套件
+22. （段 3 實作時）smoke 指令改成 `python -m app.features.discovery.runner --smoke`（計畫原本寫 `agent --smoke`）

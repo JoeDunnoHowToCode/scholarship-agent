@@ -461,6 +461,10 @@ export interface components {
             amount: string | null;
             /** Amounts */
             amounts: components["schemas"]["AmountOut"][];
+            /** Deadline Line */
+            deadline_line: string | null;
+            /** Amount Headline */
+            amount_headline: string | null;
             /** Language Requirements */
             language_requirements: string | null;
             /** Other Eligibility */

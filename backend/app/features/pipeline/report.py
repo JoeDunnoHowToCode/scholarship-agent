@@ -51,6 +51,9 @@ def report_message(
         ),
         f"這輪產生 {new_events} 則通知",
     ]
+    if ai_cost is not None:
+        today_ntd, month_ntd, cap_ntd = ai_cost
+        lines.append(f"AI 費用：今天約 NT${today_ntd:,.2f}，本月約 NT${month_ntd:,.0f}（上限 NT${cap_ntd:,.0f}）")
     for skipped_day, waited in skipped:
         reason = "沒有單獨檢查：在等前一輪收尾" if waited else "沒有檢查：那天電腦沒開或沒有網路"
         lines.append(f"{day(skipped_day)} {reason}")

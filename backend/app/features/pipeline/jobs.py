@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.fetch.http import HttpFetcher
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM
 from app.features.costs.llm import gemini
+from app.features.costs.summary import summarize
 from app.features.matching.score import score_all
 from app.features.notifications.generate import add_system_event, generate
 from app.features.notifications.models import Event
@@ -293,8 +294,15 @@ def finish_daily_run(run_id: int) -> str:
             run.counts = {**run.counts, "sources": sources, "cycles": dict(cycles), "scores": scores, "events": events}
             # 每日檢查報告（ADR-076）：每一輪都讓你知道做了沒、做了什麼；同一輪只送一則（去重鍵 run:id）
             new_events = sum(n for kind, n in events.items() if kind.endswith(":pending"))
+            # 這一輪那天（台灣日期）和本月的 AI 費用（ADR-089）
+            spent = summarize(session, finished)
+            ai_cost = (
+                dict(spent.by_day).get(run.local_date, 0.0) * NTD_PER_USD,
+                spent.month_usd * NTD_PER_USD,
+                settings.monthly_cap_ntd,
+            )
             title, lines = report_message(
-                run.local_date, run.started_at, finished, sources, new_events, skipped_days(session, run)
+                run.local_date, run.started_at, finished, sources, new_events, skipped_days(session, run), ai_cost
             )
             add_system_event(session, CURRENT_USER_ID, f"run:{run.id}", title, lines, finished)
     notify_soon()

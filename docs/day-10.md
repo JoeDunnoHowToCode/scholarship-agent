@@ -241,7 +241,7 @@
 - [ ] 假國籍與假姓名的記號不出現在送給 AI 與 Tavily 的文字裡 -> verify: `cd backend && uv run pytest tests/test_agent_privacy.py -q`
 - [ ] 超過 30 天的全文被清掉，數字與摘要保留 -> verify: `cd backend && uv run pytest tests/test_trace_cleanup.py -q`
 - [ ] 每一步都寫進 `agent_steps`，trace 指令照順序印出 -> verify: `cd backend && uv run python -m app.features.discovery.trace <smoke 的 agent_run_id>`
-- [ ] commit 假金鑰會被 gitleaks 擋下 -> verify: `cd "$(mktemp -d)" && git init -q && printf 'GOOGLE_API_KEY=AIzaSyA1234567890abcdefghijklmnopqrstuv\n' > leak.env && git add leak.env && gitleaks git --pre-commit --staged .; echo "exit=$?"`（預期 exit 不是 0）
+- [ ] commit 假金鑰會被 gitleaks 擋下 -> verify: `cd "$(mktemp -d)" && git init -q && printf 'GOOGLE_API_KEY=AIzaSyA1234567890abcdefghijklmnopqrstuv\n' > leak.env && git add leak.env && gitleaks git --pre-commit --staged .; echo "exit=$?"`（預期 exit 不是 0）（假金鑰，只用來測試；gitleaks:allow）
 
 ### 段 4
 - [ ] 四條規則全部符合才加入，否則標成已排除並記下原因 -> verify: `cd backend && uv run pytest tests/test_candidates.py -q`

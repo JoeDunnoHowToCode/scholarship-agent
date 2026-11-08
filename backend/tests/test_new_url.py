@@ -1,6 +1,13 @@
 """找新網址（ADR-080）：換網址前確認是同一個學程。"""
 
-from app.features.discovery.new_url import same_programme
+from datetime import UTC, datetime
+
+from sqlalchemy import select
+
+from app.features.discovery.new_url import apply_new_url, same_programme
+from app.features.notifications.models import Event
+from app.features.sources.models import Source, SourceKind
+from app.shared.db import SessionLocal
 
 CYBER = ["Master of Applied Cybersecurity", "Erasmus Mundus Joint Master Degree Scholarship – CyberMACS"]
 
@@ -26,3 +33,43 @@ def test_the_distinctive_provider_word_must_appear() -> None:
     assert same_programme(CYBER, "Universidade do Porto", page) is False
     # 主辦單位只有通用的字（European Commission）：只看名稱
     assert same_programme(CYBER, "European Commission", page) is True
+
+
+def test_a_matching_new_url_replaces_the_old_one_and_notifies() -> None:
+    session = SessionLocal()
+    try:
+        now = datetime.now(UTC)
+        source = Source(
+            name="Master of Applied Cybersecurity", url="https://old-cybermacs.example/", kind=SourceKind.UNIVERSITY,
+            fail_days=5, last_failed_on=now.date(), unreachable_since=now.date(),
+        )
+        session.add(source)
+        session.flush()
+        page = "CyberMACS: Master of Applied Cybersecurity. Erasmus Mundus programme."
+        assert apply_new_url(session, source, "https://cybermacs.example/", page, now) is True
+        assert source.url == "https://cybermacs.example/"
+        assert (source.fail_days, source.last_failed_on, source.unreachable_since) == (0, None, None)
+        titles = [e.title for e in session.scalars(select(Event).where(Event.dedup_key.like(f"new-url:{source.id}:%")))]
+        assert titles == ["找到新網址：Master of Applied Cybersecurity"]
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_a_different_programme_is_not_applied_but_reported() -> None:
+    session = SessionLocal()
+    try:
+        now = datetime.now(UTC)
+        source = Source(
+            name="Master of Applied Cybersecurity", url="https://old-cybermacs-2.example/", kind=SourceKind.UNIVERSITY,
+            fail_days=5, unreachable_since=now.date(),
+        )
+        session.add(source)
+        session.flush()
+        assert apply_new_url(session, source, "https://data-science.example/", "Master in Data Science", now) is False
+        assert source.url == "https://old-cybermacs-2.example/" and source.unreachable_since == now.date()
+        titles = [e.title for e in session.scalars(select(Event).where(Event.dedup_key.like(f"new-url:{source.id}:%")))]
+        assert titles == ["新網址對不上，沒有換：Master of Applied Cybersecurity"]
+    finally:
+        session.rollback()
+        session.close()

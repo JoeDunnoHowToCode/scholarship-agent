@@ -114,6 +114,8 @@ class Snapshot(Base):
     url: Mapped[str] = mapped_column(Text)  # 實際抓的網址；翻頁時每頁一個
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     content_hash: Mapped[str] = mapped_column(String(64))  # 正規化文字的 SHA-256
+    # 這個網址最後一次還抓得到的時間（新內容、內容沒變、304 都算）；抽取只用最近還在的網址（11-09 使用者選 C）
+    seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     file_path: Mapped[str] = mapped_column(Text)  # 相對於 backend/data/snapshots/
     http_status: Mapped[int] = mapped_column(SmallInteger)
     # 下次條件式請求用：伺服器說「沒更新」就不必重新下載

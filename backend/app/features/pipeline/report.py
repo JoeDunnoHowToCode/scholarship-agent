@@ -136,4 +136,13 @@ def new_url_digest_message(results: list[tuple[str, str, str]]) -> Message | Non
 
     沒有換、也沒有對不上的（全部都沒找到）就不送，回傳 None。
     """
-    return None  # 骨架
+    replaced = [(name, detail) for kind, name, detail in results if kind == "replaced"]
+    mismatched = [(name, detail) for kind, name, detail in results if kind == "mismatch"]
+    if not replaced and not mismatched:
+        return None
+    missing = sum(1 for kind, _, _ in results if kind == "not_found")
+    title = f"找新網址：換了 {len(replaced)} 個、對不上 {len(mismatched)} 個、沒找到 {missing} 個"
+    lines = [f"換了：{name}　{detail}" for name, detail in replaced]
+    lines += [f"對不上，沒換：{name}　{detail}" for name, detail in mismatched]
+    lines.append("沒換的 7 天後再找一次")
+    return title, lines

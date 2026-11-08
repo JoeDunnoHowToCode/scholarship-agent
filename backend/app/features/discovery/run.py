@@ -122,4 +122,9 @@ def run_new_url(deps: Deps, source_id: int, now: datetime) -> tuple[str, str, st
 
 def new_url_targets(session: Session, now: datetime) -> list[int]:
     """今天要找新網址的來源：被標成抓不到（ADR-080）、還啟用中、7 天內沒找過。"""
-    return []  # 骨架
+    searched = select(AgentRun.target).where(AgentRun.task == "new_url", AgentRun.started_at >= now - NEW_URL_EVERY)
+    recent = {target for target in session.scalars(searched) if target}
+    rows = session.scalars(
+        select(Source.id).where(Source.unreachable_since.is_not(None), Source.enabled.is_(True)).order_by(Source.id)
+    )
+    return [source_id for source_id in rows if f"source:{source_id}" not in recent]

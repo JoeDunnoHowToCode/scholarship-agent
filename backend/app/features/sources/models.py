@@ -18,6 +18,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.features.discovery.models import AgentRun
 from app.shared.db import Base
 
 
@@ -93,7 +94,7 @@ class Source(Base):
     unreachable_since: Mapped[date | None] = mapped_column(Date)
     # 發掘 agent 加的來源（ADR-078）：什麼時候提交、哪次執行提交的、什麼時候決定加入或排除、為什麼
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    agent_run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("agent_runs.id", ondelete="SET NULL"))
+    agent_run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey(AgentRun.id, ondelete="SET NULL"))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     review_note: Mapped[str | None] = mapped_column(Text)  # 排除或停用的原因
     # 連續幾次抽不到有效獎學金；到 3 次就停用（「Claude 自行決定」第 11 點）

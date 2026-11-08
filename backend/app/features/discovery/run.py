@@ -34,7 +34,7 @@ from app.features.sources.models import Source, SourceKind
 from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
-UNIVERSITY_VERSION = "agent-university-1"
+UNIVERSITY_VERSION = "agent-university-2"  # 11-09：先找英文版、至少看 3 頁才放棄
 SEARCH_VERSION = "agent-search-1"
 NEW_URL_VERSION = "agent-new-url-1"
 STEPS = {"universities": 15, "search": 25, "new_url": 15}  # 「Claude 自行決定」第 5 點

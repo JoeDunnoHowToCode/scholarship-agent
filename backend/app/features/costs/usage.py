@@ -16,4 +16,5 @@ def month_start(now: datetime) -> datetime:
 
 def over_cap(spent_usd: float, cap_ntd: float) -> bool:
     """本月已花的錢有沒有達到上限（新台幣）。"""
-    return spent_usd * NTD_PER_USD >= cap_ntd
+    # 比之前先四捨五入到「分」：同樣的金額，資料庫和 Python 加總的順序不同，最後幾位小數會不同（11-09 找到的偶發失敗）
+    return round(spent_usd * NTD_PER_USD, 2) >= round(cap_ntd, 2)

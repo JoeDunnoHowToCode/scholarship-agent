@@ -92,6 +92,8 @@ class Source(Base):
     fail_days: Mapped[int] = mapped_column(server_default=text("0"))
     last_failed_on: Mapped[date | None] = mapped_column(Date)
     unreachable_since: Mapped[date | None] = mapped_column(Date)
+    # 最後一次失敗的錯誤（一行）；決定要不要派 agent 找新官網（11-09 使用者選 B：網站不在了才找）
+    last_error: Mapped[str | None] = mapped_column(Text)
     # 發掘 agent 加的來源（ADR-078）：什麼時候提交、哪次執行提交的、什麼時候決定加入或排除、為什麼
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     agent_run_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey(AgentRun.id, ondelete="SET NULL"))

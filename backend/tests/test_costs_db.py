@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from app.features.costs.log import month_total_usd, record_call
 from app.features.costs.models import LLMCall
 from app.features.costs.recorder import CostRecorder, MonthlyCapError
-from app.features.costs.usage import NTD_PER_USD, month_start
+from app.features.costs.summary import summarize
+from app.features.costs.usage import NTD_PER_USD, TAIPEI, month_start
 from app.features.pipeline.errors import classify
 from app.features.sources import pick
 from app.shared.db import SessionLocal
@@ -78,6 +79,32 @@ def test_recorder_records_and_blocks_once_the_cap_is_reached() -> None:
             recorder.before_call()  # 到上限了：下一次呼叫前就擋下
         # 背景工作遇到它會打開斷路器（ADR-056）
         assert classify(MonthlyCapError("x")) == "pause_ai"
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_summary_groups_this_month_by_feature_and_recent_days() -> None:
+    session = SessionLocal()
+    try:
+        now = datetime.now(UTC)
+        before = summarize(session, now)
+        for feature, cost in [("test-a", 0.2), ("test-a", 0.3), ("test-b", 0.1)]:
+            session.add(LLMCall(
+                feature=feature, prompt_version=None, model="gemini-test",
+                input_tokens=1, output_tokens=1, cost_usd=cost, error=None,
+            ))
+        session.flush()
+        after = summarize(session, now)
+        assert after.month_usd == pytest.approx(before.month_usd + 0.6)
+        features = {name: (count, usd) for name, count, usd in after.by_feature}
+        assert features["test-a"][0] == 2 and features["test-a"][1] == pytest.approx(0.5)
+        assert features["test-b"][0] == 1 and features["test-b"][1] == pytest.approx(0.1)
+        # 今天（台灣日期）多了 0.6 美元；最近 7 天最多 7 筆，舊的在前
+        today = now.astimezone(TAIPEI).date()
+        before_today = dict(before.by_day).get(today, 0.0)
+        assert dict(after.by_day)[today] == pytest.approx(before_today + 0.6)
+        assert len(after.by_day) <= 7 and after.by_day == sorted(after.by_day)
     finally:
         session.rollback()
         session.close()

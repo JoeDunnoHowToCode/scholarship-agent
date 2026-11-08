@@ -219,6 +219,16 @@ def handle_error(session: Session, source_id: int, error: Exception) -> dict[str
     return {"result": "skipped", "detail": detail}
 
 
+def outcome_of(source_id: int, is_failed: bool, exc_string: str | None, value: object) -> tuple[int, bool, str]:
+    """一件來源工作的結果：（來源 id, 今天算不算失敗, 錯誤說明）。"""
+    return source_id, False, ""  # 骨架
+
+
+def result_key(is_failed: bool, value: object) -> str:
+    """每日報告要數的結果代碼；今天算失敗的一律是 failed。"""
+    return "unknown"  # 骨架
+
+
 def summarize_dependencies() -> dict[str, int]:
     """收尾時數一數：今天每個來源的工作各是什麼結果；重試後仍失敗的算 failed。"""
     job = get_current_job()

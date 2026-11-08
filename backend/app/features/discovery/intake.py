@@ -139,3 +139,8 @@ def review_after_extraction(session: Session, source: Source, summary: str, now:
     if summary in NOT_EXTRACTED:
         return None  # 內容沒變、只有無關內容變了：不算一次抽取
     return "disabled" if track_extraction(session, source, now) else None
+
+
+def add_weekly_digest(session: Session, now: datetime) -> bool:
+    """這週（台灣時間的 ISO 週）第一次收尾時，加一則發掘的每週摘要；最近 7 天沒有動靜就不送。回傳有沒有加。"""
+    return False  # 骨架

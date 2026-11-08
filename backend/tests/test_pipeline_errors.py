@@ -159,3 +159,33 @@ def test_retry_when_robots_txt_is_temporarily_unreadable() -> None:
     # robots.txt 回 5xx：照 RFC 9309 這次不能抓，但這是對方伺服器暫時出錯，不是被擋；
     # 稍後重試，不標需人工（之前有 4 個來源因此被永遠跳過）
     assert errors.classify(base.TemporaryFetchError("robots.txt 暫時無法讀取（503）")) == "retry"
+
+
+def connect_error(inner: BaseException) -> BaseException:
+    """httpx 連線失敗的真實樣子（11-08 實測）：httpx.ConnectError ← httpcore.ConnectError ← 真正的原因。"""
+    import httpcore
+
+    return caused_by(httpx.ConnectError("連線失敗"), caused_by(httpcore.ConnectError("連線失敗"), inner))
+
+
+def test_fail_today_without_retry_when_retrying_cannot_help() -> None:
+    import socket
+    import ssl
+
+    # 網域不存在：重試 3 次（多等約 36 分鐘）也一樣，當天直接算失敗
+    assert errors.classify(connect_error(socket.gaierror(socket.EAI_NONAME, "nodename nor servname provided"))) == "fail"
+    # 對方憑證驗證失敗、對方伺服器用太舊的加密協商：都要對方修，重試沒用
+    assert errors.classify(connect_error(ssl.SSLCertVerificationError(1, "certificate verify failed"))) == "fail"
+    legacy = ssl.SSLError(1, "unsafe legacy renegotiation disabled")
+    legacy.reason = "UNSAFE_LEGACY_RENEGOTIATION_DISABLED"  # type: ignore[misc]
+    assert errors.classify(connect_error(legacy)) == "fail"
+
+
+def test_temporary_network_errors_still_retry() -> None:
+    import socket
+    import ssl
+
+    # DNS 暫時查不到（EAI_AGAIN）、連線中途斷掉（SSLEOFError）、單純連不上：照舊重試
+    assert errors.classify(connect_error(socket.gaierror(socket.EAI_AGAIN, "temporary failure"))) == "retry"
+    assert errors.classify(connect_error(ssl.SSLEOFError(8, "EOF occurred in violation of protocol"))) == "retry"
+    assert errors.classify(connect_error(ConnectionRefusedError(61, "refused"))) == "retry"

@@ -1,0 +1,9 @@
+#!/bin/sh
+# commit 前掃描這次要 commit 的內容有沒有金鑰（ADR-087）。
+# 啟用（換電腦要再跑一次）：git config core.hooksPath .githooks
+# --redact：找到時不把金鑰印出來（第 8 天 token 曾經因為錯誤訊息外洩）
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "找不到 gitleaks，先執行：brew install gitleaks" >&2
+  exit 1
+fi
+exec gitleaks git --pre-commit --staged --redact --no-banner .

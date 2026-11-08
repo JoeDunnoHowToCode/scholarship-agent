@@ -1,5 +1,7 @@
 """錯誤分類（ADR-056）：背景工作出錯時，決定要重試、跳過（記下原因），還是打開斷路器暫停 AI。"""
 
+import socket
+import ssl
 from typing import Literal
 
 import httpx
@@ -8,7 +10,8 @@ from google.genai.errors import APIError
 from app.core.fetch.base import BlockedError, TemporaryFetchError
 from app.core.llm.gemini import ExtractionError, MissingApiKeyError
 
-Kind = Literal["retry", "skip", "pause_ai"]
+# fail：當天直接算失敗、不重試（重試也不會好）；跨天仍照 ADR-080 數「連續幾天失敗」
+Kind = Literal["retry", "skip", "pause_ai", "fail"]
 
 # 最多往裡面看幾個例外（含最外層）；例外互相指向（循環）時，也會在這裡停下來
 MAX_LINKS = 10
@@ -23,6 +26,9 @@ def classify(error: BaseException) -> Kind:
 
     我們的 Gemini 轉接頭會把 Google 的錯誤包成 LLMError，原本的錯誤（含狀態碼）在裡面。
     """
+    # 先往裡面找有沒有「重試也不會好」的原因：httpx 把它包在 ConnectError 裡，外層會被當成一般連線問題
+    if _hopeless(error):
+        return "fail"
     current: BaseException | None = error
     for _ in range(MAX_LINKS):
         if current is None:
@@ -61,3 +67,19 @@ def _kind_of(error: BaseException) -> Kind | None:
         # ExtractionError：AI 重試後抽出的資料仍然驗證不過
         return "skip"
     return None
+
+
+def _hopeless(error: BaseException) -> bool:
+    """網域不存在、對方憑證驗證失敗、對方用太舊的加密協商：都要對方修，當天重試沒用（11-08 使用者要求）。"""
+    current: BaseException | None = error
+    for _ in range(MAX_LINKS):
+        if current is None:
+            return False
+        if isinstance(current, socket.gaierror) and current.errno == socket.EAI_NONAME:
+            return True  # 網域查不到（暫時查不到是 EAI_AGAIN，照舊重試）
+        if isinstance(current, ssl.SSLCertVerificationError):
+            return True
+        if isinstance(current, ssl.SSLError) and getattr(current, "reason", None) == "UNSAFE_LEGACY_RENEGOTIATION_DISABLED":
+            return True
+        current = current.__cause__ if current.__cause__ is not None else current.__context__
+    return False

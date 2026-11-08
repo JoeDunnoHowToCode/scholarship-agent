@@ -54,3 +54,19 @@ class AgentStep(Base):
     input_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
     output_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class University(Base):
+    """逐校找的學校名單（ADR-083）：從各國官方名單建立的種子（universities.csv）。"""
+
+    __tablename__ = "universities"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    country: Mapped[str] = mapped_column(String(2))  # ISO 國碼，例如 GB、SE
+    region: Mapped[str | None] = mapped_column(String(32))  # 英國的 England／Scotland／Wales／Northern Ireland
+    name: Mapped[str] = mapped_column(Text)
+    homepage: Mapped[str] = mapped_column(Text, unique=True)  # agent 從這裡出發
+    source_url: Mapped[str] = mapped_column(Text)  # 名單出處（官方網址）
+    note: Mapped[str | None] = mapped_column(Text)  # 例如冰島的「首頁由人工確認」
+    last_searched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # 上次逐校找的時間
+    last_result: Mapped[str | None] = mapped_column(String(32))  # 上次的結果，例如 done、step_limit

@@ -7,6 +7,7 @@ from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from pydantic import BaseModel, SecretStr
 
+from app.core.llm.base import UsageHook
 from app.core.llm.ratelimit import RateLimiter
 
 # Gemini 3.5 Flash-Lite 每百萬 tokens 的價格（美元，Gemini API 定價頁；docs/spec.md 成本粗估）
@@ -31,7 +32,7 @@ class GeminiLLM:
     """符合 StructuredLLM 與 PdfReader 插座的 Gemini 實作。"""
 
     def __init__(
-        self, model: str, api_key: SecretStr | None, requests_per_minute: int = 60
+        self, model: str, api_key: SecretStr | None, requests_per_minute: int = 60, hook: UsageHook | None = None
     ) -> None:
         if api_key is None or not api_key.get_secret_value():
             raise MissingApiKeyError(
@@ -48,6 +49,8 @@ class GeminiLLM:
         self._limiter = RateLimiter(requests_per_minute)  # ADR-042
         self.input_tokens = 0
         self.output_tokens = 0
+        self.model = model
+        self._hook = hook  # 用量回呼（ADR-089）：沒給就不記錄、不擋上限
 
     def extract[M: BaseModel](self, prompt: str, schema: type[M]) -> M:
         # 預設 method="json_schema"，也就是 Gemini 原生的結構化輸出（ADR-011）

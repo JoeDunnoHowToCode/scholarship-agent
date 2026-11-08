@@ -32,3 +32,17 @@ class Embedder(Protocol):
     def embed_query(self, text: str) -> list[float]:
         """使用者的問句變成向量。"""
         ...
+
+
+class UsageHook(Protocol):
+    """每次呼叫 AI 的前後各叫一次（ADR-089）：轉接頭不碰資料庫，記錄與擋上限由功能程式實作。"""
+
+    def before_call(self) -> None:
+        """呼叫前；丟例外就不呼叫（例如本月費用已達上限）。"""
+        ...
+
+    def after_call(
+        self, prompt: str, model: str, input_tokens: int, output_tokens: int, cost_usd: float, error: str | None
+    ) -> None:
+        """呼叫後（成功或失敗都會叫）；error 是失敗的錯誤種類，成功時是 None。"""
+        ...

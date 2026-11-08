@@ -7,9 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.llm.base import ChatMessage, ToolCall, ToolSpec, Turn
+from app.features.costs.recorder import MonthlyCapError
 from app.features.discovery.models import AgentRun, University
 from app.features.discovery.run import (
     Deps,
+    discover,
     new_url_targets,
     run_new_url,
     run_search,
@@ -141,6 +143,36 @@ def test_new_url_targets_are_unreachable_enabled_and_not_searched_this_week() ->
         targets = new_url_targets(session, NOW)
         assert due.id in targets
         assert not {off.id, fine.id, recent.id} & set(targets)
+    finally:
+        session.rollback()
+        session.close()
+
+
+class Exploding:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    def step(self, messages: list[ChatMessage], tools: list[ToolSpec]) -> Turn:
+        raise self.error
+
+
+def test_discover_skips_a_broken_task_but_stops_at_the_monthly_cap() -> None:
+    session = SessionLocal()
+    try:
+        schools = [University(country="SE", name=f"T{n}", homepage=f"https://t-school-{n}.example",
+                              source_url="https://www.uka.se/x") for n in range(2)]
+        session.add_all(schools)
+        session.flush()
+        ids = [s.id for s in schools]
+        broken = deps(session, [])
+        broken.make_llm = lambda run_id: Exploding(RuntimeError("網站格式怪"))  # type: ignore[assignment, return-value]
+        summary = discover(broken, NOW, ids, search=False, new_urls=[])
+        assert (summary.schools, summary.errors, summary.stopped) == (2, 2, None)  # 一般錯誤：跳過、繼續下一所
+        capped = deps(session, [])
+        capped.make_llm = lambda run_id: Exploding(MonthlyCapError("本月 AI 已達每月上限"))  # type: ignore[assignment, return-value]
+        summary = discover(capped, NOW, ids, search=False, new_urls=[])
+        assert summary.stopped is not None and "上限" in summary.stopped
+        assert summary.schools == 0  # 第一所就停下，不再跑第二所
     finally:
         session.rollback()
         session.close()

@@ -107,6 +107,12 @@
 4. 加了頁籤後前端打包 502 kB，超過 Vite 的 500 kB 提醒；本機使用，先不拆檔
 5. 「還沒評分」時評分頁籤顯示提示，請先填個人資料
 
+## 驗證時的意外（11-08）
+
+驗證 D3 時，我在瀏覽器把 `window.fetch` 換成假的，想攔下存檔請求、看送出的內容，再按「存檔」。但網頁的 API 用戶端（openapi-fetch）早就記住了原本的 fetch，所以真的存檔了：個人資料的「想去的國家」變成瑞典（版本 10），背景重新評分。我馬上把原本的值存回去（想去的國家清空，其他欄位沒變；版本變成 11，版本號無法退回）。重新評分已完成，沒有過時的分數；兩次重新評分共 11 次 AI 呼叫，約 US$0.002。之後驗證不再按任何會寫入資料的按鈕。
+
+另外，第一次測試時 Enter 直接送出了表單（內容沒變，版本沒變）：已改成第一個符合的國家自動反白、Enter 只用來選國家。
+
 ## 怎麼驗證
 
 前端不寫單元測試（day-09「Claude 自行決定」第 27 點），每一項用瀏覽器預覽驗證：先 `npm run build`，再用 1280px 與 375px 兩種寬度檢查。截圖不截評分理由與個人資料的值（只檢查標籤與是否顯示）。
@@ -185,8 +191,14 @@
   ```
   Notifications 頁 8 個網址連結，overflowWrap "anywhere"
   ```
-- [ ] D3 國家清單 API 回傳國碼與中文名稱，含 TW -> verify: `cd backend && uv run pytest tests/test_countries_api.py`
-- [ ] D3 國籍單選、想去的國家多選，存檔後重新整理仍是選的國家 -> verify: 瀏覽器操作，只貼出欄位標籤與是否有值（不貼值）
+- [x] D3 國家清單 API 回傳國碼與中文名稱，含 TW -> verify: `cd backend && uv run pytest tests/test_countries_api.py`
+  ```
+  test_countries_api.py：紅燈 AttributeError: module 'app.features.profiles.api' has no attribute 'list_countries'；綠燈後全部 253 passed、ruff All checks passed、mypy no issues
+  ```
+- [x] D3 國籍單選、想去的國家多選，存檔後重新整理仍是選的國家 -> verify: 瀏覽器操作，只貼出欄位標籤與是否有值（不貼值）
+  ```
+  標籤 ["國籍（必填）",…,"想去的國家（選填，可選多個）"]；國籍是 combobox 且有值；API 250 國；打「SE」只剩「瑞典SE」，Enter 選到；打「芬」Enter 選到芬蘭；按 × 移除芬蘭；Enter 不會送出表單（攔截計數 0）。存檔後重新整理：沒有另外驗證，見下方「驗證時的意外」
+  ```
 - [ ] D4 產生和獎學金有關的通知時記下 `scholarship_id` -> verify: `cd backend && uv run pytest tests/test_notification_rules.py`
 - [ ] D4 遷移只新增 events.scholarship_id（讀過再套用） -> verify: `cd backend && uv run alembic upgrade head`，貼出遷移內容摘要
 - [ ] D4 通知 API 回傳 scholarship_id；網頁上有編號的通知卡片能點回詳細頁 -> verify: 瀏覽器點通知標題，貼出新網址

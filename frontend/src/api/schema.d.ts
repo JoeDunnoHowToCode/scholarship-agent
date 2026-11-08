@@ -22,6 +22,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/profile/countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Countries
+         * @description 個人資料頁的國家選單（ADR-091）：完整清單，依國碼排序；中文名稱的排序交給瀏覽器。
+         */
+        get: operations["list_countries_api_profile_countries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/matches": {
         parameters: {
             query?: never;
@@ -229,6 +249,13 @@ export interface components {
          * @description 國碼與中文國名（ADR-054：台灣顯示為「台灣」）。
          */
         Country: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+        };
+        /** CountryOption */
+        CountryOption: {
             /** Code */
             code: string;
             /** Name */
@@ -655,6 +682,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_countries_api_profile_countries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountryOption"][];
                 };
             };
         };

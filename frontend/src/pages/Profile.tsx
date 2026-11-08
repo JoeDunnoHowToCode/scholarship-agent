@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 
 import { api, unwrap, type Schemas } from "@/api/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CountryMultiSelect, CountrySelect, type CountryOption } from "@/components/country-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,7 +37,21 @@ export default function ProfilePage() {
       return unwrap(result);
     },
   });
-  if (profile.isPending) return <Skeleton className="h-80 w-full" />;
+  // 國家選單的完整清單（ADR-091），依中文名稱排序
+  const countries = useQuery({
+    queryKey: ["countries"],
+    queryFn: async () => unwrap(await api.GET("/api/profile/countries")),
+    select: (rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name, "zh-Hant")),
+    staleTime: Infinity,
+  });
+  if (profile.isPending || countries.isPending) return <Skeleton className="h-80 w-full" />;
+  if (countries.isError)
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>讀不到國家清單</AlertTitle>
+        <AlertDescription>{countries.error.message}</AlertDescription>
+      </Alert>
+    );
   if (profile.isError)
     return (
       <Alert variant="destructive">
@@ -45,7 +60,7 @@ export default function ProfilePage() {
       </Alert>
     );
   // 用版本號當 key：存檔後版本號變了，表單就用新的資料重新開始
-  return <ProfileForm key={profile.data?.version ?? 0} initial={profile.data} save={save} />;
+  return <ProfileForm key={profile.data?.version ?? 0} initial={profile.data} save={save} countries={countries.data} />;
 }
 
 // 清單欄位在表單上用逗號分隔
@@ -55,20 +70,23 @@ const toList = (text: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-function ProfileForm({ initial, save }: { initial: Profile | null; save: Save }) {
+function ProfileForm({ initial, save, countries }: { initial: Profile | null; save: Save; countries: CountryOption[] }) {
+  // 表單裡存國碼；選單要的是 { 國碼, 中文名稱 }，用國碼查回來
+  const byCode = new Map(countries.map((c) => [c.code, c]));
+  const optionsOf = (codes: string[]) => codes.map((code) => byCode.get(code) ?? { code, name: code });
   const [nationality, setNationality] = useState(initial?.nationality ?? "");
   const [degree, setDegree] = useState<Degree>(initial?.target_degree ?? "master");
   const [major, setMajor] = useState(initial?.current_major ?? "");
   const [fields, setFields] = useState((initial?.target_fields ?? []).join(", "));
-  const [countries, setCountries] = useState((initial?.target_countries ?? []).join(", "));
+  const [targets, setTargets] = useState<string[]>(initial?.target_countries ?? []);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     save.mutate({
-      nationality: nationality.trim().toUpperCase(),
+      nationality,
       target_degree: degree,
       current_major: major.trim() || null,
       target_fields: toList(fields),
-      target_countries: toList(countries).map((code) => code.toUpperCase()),
+      target_countries: targets,
     });
   };
   return (
@@ -82,8 +100,13 @@ function ProfileForm({ initial, save }: { initial: Profile | null; save: Save })
       <CardContent>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="nationality">國籍（國碼，必填，例如 TW）</Label>
-            <Input id="nationality" value={nationality} onChange={(event) => setNationality(event.target.value)} />
+            <Label htmlFor="nationality">國籍（必填）</Label>
+            <CountrySelect
+              id="nationality"
+              options={countries}
+              value={nationality ? optionsOf([nationality])[0] : null}
+              onChange={(option) => setNationality(option?.code ?? "")}
+            />
           </div>
           <div className="space-y-1">
             <Label>想讀的學位（必填）</Label>
@@ -109,8 +132,13 @@ function ProfileForm({ initial, save }: { initial: Profile | null; save: Save })
             <Input id="fields" value={fields} onChange={(event) => setFields(event.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="countries">想去的國家（選填，國碼用逗號分隔，例如 SE, FI, NL）</Label>
-            <Input id="countries" value={countries} onChange={(event) => setCountries(event.target.value)} />
+            <Label htmlFor="countries">想去的國家（選填，可選多個）</Label>
+            <CountryMultiSelect
+              id="countries"
+              options={countries}
+              value={optionsOf(targets)}
+              onChange={(options) => setTargets(options.map((option) => option.code))}
+            />
           </div>
           {save.isError && (
             <Alert variant="destructive">

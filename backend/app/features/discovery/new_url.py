@@ -20,6 +20,7 @@ GENERIC = frozenset({
     "programme", "program", "master", "masters", "joint", "school", "institute", "college",
 })
 MIN_NAME = 4  # 名稱（或縮寫）至少幾個字元才拿來比對，太短容易碰巧出現
+MIN_WORDS = 3  # 用特別字比對時，名稱至少要有幾個特別字（太少容易碰巧全中）
 
 
 def same_programme(names: list[str], provider: str | None, page_text: str) -> bool:
@@ -31,11 +32,21 @@ def same_programme(names: list[str], provider: str | None, page_text: str) -> bo
     candidates = [_norm(name) for name in names]
     # 獎學金名稱常寫成「Erasmus Mundus Scholarship – 縮寫」：破折號後面那段也拿來比
     candidates += [_norm(re.split(r"\s[–—-]\s", name)[-1]) for name in names if re.search(r"\s[–—-]\s", name)]
-    if not any(len(c) >= MIN_NAME and f" {c} " in page for c in candidates):
+    if not any(len(c) >= MIN_NAME and f" {c} " in page for c in candidates) and not _words_match(names, page):
         return False
     distinctive = [w for w in _norm(provider or "").split() if len(w) >= MIN_NAME and w not in GENERIC]
     # 主辦單位只有通用的字（例如 European Commission）時，只看名稱
     return not distinctive or any(f" {w} " in page for w in distinctive)
+
+
+def _words_match(names: list[str], page: str) -> bool:
+    """長的正式名稱常只寫後半段：名稱裡的特別字（至少 3 個，不含 Erasmus、Master 這類通用字）全部出現在網頁上也算。"""
+    words = set(page.split())
+    for name in names:
+        distinctive = {w for w in _norm(name).split() if len(w) >= MIN_NAME and w not in GENERIC}
+        if len(distinctive) >= MIN_WORDS and distinctive <= words:
+            return True
+    return False
 
 
 def _norm(text: str) -> str:

@@ -88,7 +88,7 @@
 
 1. 先跑完整測試，貼結果（重構前）
 2. 新增 pin 測試並單獨 commit：記下 12 個提示詞目前文字的雜湊，測試「依名稱與版本載入的文字，雜湊等於原本的」。它一開始會因為載入函式不存在而失敗，這是預期的；搬完才會通過
-3. 新增 `backend/app/core/prompts.py`：`load(name, version) -> str`，讀 `backend/prompts/<name>/<version>.md`；版本不存在就丟錯誤
+3. 新增 `backend/app/core/prompts.py`：`load(version) -> str`，例如 `load("extract-12")` 讀 `backend/prompts/extract/12.md`；版本不存在就丟錯誤（實作時改成只傳版本號：版本號常數本來就存在，檔名直接由它決定，兩者不會對不上）
 4. 一個一個搬：`extract-12` → `prompts/extract/12.md`，其他依此類推；程式改成載入。原本的版本號常數保留，因為它是快取鍵
 5. 跑完整測試，貼結果（重構後）
 
@@ -178,11 +178,23 @@
 
 ## 完成標準
 
-### 段 1
-- [ ] 重構前完整測試全過 -> verify: `cd backend && uv run pytest -q`
-- [ ] 12 個提示詞依名稱與版本載入，文字雜湊和搬之前相同 -> verify: `cd backend && uv run pytest tests/test_prompts.py -q`
-- [ ] 版本不存在時丟錯誤 -> verify: `cd backend && uv run pytest tests/test_prompts.py -q`
-- [ ] 重構後完整檢查全過 -> verify: `cd backend && uv run pytest && uv run ruff check . && uv run mypy app`
+### 段 1（11-08 完成）
+- [x] 重構前完整測試全過 -> verify: `cd backend && uv run pytest -q`
+  ```
+  195 passed, 1 warning in 1.21s
+  ```
+- [x] 12 個提示詞依名稱與版本載入，文字雜湊和搬之前相同 -> verify: `cd backend && uv run pytest tests/test_prompts.py -q`
+- [x] 版本不存在時丟錯誤 -> verify: `cd backend && uv run pytest tests/test_prompts.py -q`
+  ```
+  紅（92347e6）：14 failed in 0.39s（12 個雜湊不同、模組沒用檔案、DID NOT RAISE）
+  綠（c4a1798）：14 passed in 0.36s
+  ```
+- [x] 重構後完整檢查全過 -> verify: `cd backend && uv run pytest && uv run ruff check . && uv run mypy app`
+  ```
+  209 passed, 1 warning in 1.09s
+  All checks passed!
+  Success: no issues found in 93 source files
+  ```
 
 ### 段 2
 - [ ] 一次呼叫的費用依 tokens 與價格算對 -> verify: `cd backend && uv run pytest tests/test_costs.py -q`
@@ -235,7 +247,7 @@
 ## Claude 自行決定（小問題，請事後檢查）
 
 1. 新功能放在 `features/discovery/`（agent、工具、候選、大學名單、找新網址）、`features/costs/`（費用紀錄）、`features/settings/`（設定）
-2. 提示詞檔放在 `backend/prompts/<名稱>/<版本號>.md`，名稱用現在版本號的前半，例如 `extract-12` → `prompts/extract/12.md`；變數照舊用 `{name}` 這種寫法
+2. 提示詞檔放在 `backend/prompts/<名稱>/<版本號>.md`，名稱用現在版本號的前半，例如 `extract-12` → `prompts/extract/12.md`；變數照舊用 `{name}` 這種寫法；抽取用的共同規則（原本的 `RULES`）直接寫進 `extract/12.md` 和 `section/12.md`，每個檔案都是完整的提示詞，以後改規則就是兩個檔案各出新版本
 3. 「本月」以台灣時間的月份計算，和 `runs.local_date` 一致；匯率照現有程式用 1 美元 = 32 新台幣
 4. 費用上限每次呼叫前查一次資料庫的總額，不另外快取；一天幾百次呼叫，查一次很快
 5. agent 的上限：逐校找每次最多 15 步、搜尋補漏最多 25 步、找新網址最多 15 步；每次執行最多 NT$2

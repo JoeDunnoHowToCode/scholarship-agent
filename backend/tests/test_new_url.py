@@ -49,7 +49,7 @@ def test_a_matching_new_url_replaces_the_old_one_and_notifies() -> None:
         assert apply_new_url(session, source, "https://cybermacs.example/", page, now) is True
         assert source.url == "https://cybermacs.example/"
         assert (source.fail_days, source.last_failed_on, source.unreachable_since) == (0, None, None)
-        titles = [e.title for e in session.scalars(select(Event).where(Event.dedup_key.like(f"new-url:{source.id}:%")))]
+        titles = [e.payload["title"] for e in session.scalars(select(Event).where(Event.dedup_key.like(f"new-url:{source.id}:%")))]
         assert titles == ["找到新網址：Master of Applied Cybersecurity"]
     finally:
         session.rollback()
@@ -68,7 +68,7 @@ def test_a_different_programme_is_not_applied_but_reported() -> None:
         session.flush()
         assert apply_new_url(session, source, "https://data-science.example/", "Master in Data Science", now) is False
         assert source.url == "https://old-cybermacs-2.example/" and source.unreachable_since == now.date()
-        titles = [e.title for e in session.scalars(select(Event).where(Event.dedup_key.like(f"new-url:{source.id}:%")))]
+        titles = [e.payload["title"] for e in session.scalars(select(Event).where(Event.dedup_key.like(f"new-url:{source.id}:%")))]
         assert titles == ["新網址對不上，沒有換：Master of Applied Cybersecurity"]
     finally:
         session.rollback()

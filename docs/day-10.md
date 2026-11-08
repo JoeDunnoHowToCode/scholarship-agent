@@ -173,6 +173,7 @@
 | 假個資不會送出去 | `tests/test_agent_privacy.py` | `features/discovery/` |
 | 每一步的紀錄與全文 30 天清理 | `tests/test_agent_trace_db.py` | `features/discovery/trace.py` |
 | 候選規則、每週上限、自動停用 | `tests/test_candidates.py` | `features/discovery/candidates.py` |
+| 候選進出資料庫、排進每天的檢查、每週摘要 | `tests/test_candidates_db.py` | `features/discovery/intake.py` |
 | 每週摘要訊息 | `tests/test_pipeline_messages.py` | `features/pipeline/report.py` |
 | 大學名單與每批挑選 | `tests/test_universities.py` | `features/discovery/universities.py` |
 | 同一學程檢查與換網址 | `tests/test_new_url.py` | `features/discovery/new_url.py` |
@@ -280,12 +281,26 @@
   完整檢查：245 passed；ruff、mypy 無問題
   ```
 
-### 段 4
-- [ ] 四條規則全部符合才加入，否則標成已排除並記下原因 -> verify: `cd backend && uv run pytest tests/test_candidates.py -q`
-- [ ] 已排除的網址再次提交會直接略過 -> verify: `cd backend && uv run pytest tests/test_candidates.py -q`
-- [ ] 超過每週候選上限的提交留到下週 -> verify: `cd backend && uv run pytest tests/test_candidates.py -q`
-- [ ] 連續 3 次抽不到有效獎學金就自動停用 -> verify: `cd backend && uv run pytest tests/test_candidates.py -q`
-- [ ] 每週摘要列出加入、排除、停用 -> verify: `cd backend && uv run pytest tests/test_pipeline_messages.py -q`
+### 段 4（11-08 完成）
+- [x] 四條規則全部符合才加入，否則標成已排除並記下原因 -> verify: `cd backend && uv run pytest tests/test_candidates.py tests/test_candidates_db.py -q`
+  ```
+  規則 紅（c0989c5）：3 failed, 2 passed（通過的兩個是「好的或沒寫的資料不排除」，空骨架本來就符合）　綠（f18009e）：5 passed
+  資料庫 紅（8b5b32e）：AssertionError: 提交應該變成一筆候選來源　綠（5e36192）：4 passed
+  ```
+- [x] 已排除的網址再次提交會直接略過 -> verify: `cd backend && uv run pytest tests/test_candidates_db.py -q`
+- [x] 超過每週候選上限的提交留到下週 -> verify: `cd backend && uv run pytest tests/test_candidates_db.py -q`
+- [x] 連續 3 次抽不到有效獎學金就自動停用 -> verify: `cd backend && uv run pytest tests/test_candidates_db.py -q`
+- [x] 候選排進每天的檢查，抽完後決定；agent 加的來源每次真的重抽都檢查品質 -> verify: `cd backend && uv run pytest tests/test_candidates_db.py -q`
+  ```
+  紅（22186c3）：assert 4871 in [16, 29, 30, ...]　綠（4bfab4b）：5 passed
+  ```
+- [x] 每週摘要列出加入、排除、停用 -> verify: `cd backend && uv run pytest tests/test_pipeline_messages.py tests/test_candidates_db.py -q`
+  ```
+  訊息 紅（0b042d3）：assert '' == '本週新來源：加入 12、排除 3、停用 1'　綠（de16bce）：7 passed
+  每週一次 紅（7d821b1）：assert False is True　綠（096ffe1）：6 passed
+  真的資料庫上跑收尾新增的兩行：清掉的全文 0、加了每週摘要 False（還沒有 agent 來源）、今天到期的來源 16
+  完整檢查：260 passed；ruff、mypy 無問題
+  ```
 
 ### 段 5
 - [ ] 大學名單從官方出處建立，每個名單記下出處 -> verify: `cd backend && uv run pytest tests/test_universities.py -q`
@@ -330,3 +345,9 @@
 20. （段 3 實作時）步數＝呼叫 AI 的次數；一步裡 AI 可能同時呼叫好幾個工具
 21. （段 3 實作時）工具說明放在 `prompts/tool-*/1.md`，smoke 任務說明在 `prompts/agent-smoke/1.md`；Tavily 用 httpx 直接呼叫，不另外裝 tavily 套件
 22. （段 3 實作時）smoke 指令改成 `python -m app.features.discovery.runner --smoke`（計畫原本寫 `agent --smoke`）
+23. （段 4 實作時）「歐洲」的國碼清單：歐盟 27 國、冰島、列支敦斯登、挪威、英國、瑞士，加上阿爾巴尼亞、安道爾、波士尼亞、蒙特內哥羅、北馬其頓、塞爾維亞、摩爾多瓦、烏克蘭、摩納哥、聖馬利諾、梵蒂岡、科索沃、土耳其；放在 `candidates.EUROPE`
+24. （段 4 實作時）每週摘要最多列 10 個加入的來源，其餘只寫數量；排除的只統計原因，不逐一列名稱
+25. （段 4 實作時）最近 7 天沒有加入、排除、停用時，不送每週摘要
+26. （段 4 實作時）候選被網站擋（ADR-028）時，和其他來源一樣標成需人工，不自動排除，也不算進每週上限
+27. （段 4 實作時）候選的名稱先用網址，抽出獎學金後換成獎學金名稱；之後每次重抽也跟著更新
+28. （段 4 實作時）「有效獎學金」和加入的規則相同：四條規則都過才算；已加入的來源之後變成舊資料或不在歐洲，也會被算成一次抽不到

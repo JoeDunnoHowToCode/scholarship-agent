@@ -123,3 +123,11 @@ def _facts(row: Scholarship) -> Facts:
         nationalities=list(row.nationalities),
         closes=[cycle.closes_at for cycle in row.cycles if not cycle.estimated],  # 程式預估的不算
     )
+
+
+def review_after_extraction(session: Session, source: Source, summary: str, now: datetime) -> str | None:
+    """每天的來源工作抽完後叫它：候選就決定加入或排除；agent 加的來源真的重抽了就檢查品質。
+
+    回傳 approved、rejected、disabled，或 None（不是 agent 的來源、或這次沒有重抽）。
+    """
+    return None  # 骨架

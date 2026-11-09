@@ -88,3 +88,12 @@ def test_only_the_same_provider_is_compared() -> None:
     assert same_scholarship(imt, mer) == "different"
     unknown = brief("", countries=("FR",), closes=("2027-02-15",))
     assert same_scholarship(unknown, unknown) == "different"  # 沒抽到提供者：不比
+
+
+def test_providers_match_when_one_name_contains_the_other() -> None:
+    # 11-09 實際的 Chevening：總頁寫「… Office (FCDO) and partner organisations」，台灣頁寫「… Office」
+    total = brief("foreigncommonwealthanddevelopmentofficefcdoandpartnerorganisations", countries=("GB",))
+    taiwan = brief("foreigncommonwealthanddevelopmentoffice", countries=("GB",))
+    assert same_scholarship(total, taiwan) == "unclear"  # 同一個提供者、資料不夠：交給 AI
+    # 太短的名稱不算包含（例如 eu 會出現在很多名稱裡）
+    assert same_scholarship(brief("eu", countries=("GB",)), brief("eucore", countries=("GB",))) == "different"

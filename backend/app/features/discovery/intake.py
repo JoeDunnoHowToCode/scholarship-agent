@@ -12,15 +12,18 @@ from sqlalchemy.orm import Session, selectinload
 from app.features.costs.usage import TAIPEI
 from app.features.discovery.candidates import (
     EMPTY_LIMIT,
+    Brief,
     Facts,
     budget,
     judge,
     next_empty,
+    same_scholarship,
 )
 from app.features.discovery.tools import Submission
 from app.features.notifications.generate import add_system_event
 from app.features.pipeline.report import discovery_digest_message
 from app.features.profiles.service import CURRENT_USER_ID
+from app.features.scholarships.dedup import normalize_name
 from app.features.scholarships.models import Scholarship
 from app.features.sources.models import Discovery, Source, SourceKind, SourceStatus
 
@@ -77,8 +80,50 @@ def decide_candidate(session: Session, source: Source, now: datetime, ask: SameC
     if reasons:
         source.status, source.enabled, source.review_note = SourceStatus.REJECTED, False, "；".join(reasons)
         return "rejected"
+    assert row is not None  # 沒有抽出獎學金時 reasons 不會是空的
+    dup = find_duplicate(session, row, ask)
+    if dup is not None:
+        # 和已有的獎學金重複：排除新的、留舊的，並和規則去重（ADR-048）一樣標記 duplicate_of
+        row.duplicate_of = dup.id
+        source.status, source.enabled = SourceStatus.REJECTED, False
+        source.review_note = f"和 #{dup.id} 重複：{dup.name}"
+        return "rejected"
     source.status, source.review_note = SourceStatus.APPROVED, None
     return "approved"
+
+
+def find_duplicate(session: Session, row: Scholarship, ask: SameCheck | None) -> Scholarship | None:
+    """和同一個提供者、還在每日檢查裡的獎學金比對（11-09 使用者選 E＋D）。
+
+    先用規則（語意相似度、國家與截止日）；規則判斷不了的才請 AI 比對（ask），沒給 ask 就當成不重複。
+    """
+    provider = normalize_name(row.provider or "")
+    if not provider:
+        return None
+    others = session.scalars(
+        select(Scholarship)
+        .join(Source, Source.id == Scholarship.source_id)
+        .where(Scholarship.id != row.id, Scholarship.duplicate_of.is_(None), Source.enabled.is_(True))
+        .options(selectinload(Scholarship.cycles))
+        .order_by(Scholarship.id)
+    ).all()
+    new = _brief(row)
+    for old in others:
+        if normalize_name(old.provider or "") != provider:
+            continue
+        verdict = same_scholarship(new, _brief(old))
+        if verdict == "duplicate" or (verdict == "unclear" and ask is not None and ask(row, old)):
+            return old
+    return None
+
+
+def _brief(row: Scholarship) -> Brief:
+    return Brief(
+        provider=normalize_name(row.provider or ""),
+        countries=frozenset(code.upper() for code in row.countries),
+        closes=frozenset(f"{c.closes_at:%Y-%m-%d}" for c in row.cycles if not c.estimated),
+        embedding=list(row.embedding) if row.embedding is not None else None,
+    )
 
 
 def track_extraction(session: Session, source: Source, now: datetime) -> bool:
@@ -144,7 +189,7 @@ def review_after_extraction(
     if source.discovery != Discovery.SEARCH:
         return None  # 種子、目錄來的來源不受這套規則管
     if source.status == SourceStatus.CANDIDATE:
-        return decide_candidate(session, source, now)
+        return decide_candidate(session, source, now, ask)
     if summary in NOT_EXTRACTED:
         return None  # 內容沒變、只有無關內容變了：不算一次抽取
     return "disabled" if track_extraction(session, source, now) else None

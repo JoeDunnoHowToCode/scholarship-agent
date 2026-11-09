@@ -165,3 +165,59 @@ def test_weekly_digest_is_added_once_per_week() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def existing(session: Session, provider: str, countries: list[str], close: datetime | None) -> Scholarship:
+    """一筆已經在每日檢查裡的獎學金（另一個來源）。"""
+    source = Source(name=f"T existing {provider}", url=f"https://t-existing-{len(provider)}-{countries}.example/".replace(" ", ""),
+                    kind=SourceKind.INSTITUTION)
+    session.add(source)
+    session.flush()
+    row = Scholarship(name="Chevening Scholarship – Taiwan", provider=provider, source_id=source.id, countries=countries,
+                      degrees=["master"], nationality_scope="all", nationalities=[], extracted={})
+    session.add(row)
+    session.flush()
+    if close is not None:
+        session.add(Cycle(scholarship_id=row.id, closes_at=close, status="upcoming"))
+        session.flush()
+    return row
+
+
+def test_a_candidate_that_duplicates_an_existing_scholarship_is_rejected() -> None:
+    # 11-09 使用者選 E＋D：抽取後比內容，和已有的獎學金重複就排除，留舊的
+    session = SessionLocal()
+    try:
+        close = NOW + timedelta(days=60)
+        old = existing(session, "Test Provider Same", ["GB"], close)
+        new = candidate(session, "https://test-dup-a.example/s")
+        scholarship(session, new, ["GB"], name="Test duplicate page")
+        session.scalars(select(Scholarship).where(Scholarship.source_id == new.id)).one().provider = "Test Provider Same"
+        session.flush()
+        assert decide_candidate(session, new, NOW) == "rejected"  # 國家和截止日都相同：規則就判定重複
+        assert new.review_note == f"和 #{old.id} 重複：{old.name}"
+        dup = session.scalars(select(Scholarship).where(Scholarship.source_id == new.id)).one()
+        assert dup.duplicate_of == old.id
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_unclear_pairs_go_to_the_ai() -> None:
+    session = SessionLocal()
+    try:
+        old = existing(session, "Test Provider Unclear", ["GB"], None)  # 舊的沒抽到截止日：規則判斷不了
+        asked: list[tuple[int, int]] = []
+
+        def ai(first: Scholarship, second: Scholarship) -> bool:
+            asked.append((first.id, second.id))
+            return True
+
+        new = candidate(session, "https://test-dup-b.example/s")
+        scholarship(session, new, ["GB"], name="Test unclear page")
+        session.scalars(select(Scholarship).where(Scholarship.source_id == new.id)).one().provider = "Test Provider Unclear"
+        session.flush()
+        assert decide_candidate(session, new, NOW, ask=ai) == "rejected"
+        assert [pair[1] for pair in asked] == [old.id]  # 只問同一個提供者的那一筆
+    finally:
+        session.rollback()
+        session.close()

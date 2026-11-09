@@ -1,0 +1,75 @@
+# 持續整合（ADR-099）：每次推送到 main 或開 PR，都在乾淨的環境跑一次完整檢查。
+# 用到的 actions 都固定到特定 commit（供應鏈安全，和 npm ci 照 lockfile 安裝同一個道理），註解是對應的版本。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read  # 只需要讀程式碼
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      # 和本機 docker-compose.yml 同一個映像：PostgreSQL 17 加 pgvector（ADR-050）
+      postgres:
+        image: pgvector/pgvector:pg17-trixie
+        env:
+          POSTGRES_USER: scholar
+          POSTGRES_PASSWORD: scholar
+          POSTGRES_DB: scholar
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U scholar -d scholar"
+          --health-interval 2s --health-retries 15
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 2s --health-retries 15
+    env:
+      # 只有測試用的連線網址，沒有任何金鑰：測試不呼叫真的 AI、Tavily、Telegram
+      DATABASE_URL: postgresql+psycopg://scholar:scholar@localhost:5432/scholar
+      REDIS_URL: redis://localhost:6379/0
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+        with:
+          python-version: "3.13"
+      - name: 安裝套件（照 uv.lock，版本寫死）
+        run: uv sync --frozen
+      - name: 建資料表、種子與範例資料
+        run: |
+          uv run alembic upgrade head
+          uv run python -m app.features.sources.seed
+          uv run python scripts/ci_sample_data.py
+      - name: 測試
+        run: uv run pytest -q
+      - name: ruff
+        run: uv run ruff check .
+      - name: mypy
+        run: uv run mypy app
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 安裝套件（照 package-lock.json；frontend/.npmrc 已設定不執行套件的安裝腳本）
+        run: npm ci
+      - name: 型別檢查與建置
+        run: npm run build

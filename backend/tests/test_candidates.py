@@ -5,10 +5,12 @@ from datetime import UTC, datetime
 from app.features.discovery.candidates import (
     EMPTY_LIMIT,
     WEEKLY_DECISIONS,
+    Brief,
     Facts,
     budget,
     judge,
     next_empty,
+    same_scholarship,
 )
 
 NOW = datetime(2026, 11, 8, tzinfo=UTC)
@@ -58,3 +60,31 @@ def test_weekly_budget() -> None:
     assert budget(0) == WEEKLY_DECISIONS
     assert budget(WEEKLY_DECISIONS - 3) == 3
     assert budget(WEEKLY_DECISIONS + 5) == 0
+
+
+def brief(provider: str = "fcdo", countries: tuple[str, ...] = (), closes: tuple[str, ...] = (),
+          embedding: list[float] | None = None) -> Brief:
+    return Brief(provider, frozenset(countries), frozenset(closes), embedding)
+
+
+def test_duplicates_are_found_from_content_not_from_the_domain() -> None:
+    # 用 11-09 實際的配對設計（E＋D）
+    near, far = [1.0, 0.0], [0.97, 0.243]  # 相似度 1.0 與約 0.97
+    assert same_scholarship(brief(embedding=near), brief(embedding=far)) == "duplicate"  # 像 MER、master-cne
+    # 國家和截止日都相同：就算沒有向量也是重複
+    assert same_scholarship(brief(countries=("FR", "PL"), closes=("2027-02-15",)),
+                            brief(countries=("FR", "PL"), closes=("2027-02-15",))) == "duplicate"
+    # 國家不同或截止日不同：不同的獎學金（像 Université Côte d'Azur 的兩個學程）
+    assert same_scholarship(brief(countries=("FR", "DE")), brief(countries=("FR", "IT"))) == "different"
+    assert same_scholarship(brief(closes=("2027-03-06",)), brief(closes=("2027-02-28",))) == "different"
+    # 不夠相似、資料又不夠：判斷不了，交給 AI（像 Chevening 總頁和台灣頁）
+    assert same_scholarship(brief(countries=("GB",)), brief(countries=("GB",))) == "unclear"
+    assert same_scholarship(brief(embedding=[1.0, 0.0]), brief(embedding=[0.9, 0.436])) == "unclear"  # 約 0.90
+
+
+def test_only_the_same_provider_is_compared() -> None:
+    imt = brief("imt atlantique", countries=("FR",), closes=("2027-02-15",))
+    mer = brief("mer consortium", countries=("FR",), closes=("2027-02-15",))
+    assert same_scholarship(imt, mer) == "different"
+    unknown = brief("", countries=("FR",), closes=("2027-02-15",))
+    assert same_scholarship(unknown, unknown) == "different"  # 沒抽到提供者：不比

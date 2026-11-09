@@ -22,6 +22,7 @@ from app.core.fetch.http import HttpFetcher
 from app.core.llm.gemini import GeminiEmbedder, GeminiLLM
 from app.features.costs.llm import gemini
 from app.features.costs.summary import summarize
+from app.features.discovery.duplicates import ai_same
 from app.features.discovery.intake import (
     add_weekly_digest,
     pending_candidate_ids,
@@ -188,10 +189,17 @@ def process_source(source_id: int) -> dict[str, str]:
             llm = gemini(source_id=source.id)
             summary = extract_source(session, llm, source)
             session.commit()
-            review = review_after_extraction(session, source, summary, datetime.now(UTC))  # ADR-078
+            embedder = GeminiEmbedder(
+                settings.embedding_model, settings.google_api_key, EMBEDDING_DIMENSIONS,
+                settings.llm_requests_per_minute,
+            )
+            if source.status == SourceStatus.CANDIDATE:
+                index_scholarship(session, embedder, source)  # 先有向量，才能和已有的獎學金比對是不是重複（E＋D）
+            # ADR-078：候選就決定加入或排除（含重複比對，規則判斷不了才請 AI）；agent 加的來源檢查品質
+            review = review_after_extraction(session, source, summary, datetime.now(UTC), ai_same(llm))
             session.commit()
-            if review in ("approved", "rejected"):
-                return {"result": f"candidate_{review}", "detail": source.review_note or source.name}
+            if review == "rejected":
+                return {"result": "candidate_rejected", "detail": source.review_note or source.name}
             spent = sum(x.cost_usd() for x in (llm, picker_llm) if x is not None) * NTD_PER_USD
             if spent > SOURCE_MAX_COST_NTD:
                 raise CostLimitError(f"來源 {source_id} 花了 NT${spent:.1f}，超過 NT${SOURCE_MAX_COST_NTD}")
@@ -200,14 +208,11 @@ def process_source(source_id: int) -> dict[str, str]:
             has_chunks = session.scalar(select(exists().where(Chunk.source_id == source.id)))
             if summary == "unchanged" and has_chunks:
                 return {"result": "unchanged", "detail": "內容沒變"}
-            embedder = GeminiEmbedder(
-                settings.embedding_model, settings.google_api_key, EMBEDDING_DIMENSIONS,
-                settings.llm_requests_per_minute,
-            )
             index_source(session, llm, embedder, source)
             index_scholarship(session, embedder, source)
             session.commit()
-            return {"result": "extracted", "detail": summary}
+            # 加入的候選照常建好原文切段和向量（以前會提早結束，要等隔天才搜尋得到）
+            return {"result": "candidate_approved" if review == "approved" else "extracted", "detail": summary}
         # 故意接住所有錯誤：每個錯誤都要分類（ADR-056），認不得的記下原因、跳過，不讓一個來源拖垮整批
         except Exception as error:  # noqa: BLE001
             session.rollback()

@@ -118,19 +118,41 @@
 
 ## 完成標準
 
-### 段 1
-- [ ] 空的資料庫跑遷移與種子後，完整測試全過 -> verify: `docker compose exec postgres createdb -U scholar scholar_ci && cd backend && export DATABASE_URL=postgresql+psycopg://scholar:scholar@localhost:5432/scholar_ci && uv run alembic upgrade head && uv run python -m app.features.sources.seed && uv run pytest -q`
-- [ ] GitHub Actions 後端與前端兩個工作都過 -> verify: `gh run list --workflow ci.yml --limit 1`
+### 段 1（11-10 完成）
+- [x] 空的資料庫跑遷移與種子後，完整測試全過 -> verify: `docker compose exec postgres createdb -U scholar scholar_ci && cd backend && export DATABASE_URL=postgresql+psycopg://scholar:scholar@localhost:5432/scholar_ci && uv run alembic upgrade head && uv run python -m app.features.sources.seed && uv run python scripts/ci_sample_data.py && uv run pytest -q`
+  ```
+  第一次：2 failed, 311 passed（test_detail_summary_db、test_events_api_db 需要資料庫裡已有獎學金和通知）
+  加上 CI 用的假範例資料（scripts/ci_sample_data.py）後：313 passed
+  ```
+- [x] GitHub Actions 後端與前端兩個工作都過 -> verify: `gh run list --workflow ci.yml --limit 1`
+  ```
+  run 42713626286：success；frontend 13 秒、backend 50 秒（第一次就過）
+  ```
 
-### 段 2
-- [ ] 重構前完整測試全過 -> verify: `cd backend && uv run pytest -q`
-- [ ] `build_extraction` 和原本組出的結果一樣 -> verify: `cd backend && uv run pytest tests/test_extract_build.py -q`
-- [ ] 重構後完整檢查全過 -> verify: `cd backend && uv run pytest && uv run ruff check . && uv run mypy app`
-- [ ] 指標計算正確（有根據率、不完整率、穩定度、一致率） -> verify: `cd backend && uv run pytest tests/test_eval_metrics.py -q`
-- [ ] 樣本固定、不一致清單最多 10 筆 -> verify: `cd backend && uv run pytest tests/test_eval_run.py -q`
+### 段 2（11-10 完成）
+- [x] 重構前完整測試全過 -> verify: `cd backend && uv run pytest -q`
+  ```
+  314 passed, 1 warning in 6.15s（含先 commit 的 pin 測試 test_extract_build）
+  ```
+- [x] `build_extraction` 和原本組出的結果一樣 -> verify: `cd backend && uv run pytest tests/test_extract_build.py -q`
+- [x] 重構後完整檢查全過 -> verify: `cd backend && uv run pytest && uv run ruff check . && uv run mypy app`
+  ```
+  314 passed, 1 warning in 7.28s；ruff：All checks passed!；mypy：no issues found in 120 source files
+  ```
+- [x] 指標計算正確（有根據率、不完整率、穩定度、一致率） -> verify: `cd backend && uv run pytest tests/test_eval_metrics.py -q`
+  ```
+  紅（99952b5）：assert 0.0 == 0.6666…、assert 0 == 10 …　綠（de4b5da）：5 passed
+  ```
+- [x] 樣本固定、不一致清單最多 10 筆 -> verify: `cd backend && uv run pytest tests/test_eval_run.py -q`
+  ```
+  紅（3c948a0）：assert ({1, 2, 3} <= set() …　綠（2c9da4f）：3 passed；完整測試 322 passed
+  ```
 
 ### 段 3
-- [ ] 試跑 3 個來源 -> verify: `cd backend && uv run python -m app.features.evaluation.run --limit 3 --rounds 1 --max-cost 5`
+- [x] 試跑 3 個來源 -> verify: `cd backend && uv run python -m app.features.evaluation.run --limit 3 --rounds 1 --max-cost 5`
+  ```
+  6 次抽取都成功（3.1 的模型名稱 gemini-3.1-flash-lite 正確），約 NT$3.18；樣本共 57 個來源
+  ```
 - [ ] 完整評估的報告 -> verify: `cat docs/eval/2026-11-xx.md`
 - [ ] 抽查統計補進報告 -> verify: `cd backend && uv run python -m app.features.evaluation.run --tally <日期>`
 
@@ -152,3 +174,6 @@
 4. 不一致清單只挑「國籍、學位、截止日、金額」四個欄位的不一致，最多 10 筆，每個來源最多 1 筆，讓抽查涵蓋不同來源
 5. CI 用的 GitHub Actions 固定到 commit；Python 版本和本機一樣是 3.13
 6. 示範影片只寫腳本，影片由你錄；我可以幫你準備好畫面和要點開的頁面
+7. （段 1 實作時）CI 的資料庫是空的，有兩個只讀的測試需要已有的獎學金和通知；不改它們，另外加 `scripts/ci_sample_data.py` 建一筆虛構的範例資料（不是從任何網站抓的）
+8. （段 1 實作時）setup-uv 最新版（10-28 發布）不到兩週，先用 v10.3.2（10-22）；其他 actions 用最新版，都固定到 commit
+9. （段 3 實作時）試跑每個來源平均約 NT$0.5（教育部長簡章比較貴），正式評估的上限從 NT$80 調成 NT$100，免得後面那個模型的第 2 次被截斷

@@ -109,9 +109,7 @@ def find_duplicate(session: Session, row: Scholarship, ask: SameCheck | None) ->
     ).all()
     new = _brief(row)
     for old in others:
-        if normalize_name(old.provider or "") != provider:
-            continue
-        verdict = same_scholarship(new, _brief(old))
+        verdict = same_scholarship(new, _brief(old))  # 提供者不同會直接回 different
         if verdict == "duplicate" or (verdict == "unclear" and ask is not None and ask(row, old)):
             return old
     return None

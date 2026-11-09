@@ -67,6 +67,7 @@ def budget(decided_last_7_days: int) -> int:
     return max(0, WEEKLY_DECISIONS - decided_last_7_days)
 
 
+MIN_PROVIDER = 8  # 用「包含」比對提供者時，比較短的名稱至少幾個字元
 SIMILAR = 0.96  # 語意相似度到這裡就算重複（11-09 實測：不重複的最高 0.939，重複的 0.971–0.981）
 
 
@@ -88,7 +89,7 @@ def same_scholarship(new: Brief, old: Brief) -> Verdict:
 
     只比同一個提供者：提供者不同，或沒抽到提供者，就當成不同的獎學金（不冒險合併）。
     """
-    if not new.provider or new.provider != old.provider:
+    if not _same_provider(new.provider, old.provider):
         return "different"
     if new.embedding is not None and old.embedding is not None and _cosine(new.embedding, old.embedding) >= SIMILAR:
         return "duplicate"
@@ -100,6 +101,15 @@ def same_scholarship(new: Brief, old: Brief) -> Verdict:
     if new.countries and new.closes and new.countries == old.countries and new.closes == old.closes:
         return "duplicate"
     return "unclear"
+
+
+def _same_provider(a: str, b: str) -> bool:
+    """同一個提供者：一樣，或一個完整包含另一個（例如「… Office」和「… Office (FCDO) and partner organisations」）。
+    比較短的那個至少 8 個字元，免得 eu 這種短名稱到處都對得上。"""
+    if not a or not b:
+        return False
+    shorter, longer = sorted((a, b), key=len)
+    return shorter == longer or (len(shorter) >= MIN_PROVIDER and shorter in longer)
 
 
 def _cosine(a: list[float], b: list[float]) -> float:

@@ -19,9 +19,23 @@ class SameVerdict(BaseModel):
 
 def describe(row: Scholarship) -> str:
     """給 AI 比對用的摘要：只有抽出來的公開資料。"""
-    return ""  # 骨架
+    closes = sorted(f"{c.closes_at:%Y-%m-%d}" for c in row.cycles if not c.estimated)
+    return "\n".join([
+        f"名稱：{row.name}",
+        f"提供者：{row.provider or '原文沒寫'}",
+        f"官網：{row.official_url or '原文沒寫'}",
+        f"留學國家：{', '.join(row.countries) or '原文沒寫'}",
+        f"學位：{', '.join(row.degrees) or '原文沒寫'}",
+        f"截止日：{', '.join(closes) or '原文沒寫'}",
+        f"補助：{(row.coverage or row.amount or '原文沒寫')[:300]}",
+    ])
 
 
 def ai_same(llm: StructuredLLM) -> Callable[[Scholarship, Scholarship], bool]:
     """回傳一個「請 AI 比對兩筆獎學金」的函式，交給 decide_candidate 用。"""
-    return lambda first, second: False  # 骨架
+
+    def same(first: Scholarship, second: Scholarship) -> bool:
+        prompt = PROMPT.format(first=describe(first), second=describe(second))
+        return llm.extract(prompt, SameVerdict).same
+
+    return same

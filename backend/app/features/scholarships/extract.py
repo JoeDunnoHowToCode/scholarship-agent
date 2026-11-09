@@ -386,43 +386,14 @@ def earliest_deadline(windows: list[WindowDraft]) -> str | None:
     return min(dates, default=None)
 
 
-def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
-    """抽一個來源，回傳一行摘要；內容和提示詞都沒變就跳過。"""
-    snapshots = documents(session, source)
-    hashes = sorted(s.content_hash for s in snapshots)
-    meta = {
-        "snapshots": hashes,
-        "prompts": current_prompts(),
-        "model": settings.llm_model,
-    }
-    existing = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
-    if existing and existing.extracted.get("meta") == meta:
-        return "unchanged"
-    old_meta = existing.extracted.get("meta", {}) if existing else {}
-    if existing and {k: v for k, v in old_meta.items() if k != "snapshots"} == {k: v for k, v in meta.items() if k != "snapshots"}:
-        # ADR-079：只有網頁內容變了（提示詞、模型沒變）：只看和獎學金有關的段落有沒有變
-        new_fingerprint = relevance_fingerprint(session, source.id, hashes)
-        # 這個功能上線前抽的資料沒存指紋：用上次抽取時的快照算
-        old_fingerprint = existing.extracted.get("relevance") or relevance_fingerprint(
-            session, source.id, old_meta.get("snapshots") or []
-        )
-        decision = relevance.decide(
-            old_fingerprint,
-            new_fingerprint,
-            stored_quotes(existing.extracted),
-            snapshot_text(session, source.id, hashes),
-            existing.last_verified_at,
-            datetime.now(UTC),
-        )
-        if decision == "skip":
-            # 不重抽：記下新的快照與指紋，之後核對變更、核對引用都用新版原文（JSONB 整個重新指定）
-            existing.extracted = {
-                **existing.extracted,
-                "meta": {**old_meta, "snapshots": hashes},
-                "relevance": new_fingerprint,
-            }
-            return "noise"
+def build_extraction(
+    session: Session, llm: GeminiLLM, source: Source, snapshots: list[Snapshot], meta: dict[str, Any]
+) -> tuple[ScholarshipDraft, dict[str, Any]]:
+    """抽取、核對並組出要存的結果，但不寫資料庫（第 11 天段 2：評估要用同一套流程比較模型）。
 
+    回傳（核對後的初稿, extracted）；extract_source 拿去存檔。
+    """
+    hashes = sorted(s.content_hash for s in snapshots)
     if source.fetch_method == FetchMethod.PDF:
         draft, raw, extra = extract_pdf(llm, snapshots[0])
     else:
@@ -464,6 +435,49 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
         "meta": meta,
         "relevance": relevance_fingerprint(session, source.id, hashes),  # ADR-079
     }
+    return verified, extracted
+
+
+def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
+    """抽一個來源，回傳一行摘要；內容和提示詞都沒變就跳過。"""
+    snapshots = documents(session, source)
+    hashes = sorted(s.content_hash for s in snapshots)
+    meta = {
+        "snapshots": hashes,
+        "prompts": current_prompts(),
+        "model": settings.llm_model,
+    }
+    existing = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
+    if existing and existing.extracted.get("meta") == meta:
+        return "unchanged"
+    old_meta = existing.extracted.get("meta", {}) if existing else {}
+    if existing and {k: v for k, v in old_meta.items() if k != "snapshots"} == {k: v for k, v in meta.items() if k != "snapshots"}:
+        # ADR-079：只有網頁內容變了（提示詞、模型沒變）：只看和獎學金有關的段落有沒有變
+        new_fingerprint = relevance_fingerprint(session, source.id, hashes)
+        # 這個功能上線前抽的資料沒存指紋：用上次抽取時的快照算
+        old_fingerprint = existing.extracted.get("relevance") or relevance_fingerprint(
+            session, source.id, old_meta.get("snapshots") or []
+        )
+        decision = relevance.decide(
+            old_fingerprint,
+            new_fingerprint,
+            stored_quotes(existing.extracted),
+            snapshot_text(session, source.id, hashes),
+            existing.last_verified_at,
+            datetime.now(UTC),
+        )
+        if decision == "skip":
+            # 不重抽：記下新的快照與指紋，之後核對變更、核對引用都用新版原文（JSONB 整個重新指定）
+            existing.extracted = {
+                **existing.extracted,
+                "meta": {**old_meta, "snapshots": hashes},
+                "relevance": new_fingerprint,
+            }
+            return "noise"
+
+    verified, extracted = build_extraction(session, llm, source, snapshots, meta)
+    status = extracted["verification"]
+    deadline = extracted["deadline"]
     latest = max(snapshots, key=lambda snap: snap.fetched_at)
     save(session, source, verified, extracted, latest.id)
     checks = " ".join(f"{f}={status[f]}" for f in ("nationality", "degrees"))

@@ -8,9 +8,14 @@ from app.features.costs.recorder import CostRecorder
 from app.shared.settings import settings
 
 
-def gemini(source_id: int | None = None, run_id: int | None = None, agent_run_id: int | None = None) -> GeminiLLM:
-    """source_id、run_id 是這些呼叫屬於哪個來源、哪一天的檢查（知道的話）；紀錄頁用來分。"""
+def gemini(
+    source_id: int | None = None, run_id: int | None = None, agent_run_id: int | None = None, model: str | None = None
+) -> GeminiLLM:
+    """source_id、run_id 是這些呼叫屬於哪個來源、哪一天的檢查（知道的話）；紀錄頁用來分。
+
+    model 只有評估時才指定（第 11 天段 2），平常用設定檔的模型（ADR-015）。
+    """
     return GeminiLLM(
-        settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute,
+        model or settings.llm_model, settings.google_api_key, settings.llm_requests_per_minute,
         hook=CostRecorder(None, source_id, run_id, agent_run_id),  # 上限每次從設定頁的設定讀
     )

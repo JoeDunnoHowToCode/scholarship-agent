@@ -3,6 +3,7 @@
 規則本身在 candidates.py（純邏輯）；這裡負責讀寫 sources。呼叫的人負責 commit。
 """
 
+from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
@@ -24,6 +25,8 @@ from app.features.scholarships.models import Scholarship
 from app.features.sources.models import Discovery, Source, SourceKind, SourceStatus
 
 WEEK = timedelta(days=7)
+# 規則判斷不了是不是重複時，請 AI 比對兩筆（E＋D 的 D）；沒給就當成不重複
+SameCheck = Callable[[Scholarship, Scholarship], bool]
 # extract_source 的這些摘要代表這次沒有真的重抽（ADR-079）
 NOT_EXTRACTED = frozenset({"unchanged", "noise"})
 
@@ -64,7 +67,7 @@ def pending_candidate_ids(session: Session, now: datetime) -> list[int]:
     ))
 
 
-def decide_candidate(session: Session, source: Source, now: datetime) -> str:
+def decide_candidate(session: Session, source: Source, now: datetime, ask: SameCheck | None = None) -> str:
     """候選抽取完之後：四條規則都過就加入（approved），否則排除（rejected）並記下原因。"""
     row = _scholarship(session, source)
     reasons = ["沒有抽出獎學金"] if row is None else judge(_facts(row), now)
@@ -131,7 +134,9 @@ def _facts(row: Scholarship) -> Facts:
     )
 
 
-def review_after_extraction(session: Session, source: Source, summary: str, now: datetime) -> str | None:
+def review_after_extraction(
+    session: Session, source: Source, summary: str, now: datetime, ask: SameCheck | None = None
+) -> str | None:
     """每天的來源工作抽完後叫它：候選就決定加入或排除；agent 加的來源真的重抽了就檢查品質。
 
     回傳 approved、rejected、disabled，或 None（不是 agent 的來源、或這次沒有重抽）。

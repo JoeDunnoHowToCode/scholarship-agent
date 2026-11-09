@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.features.costs.usage import TAIPEI
@@ -157,9 +157,11 @@ def test_weekly_digest_is_added_once_per_week() -> None:
         scholarship(session, source, ["DK"], name="Copenhagen Scholarship")
         decide_candidate(session, source, NOW)
         session.flush()
+        # 真的資料庫裡可能已經有本週的摘要（每日檢查送過）：在交易裡先移開，測完復原（和 c6bf24a 同一類）
+        year, week, _ = NOW.astimezone(TAIPEI).date().isocalendar()
+        session.execute(delete(Event).where(Event.dedup_key == f"discovery:{year}-W{week:02d}"))
         assert add_weekly_digest(session, NOW) is True
         assert add_weekly_digest(session, NOW) is False  # 同一週只送一次
-        year, week, _ = NOW.astimezone(TAIPEI).date().isocalendar()
         event = session.scalars(select(Event).where(Event.dedup_key == f"discovery:{year}-W{week:02d}")).first()
         assert event is not None
     finally:

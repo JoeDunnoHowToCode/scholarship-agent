@@ -6,6 +6,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Literal
 
 from app.features.matching.checks import nationality_check
 
@@ -63,3 +64,24 @@ def next_empty(previous: int, valid: bool) -> tuple[int, bool]:
 def budget(decided_last_7_days: int) -> int:
     """這次還能決定幾個候選。"""
     return max(0, WEEKLY_DECISIONS - decided_last_7_days)
+
+
+SIMILAR = 0.96  # 語意相似度到這裡就算重複（11-09 實測：不重複的最高 0.939，重複的 0.971–0.981）
+
+
+@dataclass(frozen=True)
+class Brief:
+    """比對是不是同一個獎學金時要看的欄位。"""
+
+    provider: str  # 已正規化（小寫、去標點）；空字串代表沒抽到
+    countries: frozenset[str]
+    closes: frozenset[str]  # 原文的截止日（YYYY-MM-DD），不含程式預估的
+    embedding: list[float] | None
+
+
+Verdict = Literal["duplicate", "different", "unclear"]
+
+
+def same_scholarship(new: Brief, old: Brief) -> Verdict:
+    """規則比對（11-09 使用者選 E＋D）：判斷不了的回 unclear，交給 AI 讀內容（D）。"""
+    return "different"  # 骨架

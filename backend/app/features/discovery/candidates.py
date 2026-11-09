@@ -4,6 +4,7 @@
 國籍規定沒有明確排除台灣、申請期不是一年多以前的舊資料。
 """
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal
@@ -83,5 +84,26 @@ Verdict = Literal["duplicate", "different", "unclear"]
 
 
 def same_scholarship(new: Brief, old: Brief) -> Verdict:
-    """規則比對（11-09 使用者選 E＋D）：判斷不了的回 unclear，交給 AI 讀內容（D）。"""
-    return "different"  # 骨架
+    """規則比對（11-09 使用者選 E＋D）：判斷不了的回 unclear，交給 AI 讀內容（D）。
+
+    只比同一個提供者：提供者不同，或沒抽到提供者，就當成不同的獎學金（不冒險合併）。
+    """
+    if not new.provider or new.provider != old.provider:
+        return "different"
+    if new.embedding is not None and old.embedding is not None and _cosine(new.embedding, old.embedding) >= SIMILAR:
+        return "duplicate"
+    # 國家或截止日兩邊都有、卻不一樣：不同的獎學金（例如同一所大學的兩個學程）
+    if new.countries and old.countries and new.countries != old.countries:
+        return "different"
+    if new.closes and old.closes and not new.closes & old.closes:
+        return "different"
+    if new.countries and new.closes and new.countries == old.countries and new.closes == old.closes:
+        return "duplicate"
+    return "unclear"
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    """語意相似度（兩個向量夾角的餘弦）：1 代表方向完全一樣。"""
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    norm = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
+    return dot / norm if norm else 0.0

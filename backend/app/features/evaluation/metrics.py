@@ -14,7 +14,7 @@ FIELDS = ("deadlines", "nationality", "degrees", "amounts")  # 抽查也照這�
 
 def grounded(records: list[Record]) -> dict[str, float]:
     """各欄位的有根據率：原文引用撐得起的比例。"""
-    return {}  # 骨架
+    return dict.fromkeys(FIELDS, 0.0)  # 骨架
 
 
 def incomplete(records: list[Record]) -> float:
@@ -24,7 +24,7 @@ def incomplete(records: list[Record]) -> float:
 
 def agreement(first: list[Record], second: list[Record]) -> dict[str, float]:
     """兩組結果（同一模型兩次＝穩定度；兩個模型＝一致率）每個欄位一樣的比例，只算兩邊都抽成功的來源。"""
-    return {}  # 骨架
+    return dict.fromkeys((*FIELDS, "all"), 0.0)  # 骨架
 
 
 def disagreements(first: list[Record], second: list[Record], limit: int = 10) -> list[dict[str, Any]]:

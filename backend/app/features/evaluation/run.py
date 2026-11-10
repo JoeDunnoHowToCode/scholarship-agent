@@ -216,9 +216,9 @@ def main() -> None:
     if args.tally:
         counts = tally((EVAL_DIR / args.tally / "disagreements.md").read_text(encoding="utf-8"))
         report = REPORT_DIR / f"{args.tally}.md"
-        text = report.read_text(encoding="utf-8").split("\n## 抽查（人工）")[0].rstrip("\n")
+        text = report.read_text(encoding="utf-8").split("\n## 抽查不一致的地方")[0].rstrip("\n")
         summary = "、".join(f"{k} {v}" for k, v in counts.items())
-        report.write_text(f"{text}\n\n## 抽查（人工）\n\n兩個模型不一致的地方，人工對照官網：{summary}\n", encoding="utf-8")
+        report.write_text(f"{text}\n\n## 抽查不一致的地方\n\n兩個模型不一致的地方，對照原文判斷：{summary}\n", encoding="utf-8")
         print(f"抽查：{summary}，已補進 {report}")
         return
     date = datetime.now(UTC).astimezone(TAIPEI).date().isoformat()

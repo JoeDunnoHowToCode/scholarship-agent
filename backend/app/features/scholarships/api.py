@@ -151,6 +151,13 @@ class AmountOut(BaseModel):
     status: str | None  # supported、no_evidence、invalid_currency、quote_not_found、number_not_in_quote、period_mismatch；舊資料沒有
 
 
+class SummaryOut(BaseModel):
+    """獎學金說明的一句與它的原文引用（docs/summary-plan.md）；只回傳通過核對的。"""
+
+    text: str
+    evidence: str
+
+
 class OtherDateOut(BaseModel):
     """不是申請這個獎學金的日期（ADR-105），例如補件、繳費；分類錯了也看得到。"""
 
@@ -195,6 +202,7 @@ class ScholarshipDetail(BaseModel):
     last_verified_at: datetime | None
     categories: list[CategoryOut]
     cycles: list[CycleOut]
+    summary: list[SummaryOut]
     offered: str  # yes、no、unclear（ADR-105）；舊資料是 unclear
     offered_evidence: str | None
     other_dates: list[OtherDateOut]
@@ -490,6 +498,11 @@ def read_scholarship(scholarship_id: int, session: DbSession) -> ScholarshipDeta
         last_verified_at=row.last_verified_at,
         categories=categories,
         cycles=cycles,
+        summary=[
+            SummaryOut(text=s["text"], evidence=s["evidence"])
+            for s in extracted.get("summary", [])
+            if s.get("status") == "supported"  # 沒通過核對的不顯示（docs/summary-plan.md「Claude 自行決定」第 1 點）
+        ],
         offered=extracted.get("offered", "unclear"),
         offered_evidence=extracted.get("offered_evidence"),
         other_dates=other_dates(extracted),

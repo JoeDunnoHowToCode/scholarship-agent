@@ -151,6 +151,15 @@ class AmountOut(BaseModel):
     status: str | None  # supported、no_evidence、invalid_currency、quote_not_found、number_not_in_quote、period_mismatch；舊資料沒有
 
 
+class OtherDateOut(BaseModel):
+    """不是申請這個獎學金的日期（ADR-105），例如補件、繳費；分類錯了也看得到。"""
+
+    kind: str  # admission_only、document、payment、other
+    label: str | None
+    closes: str | None  # YYYY-MM-DD；年月日不齊全時是 None
+    evidence: str | None
+
+
 class ChangeOut(BaseModel):
     changed_at: datetime
     text: str
@@ -186,6 +195,9 @@ class ScholarshipDetail(BaseModel):
     last_verified_at: datetime | None
     categories: list[CategoryOut]
     cycles: list[CycleOut]
+    offered: str  # yes、no、unclear（ADR-105）；舊資料是 unclear
+    offered_evidence: str | None
+    other_dates: list[OtherDateOut]
     requirements: list[RequirementOut]
     scores: list[ScoreOut]
     changes: list[ChangeOut]
@@ -209,6 +221,18 @@ def amount_items(extracted: dict[str, Any]) -> list[dict[str, Any]]:
         for index, item in enumerate(extracted.get("amounts", []))
         if item.get("for_this", True)  # ADR-105：同一頁其他補助的錢不顯示
     ]
+
+
+def other_dates(extracted: dict[str, Any]) -> list[OtherDateOut]:
+    """抽取結果裡不是申請這個獎學金的日期（ADR-105）；舊資料沒有 kind，都當成申請獎學金。"""
+    found = []
+    for w in extracted.get("windows", []):
+        if w.get("kind", "scholarship") == "scholarship":
+            continue
+        full = w.get("closes_year") and w.get("closes_month") and w.get("closes_day")
+        closes = f"{w['closes_year']:04d}-{w['closes_month']:02d}-{w['closes_day']:02d}" if full else None
+        found.append(OtherDateOut(kind=w["kind"], label=w.get("label"), closes=closes, evidence=w.get("evidence")))
+    return found
 
 
 def start_of(day: date) -> datetime:
@@ -466,6 +490,9 @@ def read_scholarship(scholarship_id: int, session: DbSession) -> ScholarshipDeta
         last_verified_at=row.last_verified_at,
         categories=categories,
         cycles=cycles,
+        offered=extracted.get("offered", "unclear"),
+        offered_evidence=extracted.get("offered_evidence"),
+        other_dates=other_dates(extracted),
         requirements=requirements,
         scores=scores,
         changes=changes,

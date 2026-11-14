@@ -138,3 +138,13 @@ def test_a_per_semester_quote_stored_as_yearly_is_flagged() -> None:
     assert amounts.amount_status(amount("year"), page) == "period_mismatch"
     assert amounts.amount_status(amount("unclear"), page) == "supported"
     assert amounts.amount_status(amount("year"), "每學期 1,800 歐元") == "quote_not_found"  # 其他關照舊先檢查
+
+
+def test_money_from_other_awards_on_the_page_is_left_out() -> None:
+    # ADR-105：同一頁介紹的其他補助（for_this=false）照樣存著，但不寫進金額文字、不當列表上的金額
+    own = {"value": 1400, "currency": "EUR", "period": "month", "kind": "living_allowance",
+           "applies_to": None, "evidence": "（引用）", "status": "supported"}
+    other = {**own, "value": 300, "for_this": False}
+    assert amounts.describe([other, own]) == "每月 1,400 EUR（生活津貼）"
+    assert amounts.headline([other, own]) == "每月 1,400 EUR"
+    assert amounts.describe([other]) is None

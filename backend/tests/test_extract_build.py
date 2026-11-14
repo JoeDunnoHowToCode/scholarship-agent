@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from app.features.scholarships.extract import extract_source
 from app.features.scholarships.models import Scholarship
-from app.features.scholarships.schemas import ScholarshipDraft
+from app.features.scholarships.schemas import AmountDraft, ScholarshipDraft
 from app.features.scholarships.verify import ClaimVerdict, Verdicts
 from app.features.sources.models import Snapshot, Source, SourceKind
 from app.shared.db import SessionLocal
@@ -38,13 +38,14 @@ class FakeLLM:
 
     model = "fake-model"
 
-    def __init__(self) -> None:
+    def __init__(self, draft: ScholarshipDraft = DRAFT) -> None:
         self.calls = 0
+        self.draft = draft
 
     def extract(self, prompt: str, schema: type[Any]) -> Any:
         self.calls += 1
         if schema is ScholarshipDraft:
-            return DRAFT
+            return self.draft
         # 核對的提示詞每一項寫成「- 欄位：值 = …」（verify.py）
         claims = [line[2:].split("：")[0] for line in prompt.splitlines() if line.startswith("- ") and "：值 = " in line]
         return Verdicts(verdicts=[ClaimVerdict(claim=c, supported=True, reason="原文有寫") for c in claims])
@@ -72,6 +73,34 @@ def test_extract_source_saves_the_verified_draft(tmp_path: Path) -> None:
         assert verification["degrees"] == "supported" and verification["nationality"] == "supported"
         assert row.extracted["meta"]["snapshots"] == ["a" * 64]
         assert row.extracted["mode"] == "whole"
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_extraction_keeps_each_amount_once(tmp_path: Path) -> None:
+    # ADR-103：一般網頁整份抽也套用金額的規則（總檢查：每月 1,400 和總額 33,600 是同一筆錢）
+    page = tmp_path / "page.html"
+    page.write_text(PAGE.replace("</body>", "<p>A monthly allowance of EUR 1,400, in total EUR 33,600.</p></body>"),
+                    encoding="utf-8")
+    quote = "A monthly allowance of EUR 1,400, in total EUR 33,600."
+    amounts = [
+        AmountDraft.model_validate({"value": value, "currency": "EUR", "period": period, "kind": "living_allowance", "applies_to": None,
+         "evidence": quote})
+        for value, period in ((1400, "month"), (1400, "month"), (33600, "total"))
+    ]
+    session = SessionLocal()
+    try:
+        source = Source(name="Test amounts", url="https://test-amounts.example/", kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        now = datetime.now(UTC)
+        session.add(Snapshot(source_id=source.id, url=source.url, fetched_at=now, seen_at=now,
+                             content_hash="b" * 64, file_path=str(page), http_status=200, etag=None, last_modified=None))
+        session.flush()
+        extract_source(session, FakeLLM(DRAFT.model_copy(update={"amounts": amounts})), source)  # type: ignore[arg-type]
+        row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).one()
+        assert [(a["value"], a["period"]) for a in row.extracted["amounts"]] == [(1400, "month")]
     finally:
         session.rollback()
         session.close()

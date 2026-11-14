@@ -177,7 +177,12 @@
 
 ### 段 4 執行與驗證
 - [ ] 完整檢查 -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
-- [ ] 新提示詞跑 57 個樣本的評估（約 NT$15），和 11-10 的基準比較 -> verify: `uv run python -m app.features.evaluation.run --models gemini-3.5-flash-lite --rounds 2 --max-cost 20`
+- [x] 新提示詞跑 57 個樣本的評估，和 11-10 的基準比較 -> verify: `uv run python -m app.features.evaluation.run --models gemini-3.5-flash-lite --rounds 2 --max-cost 20`
+  ```
+  已達這次評估的上限 NT$20.0，停下（第 2 次只跑完 8 個來源）
+  國籍有根據 82% → 86%、學位 82% → 85%、截止日 69% → 63%、金額 90% → 92%、規則問題 2.42 → 4.75
+  ```
+  說明在 `docs/eval/2026-11-14.md`：規則問題的增加是國名檢查的誤報，已修（`fix: EU/EEA countries excluded as a group…`）；截止日是分母變大
 - [ ] 備份後全部重抽一次（約 NT$65） -> verify: `uv run python -m app.features.scholarships.extract --force --max-cost 90`（貼出完成／失敗數）
 - [ ] 重新檢查：上次有錯的 128 筆加隨機 30 筆對的，用同一份指示比較修好幾個、新錯幾個 -> verify: 報告寫進 `docs/eval/2026-11-xx-audit.md`
 - [ ] 學習卡、`docs/progress.md` -> verify: 檔案已更新
@@ -202,3 +207,8 @@
 8. 段的順序：規則 → schema → 快取 → 執行。快取規則在全部重抽之前改好，重抽改用 `--force`。
 9. 規則 4（國籍範圍矛盾）不做：總檢查的兩個例子都是獎學金寫「不清楚」、申請期寫「不分國籍」，程式判斷不了哪一邊對；獎學金寫「不清楚」本來就顯示待確認。
 10. 截止日的程式檢查搬到 `verify.window_rule`，抽取和 `--rules-only` 共用同一份。
+11. 評估發現 extract-13 的「排除歐盟各國」讓國名檢查每筆多 29 個假問題：在 `rules.py` 加一份歐盟 27 國＋EEA 3 國＋瑞士的國碼，原文用歐盟／EEA 一次排除時不逐一檢查國名。這份清單只用來避免誤報，不改國家集合的存法（#52 仍待決定）。
+12. 評估的費用上限照計畫設 NT$20，但每個來源變成 NT$0.31，第 2 次沒跑完；沒有再花錢補跑，正確性改看段 4 的重新檢查。
+13. 說明的數字檢查用 `amounts.numbers_in` 比對中文句子和引用（1,400 和 1400 相同、也認得中文單位），不用 `rules.number_in_source`（它只收整數）。
+14. `ensure_summary` 在函式裡才匯入 `snapshot_text`，避免 `extract` 和 `summary` 互相匯入。
+15. 每天的檢查抽完就補說明；說明的 AI 呼叫失敗只回滾說明，不影響抽取結果。

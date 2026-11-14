@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core import prompts
 from app.core.llm.base import StructuredLLM
+from app.features.scholarships.amounts import numbers_in
 from app.features.scholarships.models import Scholarship
 from app.features.scholarships.schemas import SummarySentence
 
@@ -21,7 +22,15 @@ MAX_SENTENCES = 3
 
 def check_sentences(llm: StructuredLLM, sentences: list[SummarySentence], source: str) -> list[str]:
     """每句的核對結果：no_evidence、number_not_in_quote、quote_not_found、not_supported、supported。"""
-    return ["no_evidence" if not s.evidence else "supported" for s in sentences]
+    statuses = []
+    for sentence in sentences:
+        if not sentence.evidence:
+            statuses.append("no_evidence")
+        elif not numbers_in(sentence.text) <= numbers_in(sentence.evidence):
+            statuses.append("number_not_in_quote")  # 第一關：中文裡的每個數字都要在引用裡（1,400 和 1400 相同）
+        else:
+            statuses.append("supported")
+    return statuses
 
 
 def make_summary(llm: StructuredLLM, source: str) -> list[dict[str, Any]]:

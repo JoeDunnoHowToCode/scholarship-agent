@@ -6,7 +6,7 @@ import { api, unwrap, type Schemas } from "@/api/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import {
@@ -29,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type Detail = Schemas["ScholarshipDetail"];
+type Cycle = Schemas["CycleOut"];
 type Score = Schemas["ScoreOut"];
 type Check = { result: string; reason: string };
 type SubScore = { score: number | null; reason: string };
@@ -37,7 +38,7 @@ const TABS = [
   { value: "apply", label: "申請" },
   { value: "eligibility", label: "資格" },
   { value: "score", label: "評分" },
-  { value: "history", label: "紀錄" },
+  { value: "history", label: "變更" }, // 原本叫「紀錄」，和導覽列的「紀錄」（AI 費用）撞名（docs/ui-review-2.md C5）
 ];
 
 export default function ScholarshipDetail() {
@@ -121,30 +122,25 @@ export default function ScholarshipDetail() {
           {tab === "apply" && (
             <>
               <Section title="申請期">
-                {/* 11-07：原本是四欄表格，第一欄不換行把其他欄擠成一字一行；改成每一期一塊，由上往下讀 */}
-                <ul className="divide-y">
-                  {d.cycles.map((c, index) => (
-                    <li key={index} className="space-y-1 py-3 text-sm first:pt-0 last:pb-0">
-                      {/* 例如「2026-10-20 → 2027-01-11（開放中）Grant application period」：狀態已經在括號裡 */}
-                      <p className="font-medium">{c.description}</p>
-                      <p className="text-muted-foreground">
-                        {[
-                          `截止 ${taipeiTime(c.closes_at)}`,
-                          !c.estimated && nameOf(VERIFICATION_NAMES, c.verification),
-                          `${nameOf(SCOPE_NAMES, c.nationality_scope)}${c.nationalities.length > 0 ? `（${c.nationalities.length} 國）` : ""}`,
-                          nameOf(FUNDING_NAMES, c.funding),
-                        ]
-                          .filter(Boolean)
-                          .join("｜")}
-                      </p>
-                      {c.evidence && <p className="max-w-prose text-muted-foreground">「{c.evidence}」</p>}
-                    </li>
-                  ))}
-                </ul>
+                <CycleList cycles={d.cycles.filter((c) => c.status !== "closed")} />
                 {d.cycles.length === 0 && (
                   <p className="text-sm text-muted-foreground">
                     {d.offered === "no" ? "原文寫明這次不提供，沒有申請期" : "原文沒有截止日"}
                   </p>
+                )}
+                {d.cycles.length > 0 && d.cycles.every((c) => c.status === "closed") && (
+                  <p className="text-sm text-muted-foreground">目前沒有開放中或即將開放的申請期</p>
+                )}
+                {/* 已截止的收起來（docs/ui-review-2.md C1）：只在對照往年時間時有用，不該排在最前面 */}
+                {d.cycles.some((c) => c.status === "closed") && (
+                  <details className="group border-t pt-3 text-sm">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                      過去的申請期（{d.cycles.filter((c) => c.status === "closed").length}）
+                    </summary>
+                    <div className="pt-3">
+                      <CycleList cycles={d.cycles.filter((c) => c.status === "closed")} />
+                    </div>
+                  </details>
                 )}
               </Section>
               {/* ADR-105：補件、繳費、只有入學的日期不算申請期，另外列出來；分類錯了也看得到 */}
@@ -156,7 +152,7 @@ export default function ScholarshipDetail() {
                         <p className="font-medium">
                           {[o.closes ?? "日期不齊全", nameOf(OTHER_DATE_NAMES, o.kind), o.label].filter(Boolean).join("｜")}
                         </p>
-                        {o.evidence && <p className="max-w-prose text-muted-foreground">「{o.evidence}」</p>}
+                        <Quote text={o.evidence} />
                       </li>
                     ))}
                   </ul>
@@ -179,7 +175,7 @@ export default function ScholarshipDetail() {
                           </Badge>
                         </div>
                         {a.applies_to && <p className="text-muted-foreground">適用：{a.applies_to}</p>}
-                        {a.evidence && <p className="max-w-prose text-muted-foreground">「{a.evidence}」</p>}
+                        <Quote text={a.evidence} open={a.status !== "supported"} />
                       </li>
                     ))}
                   </ul>
@@ -190,6 +186,9 @@ export default function ScholarshipDetail() {
               </Section>
               <Section title="要交的文件">
                 {/* 11-07：原本是表格，改成一筆一塊，和申請期、補助一樣 */}
+                {d.requirements.length === 0 && (
+                  <p className="text-sm text-muted-foreground">原文沒有列出要交的文件，請看官方網站。</p>
+                )}
                 <ul className="divide-y">
                   {d.requirements.map((r, index) => (
                     <li key={index} className="space-y-1 py-3 text-sm first:pt-0 last:pb-0">
@@ -201,9 +200,7 @@ export default function ScholarshipDetail() {
                       {r.category && <p className="text-muted-foreground">只限：{r.category}</p>}
                       {r.details && <p className="max-w-prose">{r.details}</p>}
                       {/* 約三成的「要求」和原文引用一字不差，一樣時只顯示一次 */}
-                      {r.evidence && r.evidence.trim() !== r.details?.trim() && (
-                        <p className="max-w-prose text-muted-foreground">「{r.evidence}」</p>
-                      )}
+                      {r.evidence?.trim() !== r.details?.trim() && <Quote text={r.evidence} />}
                     </li>
                   ))}
                 </ul>
@@ -314,9 +311,14 @@ function Summary({ detail }: { detail: Detail }) {
     { label: "申請日期", value: detail.deadline_line ?? "原文沒寫" },
     { label: "補助", value: detail.amount_headline ?? "原文沒寫" },
     { label: "你的分數", value: best ? `${Math.round(best.total)} 分` : "未評分" },
+    // 決定要先申請學校還是先申請獎學金，從「資格」頁籤提到這裡（docs/ui-review-2.md C6）
+    {
+      label: "要先錄取",
+      value: detail.requires_admission === null ? "原文沒說" : detail.requires_admission ? "要" : "不用",
+    },
   ];
   return (
-    <dl className="grid gap-3 rounded-xl bg-muted/50 p-4 text-sm sm:grid-cols-[2fr_1fr_auto]">
+    <dl className="grid gap-3 rounded-xl bg-muted/50 p-4 text-sm sm:grid-cols-[2fr_1fr_auto_auto]">
       {items.map((item) => (
         <div key={item.label} className="space-y-1">
           <dt className="text-muted-foreground">{item.label}</dt>
@@ -414,7 +416,53 @@ function Fact({
           {nameOf(VERIFICATION_NAMES, check)}
         </Badge>
       )}
-      {quote && <CardDescription className="mt-1">「{quote}」</CardDescription>}
+      <Quote text={quote} open={Boolean(check) && check !== "supported" && check !== "catalogue"} />
     </div>
+  );
+}
+
+// 申請期一期一塊：第一行是日期與狀態，第二行是適用對象與核對結果，下面是原文引用
+function CycleList({ cycles }: { cycles: Cycle[] }) {
+  return (
+    <ul className="divide-y">
+      {cycles.map((c, index) => (
+        <li key={index} className="space-y-1 py-3 text-sm first:pt-0 last:pb-0">
+          {/* 例如「2026-10-20 → 2027-01-11（開放中）Grant application period」：狀態已經在括號裡 */}
+          <p className="font-medium">{c.description}</p>
+          <p className="text-muted-foreground">
+            {[
+              // 原文沒寫時區時，存的是 UTC+14 的當天結束，換成台灣時間的時刻（例如 17:59）是假的，不顯示（docs/ui-review-2.md C4）
+              !c.timezone_assumed && `台灣時間 ${taipeiTime(c.closes_at)} 截止`,
+              !c.estimated && nameOf(VERIFICATION_NAMES, c.verification),
+              `${nameOf(SCOPE_NAMES, c.nationality_scope)}${c.nationalities.length > 0 ? `（${c.nationalities.length} 國）` : ""}`,
+              nameOf(FUNDING_NAMES, c.funding),
+            ]
+              .filter(Boolean)
+              .join("｜")}
+          </p>
+          {/* 預估的申請期，evidence 是推估的說明（例如「依 2022 年的日期推估」），不是原文引用 */}
+          {c.estimated ? (
+            c.evidence && <p className="text-muted-foreground">{c.evidence}</p>
+          ) : (
+            <Quote text={c.evidence} open={c.verification !== "supported"} />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// 原文引用（ADR-106）：核對沒通過的直接顯示，最需要你看原文；已核對或沒有核對結果的收起成「原文 ▸」，點了才展開。
+// 用原生的 <details>：鍵盤和螢幕閱讀器都能用，Chrome 的 ⌘F 也會自動展開找到的段落
+function Quote({ text, open = false }: { text: string | null | undefined; open?: boolean }) {
+  if (!text) return null;
+  if (open) return <p className="max-w-prose text-sm text-muted-foreground">「{text}」</p>;
+  return (
+    <details className="group max-w-prose text-sm text-muted-foreground">
+      <summary className="w-fit cursor-pointer list-none text-xs hover:text-foreground [&::-webkit-details-marker]:hidden">
+        原文 <span className="inline-block transition-transform group-open:rotate-90">▸</span>
+      </summary>
+      <p className="mt-1">「{text}」</p>
+    </details>
   );
 }

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.features.costs.usage import TAIPEI
@@ -24,6 +24,14 @@ from app.features.sources.models import Discovery, Source, SourceKind, SourceSta
 from app.shared.db import SessionLocal
 
 NOW = datetime.now(UTC)
+
+
+def without_real_candidates(session: Session) -> None:
+    """本機資料庫有真的候選與這 7 天的決定（每週上限 50 個）：在這個交易裡先移開，測試只看自己建的資料，跑完復原。"""
+    session.execute(update(Source).where(Source.status == SourceStatus.CANDIDATE).values(enabled=False))
+    session.execute(
+        update(Source).where(Source.decided_at >= NOW - timedelta(days=7)).values(decided_at=NOW - timedelta(days=8))
+    )
 
 
 def candidate(session: Session, url: str) -> Source:
@@ -67,6 +75,7 @@ def test_submissions_become_candidates_once() -> None:
 def test_pending_candidates_respect_the_weekly_budget() -> None:
     session = SessionLocal()
     try:
+        without_real_candidates(session)
         first = candidate(session, "https://test-a.example/s")
         second = candidate(session, "https://test-b.example/s")
         pending = pending_candidate_ids(session, NOW)
@@ -132,6 +141,7 @@ def test_agent_sources_are_disabled_after_three_empty_extractions() -> None:
 def test_daily_flow_checks_candidates_and_reviews_them_after_extraction() -> None:
     session = SessionLocal()
     try:
+        without_real_candidates(session)
         source = candidate(session, "https://test-daily.example/s")
         # 候選排進今天的檢查
         assert source.id in due_source_ids(session, NOW.astimezone(TAIPEI).date())

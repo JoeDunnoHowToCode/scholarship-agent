@@ -401,3 +401,10 @@ def test_one_extraction_keeps_each_amount_once() -> None:
     # 適用對象不同的兩筆都留
     partner = amount(1400, "month", applies_to="Partner country students")
     assert merge.clean_amounts([first, partner]) == [first, partner]
+
+
+def test_long_documents_take_offered_from_the_outline() -> None:
+    # ADR-105：長文件的「今年有沒有開」在第一輪讀全文時判斷，合併後的結果要帶著
+    outline = OUTLINE.model_copy(update={"offered": "no", "offered_evidence": "No scholarships are offered for 2027"})
+    draft = merge.merge_sections(outline, [section()]).draft
+    assert (draft.offered, draft.offered_evidence) == ("no", "No scholarships are offered for 2027")

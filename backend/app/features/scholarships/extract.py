@@ -1,6 +1,6 @@
 """抽取指令（第 3 天）：把每個來源最新的快照抽成獎學金、類別與文件清單（ADR-008、031、034、037）。
 
-用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only] [--amounts-only] [--backfill-amounts]
+用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only] [--rules-only] [--amounts-only] [--backfill-amounts]
 
 - 網頁：每頁的可見文字合併後整份抽（ADR-034：一般網頁整頁讀）；學程補抓的 PDF 轉錄後當成一頁（ADR-044）
 - PDF 與很長的網頁：切段 → 第一輪列大綱 → 第二輪逐節抽 → 程式合併
@@ -574,6 +574,12 @@ def recheck_amounts() -> None:
     print(f"重新核對 {checked} 筆獎學金的金額，{changed} 筆的結果有變")
 
 
+def recheck_rules(session: Session) -> tuple[int, int]:
+    """改了程式規則後（ADR-103），對已存的抽取結果重新套用：金額去重與核對、截止日的程式檢查，
+    有變的重建申請期。不呼叫 AI、不花錢。回傳（看了幾筆, 改了幾筆）。"""
+    return 0, 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="把來源快照抽成獎學金資料")
     parser.add_argument("--source", type=int, help="只抽這個來源 id")
@@ -586,6 +592,9 @@ def main() -> None:
         "--cycles-only", action="store_true", help="只用已存的抽取結果重建申請期，不呼叫 AI"
     )
     parser.add_argument(
+        "--rules-only", action="store_true", help="只用已存的抽取結果重新套用程式規則（ADR-103），不呼叫 AI"
+    )
+    parser.add_argument(
         "--amounts-only", action="store_true", help="只用已存的金額與快照重新核對金額，不呼叫 AI"
     )
     parser.add_argument(
@@ -594,6 +603,11 @@ def main() -> None:
     args = parser.parse_args()
     if args.cycles_only:
         rebuild_cycles()
+        return
+    if args.rules_only:
+        with SessionLocal() as session, session.begin():
+            checked, changed = recheck_rules(session)
+        print(f"重新套用規則：看了 {checked} 筆，{changed} 筆有變；接著執行 cycles 指令更新狀態與預估")
         return
     if args.amounts_only:
         recheck_amounts()

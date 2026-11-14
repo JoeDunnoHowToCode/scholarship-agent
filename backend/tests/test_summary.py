@@ -57,3 +57,15 @@ def test_make_summary_keeps_three_sentences_with_their_status() -> None:
     made = summary.make_summary(llm, SOURCE)
     assert len(made) == 3
     assert made[0] == {"text": sentence.text, "evidence": sentence.evidence, "status": "supported"}
+
+
+def test_backfill_skips_archived_duplicate_and_current_rows() -> None:
+    from app.features.scholarships.models import Scholarship, ScholarshipStatus
+
+    def row(**fields: Any) -> Scholarship:
+        return Scholarship(**{"status": ScholarshipStatus.ACTIVE, "duplicate_of": None, "extracted": {}, **fields})
+
+    assert summary.needs_summary(row())
+    assert not summary.needs_summary(row(status=ScholarshipStatus.ARCHIVED))
+    assert not summary.needs_summary(row(duplicate_of=1))
+    assert not summary.needs_summary(row(extracted={"summary_from": summary.SUMMARY_VERSION}))

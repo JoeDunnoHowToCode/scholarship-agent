@@ -574,9 +574,9 @@ def recheck_amounts() -> None:
     print(f"重新核對 {checked} 筆獎學金的金額，{changed} 筆的結果有變")
 
 
-def recheck_rules(session: Session) -> tuple[int, int]:
+def recheck_rules(session: Session, source_ids: list[int] | None = None) -> tuple[int, int]:
     """改了程式規則後（ADR-103），對已存的抽取結果重新套用：金額去重與核對、截止日的程式檢查，
-    有變的重建申請期。不呼叫 AI、不花錢。回傳（看了幾筆, 改了幾筆）。"""
+    有變的重建申請期。不呼叫 AI、不花錢。source_ids 不給就是全部。回傳（看了幾筆, 改了幾筆）。"""
     return 0, 0
 
 

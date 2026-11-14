@@ -1,6 +1,6 @@
 """抽取指令（第 3 天）：把每個來源最新的快照抽成獎學金、類別與文件清單（ADR-008、031、034、037）。
 
-用法：uv run python -m app.features.scholarships.extract [--source ID] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only] [--rules-only] [--amounts-only] [--backfill-amounts]
+用法：uv run python -m app.features.scholarships.extract [--source ID ...] [--force] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only] [--rules-only] [--amounts-only] [--backfill-amounts]
 
 - 網頁：每頁的可見文字合併後整份抽（ADR-034：一般網頁整頁讀）；學程補抓的 PDF 轉錄後當成一頁（ADR-044）
 - PDF 與很長的網頁：切段 → 第一輪列大綱 → 第二輪逐節抽 → 程式合併
@@ -630,7 +630,10 @@ def recheck_rules(session: Session, source_ids: list[int] | None = None) -> tupl
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="把來源快照抽成獎學金資料")
-    parser.add_argument("--source", type=int, help="只抽這個來源 id")
+    parser.add_argument("--source", type=int, action="append", help="只抽這個來源 id；可以寫好幾次")
+    parser.add_argument(
+        "--force", action="store_true", help="原文和模型沒變也用最新的提示詞重抽（ADR-104）；通常搭配 --source"
+    )
     parser.add_argument("--limit", type=int, help="最多抽幾個來源")
     parser.add_argument("--shard", help="K/N：只抽第 K 份（共 N 份），讓 N 個程序平行抽")
     parser.add_argument(
@@ -665,7 +668,7 @@ def main() -> None:
     except MissingApiKeyError as error:
         sys.exit(str(error))
     if args.backfill_amounts:
-        run_backfill(llm, args.source, args.limit, args.max_cost)
+        run_backfill(llm, args.source[0] if args.source else None, args.limit, args.max_cost)
         return
 
     child = aliased(Source)
@@ -678,7 +681,7 @@ def main() -> None:
         .limit(args.limit)
     )
     if args.source:
-        query = query.where(Source.id == args.source)
+        query = query.where(Source.id.in_(args.source))
 
     counts = {"ok": 0, "unchanged": 0, "failed": 0}
     with SessionLocal() as session:
@@ -689,7 +692,7 @@ def main() -> None:
                 print(f"已超過這次的費用上限 NT${args.max_cost}，停下")
                 break
             try:
-                summary = extract_source(session, llm, source)
+                summary = extract_source(session, llm, source, force=args.force)
                 session.commit()  # 每個來源各自一個交易
             except LLMError as error:
                 session.rollback()

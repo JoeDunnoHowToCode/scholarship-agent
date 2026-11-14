@@ -408,6 +408,8 @@ def build_extraction(
         draft = draft.model_copy(update={"categories": [only]})
     # 整份抽取的網頁也可能把同一個截止日寫兩次（例如表格和內文各一次），同一個截止日只留一筆
     draft = draft.model_copy(update={"windows": merge.dedupe_windows(draft.windows)})
+    # ADR-103：同一筆錢列兩次（完全一樣、或總額＝每月×月數）只留一筆
+    draft = draft.model_copy(update={"amounts": merge.clean_amounts(draft.amounts)})
     draft, invalid_codes = clean_country_codes(draft)
     status = verify.verify(llm, draft, raw, extra.get("conflicts", []))
     status["issues"] += [f"invalid_country_code:{code}" for code in invalid_codes]

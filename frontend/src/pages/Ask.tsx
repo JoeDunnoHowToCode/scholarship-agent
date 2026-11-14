@@ -34,7 +34,7 @@ export default function Ask() {
       <Card>
         <CardHeader>
           <CardTitle>問答</CardTitle>
-          <CardDescription>答案只根據抓下來的資料，附出處；每題約 NT$0–0.3（第 5 天實測），問題會送到 Gemini。</CardDescription>
+          <CardDescription>答案只根據抓下來的資料，附出處；每題約 NT$0–0.3，問題會送到 Gemini。</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-3">
@@ -70,7 +70,7 @@ export default function Ask() {
         <Card>
           <CardHeader>
             <CardTitle>回答</CardTitle>
-            <CardDescription>路線：{nameOf(ROUTE_NAMES, result.route)}</CardDescription>
+            <CardDescription>怎麼找答案：{nameOf(ROUTE_NAMES, result.route)}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             {result.notes.map((note) => (

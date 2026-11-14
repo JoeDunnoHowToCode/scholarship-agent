@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageSkeleton } from "@/components/page-skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import {
   AMOUNT_KIND_NAMES,
@@ -50,7 +50,7 @@ export default function ScholarshipDetail() {
       unwrap(await api.GET("/api/scholarships/{scholarship_id}", { params: { path: { scholarship_id: id } } })),
   });
 
-  if (detail.isPending) return <Skeleton className="h-96 w-full" />;
+  if (detail.isPending) return <PageSkeleton cards={2} />;
   if (detail.isError)
     return (
       <Alert variant="destructive">

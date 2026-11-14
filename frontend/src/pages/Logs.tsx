@@ -6,8 +6,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageSkeleton } from "@/components/page-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AGENT_RESULT_NAMES, AGENT_TASK_NAMES, nameOf, taipeiTime } from "@/lib/labels";
+import { AGENT_RESULT_NAMES, AGENT_TASK_NAMES, FEATURE_NAMES, nameOf, taipeiTime } from "@/lib/labels";
+
+// agent 用的工具（backend/prompts/tool-*）
+const TOOL_NAMES: Record<string, string> = { search: "搜尋", read_page: "讀網頁", submit: "提交結果" };
 
 const ntd = (value: number) => `NT$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
@@ -18,7 +22,7 @@ export default function Logs() {
     queryKey: ["agent-runs"],
     queryFn: async () => unwrap(await api.GET("/api/agent-runs", { params: { query: { limit: 30 } } })),
   });
-  if (costs.isPending) return <Skeleton className="h-80 w-full" />;
+  if (costs.isPending) return <PageSkeleton cards={2} />;
   if (costs.isError)
     return (
       <Alert variant="destructive">
@@ -33,7 +37,7 @@ export default function Logs() {
       <Card>
         <CardHeader>
           <CardTitle>本月 AI 費用</CardTitle>
-          <CardDescription>以台灣時間的月份計算；每次 AI 呼叫都記一筆（ADR-089）。</CardDescription>
+          <CardDescription>以台灣時間的月份計算；每次 AI 呼叫都記一筆。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <p className="text-lg font-semibold">
@@ -47,8 +51,8 @@ export default function Logs() {
               <p className="mb-1 font-medium">依功能（本月）</p>
               {costs.data.by_feature.map((f) => (
                 <p key={f.feature} className="flex justify-between">
-                  <span>{f.feature}（{f.calls} 次）</span>
-                  <span>{ntd(f.ntd)}</span>
+                  <span>{nameOf(FEATURE_NAMES, f.feature)}（{f.calls} 次）</span>
+                  <span className="tabular-nums">{ntd(f.ntd)}</span>
                 </p>
               ))}
             </div>
@@ -57,7 +61,7 @@ export default function Logs() {
               {costs.data.by_day.map((d) => (
                 <p key={d.day} className="flex justify-between">
                   <span>{d.day.slice(5)}</span>
-                  <span>{ntd(d.ntd)}</span>
+                  <span className="tabular-nums">{ntd(d.ntd)}</span>
                 </p>
               ))}
             </div>
@@ -66,7 +70,7 @@ export default function Logs() {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>agent 的執行</CardTitle>
+          <CardTitle>自動找網站的紀錄</CardTitle>
           <CardDescription>最近 30 次；點「看每一步」看它搜了什麼、打開了哪些網頁。全文只留 30 天，之後只剩摘要。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -109,8 +113,9 @@ function RunRow({ run }: { run: { id: number; task: string; target: string | nul
           {steps.data?.map((step, index) => (
             <div key={index}>
               <p className="text-xs font-medium">
-                第 {step.number} 步・{step.kind === "tool" ? `工具 ${step.tool}` : `AI 回覆（tokens ${step.input_tokens}/${step.output_tokens}）`}
-                {step.args && <span className="font-normal text-muted-foreground">　{JSON.stringify(step.args)}</span>}
+                第 {step.number} 步・{step.kind === "tool" ? nameOf(TOOL_NAMES, step.tool) : "AI 回覆"}
+                {/* 工具的參數只列值（例如搜尋字、網址），不顯示 JSON */}
+                {step.args && <span className="font-normal text-muted-foreground">　{Object.values(step.args).map(String).join("、")}</span>}
               </p>
               <p className="wrap-anywhere whitespace-pre-wrap text-xs text-muted-foreground">{step.full_text ?? step.summary}</p>
             </div>

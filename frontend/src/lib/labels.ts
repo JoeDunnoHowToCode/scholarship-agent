@@ -128,9 +128,9 @@ const TAIPEI = new Intl.DateTimeFormat("zh-TW", {
   hourCycle: "h23",
 });
 
-// API 的時間都是 UTC；畫面上換成台灣時間
+// API 的時間都是 UTC；畫面上換成台灣時間。「台灣時間」寫在頁尾一次，不在每個時間後面重複（docs/ui-review-2.md A4）
 export function taipeiTime(iso: string | null | undefined): string {
-  return iso ? `${TAIPEI.format(new Date(iso))}（台灣時間）` : "—";
+  return iso ? TAIPEI.format(new Date(iso)) : "—";
 }
 
 // 第 10 天段 6：發掘 agent 的任務與結果、來源狀態
@@ -146,5 +146,27 @@ export const AGENT_RESULT_NAMES: Record<string, string> = {
   cost_limit: "費用到上限",
   stopped: "停止",
   error: "出錯",
+};
+// 每月 AI 費用依功能分（llm_calls.feature，紀錄頁）
+export const FEATURE_NAMES: Record<string, string> = {
+  extract: "抽取",
+  outline: "長文件大綱",
+  section: "長文件分段抽取",
+  verify: "核對",
+  table: "表格說明",
+  links: "找子頁",
+  topics: "段落主題",
+  score: "評分",
+  route: "問答分類",
+  answer: "問答回答",
+  dedup: "重複比對",
+  summary: "說明",
+  "summary-check": "說明核對",
+  amounts: "金額補抽",
+  transcribe: "PDF 轉錄",
+  "agent-university": "逐校找網站",
+  "agent-search": "搜尋補漏",
+  "agent-new-url": "找新網址",
+  "agent-smoke": "測試",
 };
 export const SOURCE_STATUS_NAMES: Record<string, string> = { candidate: "候選", approved: "已加入", rejected: "已排除" };

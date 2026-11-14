@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>留學獎學金</title>
+    <script>
+      // 深色模式：React 載入前先套用，避免閃白（main.tsx 之後會跟著系統設定切換）
+      if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.classList.add("dark");
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageSkeleton } from "@/components/page-skeleton";
 import { DEGREE_NAMES } from "@/lib/labels";
 
 type Profile = Schemas["ProfileOut"];
@@ -44,7 +44,7 @@ export default function ProfilePage() {
     select: (rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name, "zh-Hant")),
     staleTime: Infinity,
   });
-  if (profile.isPending || countries.isPending) return <Skeleton className="h-80 w-full" />;
+  if (profile.isPending || countries.isPending) return <PageSkeleton cards={1} />;
   if (countries.isError)
     return (
       <Alert variant="destructive">
@@ -93,8 +93,9 @@ function ProfileForm({ initial, save, countries }: { initial: Profile | null; sa
     <Card>
       <CardHeader>
         <CardTitle>個人資料</CardTitle>
+        {/* 送給 AI 的欄位見 ADR-055；畫面上只寫白話，不寫 ADR 編號（docs/ui-review-2.md A3） */}
         <CardDescription>
-          只存在這台電腦的資料庫；送給 AI 的只有目前科系與想讀的領域（ADR-055）。存檔後，評分會在背景重新計算。
+          只存在這台電腦的資料庫；送給 AI 的只有目前科系與想讀的領域。存檔後，評分會在背景重新計算。
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -146,7 +147,7 @@ function ProfileForm({ initial, save, countries }: { initial: Profile | null; sa
               <AlertDescription>{save.error.message}</AlertDescription>
             </Alert>
           )}
-          {save.isSuccess && <p className="text-sm text-muted-foreground">已存檔（版本 {save.data.version}）</p>}
+          {save.isSuccess && <p className="text-sm text-muted-foreground">已存檔</p>}
           <Button type="submit" disabled={save.isPending}>
             {save.isPending ? "存檔中…" : "存檔"}
           </Button>

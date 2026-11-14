@@ -8,19 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageSkeleton } from "@/components/page-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { SOURCE_STATUS_NAMES, nameOf, taipeiTime } from "@/lib/labels";
 
 type Settings = Schemas["SettingsOut"];
 
-// 設定頁（第 10 天段 6）：通知門檻、每月 AI 上限、斷路器、agent 加的來源
+// 設定頁（第 10 天段 6）：通知門檻、每月 AI 上限、斷路器（ADR-056）、agent 加的來源（ADR-078、095）。
+// 畫面上用白話：斷路器 →「AI 自動暫停」、agent 加的來源 →「自動找到的網站」（docs/ui-review-2.md A3）
 export default function SettingsPage() {
   const settings = useQuery({
     queryKey: ["settings"],
     queryFn: async () => unwrap(await api.GET("/api/settings")),
   });
-  if (settings.isPending) return <Skeleton className="h-80 w-full" />;
+  if (settings.isPending) return <PageSkeleton />;
   if (settings.isError)
     return (
       <Alert variant="destructive">
@@ -71,7 +73,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
             <Label htmlFor="cap">每月 AI 費用上限（新台幣）</Label>
             <Input id="cap" type="number" min={1} max={initial.cap_limit_ntd} step="1" value={cap} onChange={(e) => setCap(e.target.value)} />
             <p className="text-xs text-muted-foreground">
-              最多 NT${initial.cap_limit_ntd.toLocaleString()}（ADR-049）；達到上限時 AI 步驟自動暫停並通知你。
+              最多 NT${initial.cap_limit_ntd.toLocaleString()}；達到上限時 AI 自動暫停並通知你。
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -97,11 +99,11 @@ function BreakerCard({ breaker }: { breaker: Settings["breaker"] }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          AI 斷路器
-          <Badge variant={breaker.open ? "destructive" : "secondary"}>{breaker.open ? "打開中：AI 暫停" : "正常"}</Badge>
+          AI 自動暫停
+          <Badge variant={breaker.open ? "destructive" : "secondary"}>{breaker.open ? "暫停中" : "正常運作"}</Badge>
         </CardTitle>
         <CardDescription>
-          額度用完、金鑰有問題、或達到每月上限時自動打開；打開時每天只抓網頁、不呼叫 AI（ADR-056）。
+          額度用完、金鑰有問題、或達到每月上限時，AI 會自動暫停；暫停時每天只抓網頁、不呼叫 AI。
         </CardDescription>
       </CardHeader>
       {breaker.open && (
@@ -135,9 +137,9 @@ function AgentSources() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>agent 加的來源</CardTitle>
+        <CardTitle>自動找到的網站</CardTitle>
         <CardDescription>
-          發掘 agent 提交、經規則評分的來源（ADR-078），以及被停用的來源（例如被目錄的新網址取代，ADR-095）。看到不對的就關掉；關掉的可以再打開。
+          AI 自動找到、經規則評分後加入的獎學金網站，以及被停用的網站（例如目錄換了新網址）。看到不對的就關掉；關掉的可以再打開。
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

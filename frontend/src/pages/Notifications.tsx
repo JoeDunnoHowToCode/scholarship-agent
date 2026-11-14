@@ -6,7 +6,7 @@ import { api, unwrap } from "@/api/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageSkeleton } from "@/components/page-skeleton";
 import { EVENT_KIND_NAMES, EVENT_STATUS_NAMES, nameOf, taipeiTime } from "@/lib/labels";
 
 export default function Notifications() {
@@ -14,7 +14,7 @@ export default function Notifications() {
     queryKey: ["events"],
     queryFn: async () => unwrap(await api.GET("/api/events", { params: { query: { limit: 50 } } })),
   });
-  if (events.isPending) return <Skeleton className="h-60 w-full" />;
+  if (events.isPending) return <PageSkeleton />;
   if (events.isError)
     return (
       <Alert variant="destructive">
@@ -25,7 +25,8 @@ export default function Notifications() {
   return (
     <div className="space-y-3">
       <h1 className="text-xl font-semibold">通知歷史</h1>
-      <p className="text-sm text-muted-foreground">最近 50 則；第一次啟用時記下、沒有送出的基準線不列。</p>
+      {/* 第一次啟用時記下、沒有送出的基準線不列（ADR-062） */}
+      <p className="text-sm text-muted-foreground">最近 50 則。</p>
       {events.data.length === 0 && <p className="text-sm text-muted-foreground">還沒有通知</p>}
       {events.data.map((e) => (
         <Card key={e.id} size="sm">

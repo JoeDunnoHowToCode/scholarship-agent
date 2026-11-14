@@ -21,7 +21,7 @@ MAX_SENTENCES = 3
 
 def check_sentences(llm: StructuredLLM, sentences: list[SummarySentence], source: str) -> list[str]:
     """每句的核對結果：no_evidence、number_not_in_quote、quote_not_found、not_supported、supported。"""
-    return ["supported"] * len(sentences)
+    return ["no_evidence" if not s.evidence else "supported" for s in sentences]
 
 
 def make_summary(llm: StructuredLLM, source: str) -> list[dict[str, Any]]:

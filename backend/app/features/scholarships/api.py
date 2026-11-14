@@ -334,8 +334,10 @@ def list_scholarships(
     open_only: bool = False,
     deadline_after: date | None = None,
     deadline_before: date | None = None,
+    archived: bool = False,
 ) -> ScholarshipList:
-    """篩選：留學國家、學位看獎學金本身；只看開放中的、截止日範圍看真的（不是預估的）申請期。
+    """archived：預設不列已封存的，True 才列（ADR-106）。
+    篩選：留學國家、學位看獎學金本身；只看開放中的、截止日範圍看真的（不是預估的）申請期。
     q：搜尋字，關鍵字與語意的結果用 RRF 合併（ADR-069）。"""
     query = (
         select(Scholarship)
@@ -343,6 +345,8 @@ def list_scholarships(
         .where(Scholarship.duplicate_of.is_(None), Scholarship.source_id.is_not(None))
         .options(selectinload(Scholarship.cycles))
     )
+    if not archived:
+        query = query.where(Scholarship.status != ScholarshipStatus.ARCHIVED)
     if country:
         query = query.where(literal(country.upper()) == any_(Scholarship.countries))
     if degree:

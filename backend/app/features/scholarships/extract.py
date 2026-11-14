@@ -1,6 +1,6 @@
 """抽取指令（第 3 天）：把每個來源最新的快照抽成獎學金、類別與文件清單（ADR-008、031、034、037）。
 
-用法：uv run python -m app.features.scholarships.extract [--source ID ...] [--force] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only] [--rules-only] [--amounts-only] [--backfill-amounts]
+用法：uv run python -m app.features.scholarships.extract [--source ID ...] [--force] [--limit N] [--shard K/N] [--max-cost NT$] [--cycles-only] [--rules-only] [--amounts-only] [--backfill-amounts] [--backfill-summary]
 
 - 網頁：每頁的可見文字合併後整份抽（ADR-034：一般網頁整頁讀）；學程補抓的 PDF 轉錄後當成一頁（ADR-044）
 - PDF 與很長的網頁：切段 → 第一輪列大綱 → 第二輪逐節抽 → 程式合併
@@ -9,6 +9,7 @@
 
 import argparse
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -48,6 +49,7 @@ from app.features.scholarships.schemas import (
     WindowDraft,
     section_schema,
 )
+from app.features.scholarships.summary import ensure_summary, needs_summary
 from app.features.sources.catalogue import CATALOGUE_URL
 from app.features.sources.fetch import SNAPSHOT_DIR, in_shard, latest_snapshot
 from app.features.sources.models import FetchMethod, Snapshot, Source
@@ -530,8 +532,17 @@ def backfill_amounts(session: Session, llm: GeminiLLM, row: Scholarship) -> str:
     return f"金額 {len(found)} 筆（核對通過 {statuses.count('supported')}）"
 
 
-def run_backfill(llm: GeminiLLM, source_id: int | None, limit: int | None, max_cost: float | None) -> None:
-    """--backfill-amounts：每筆各自一個交易；鎖住那一列，避免和 worker 同時寫同一筆。"""
+def run_backfill(
+    llm: GeminiLLM,
+    source_id: int | None,
+    limit: int | None,
+    max_cost: float | None,
+    needs: Callable[[Scholarship], bool] = needs_amounts,
+    apply: Callable[[Session, GeminiLLM, Scholarship], str] = backfill_amounts,
+    label: str = "補金額",
+) -> None:
+    """--backfill-amounts、--backfill-summary：每筆各自一個交易；鎖住那一列，避免和 worker 同時寫同一筆。
+    needs 決定要不要補這筆，apply 負責補並回傳一行摘要（docs/summary-plan.md「Claude 自行決定」第 5 點）。"""
     with SessionLocal() as session:
         query = select(Scholarship.id).where(Scholarship.source_id.is_not(None)).order_by(Scholarship.id)
         if source_id:
@@ -546,18 +557,18 @@ def run_backfill(llm: GeminiLLM, source_id: int | None, limit: int | None, max_c
             break
         with SessionLocal() as session, session.begin():
             row = session.scalars(select(Scholarship).where(Scholarship.id == scholarship_id).with_for_update()).one()
-            if not needs_amounts(row):
+            if not needs(row):
                 counts["current"] += 1
                 continue
             try:
-                summary = backfill_amounts(session, llm, row)
+                summary = apply(session, llm, row)
             except LLMError as error:
                 counts["failed"] += 1
                 print(f"failed     {row.id} {row.name[:50]}：{error}")
                 continue
             counts["ok"] += 1
             print(f"{row.id:>4} {row.name[:50]}｜{summary}")
-    print(f"補金額 {counts['ok']}、已經是最新 {counts['current']}、失敗 {counts['failed']}")
+    print(f"{label} {counts['ok']}、不用補 {counts['current']}、失敗 {counts['failed']}")
     print(llm.usage_line())
 
 
@@ -649,6 +660,9 @@ def main() -> None:
         "--amounts-only", action="store_true", help="只用已存的金額與快照重新核對金額，不呼叫 AI"
     )
     parser.add_argument(
+        "--backfill-summary", action="store_true", help="補上獎學金說明（docs/summary-plan.md）；跳過已封存和重複的"
+    )
+    parser.add_argument(
         "--backfill-amounts", action="store_true", help="只補金額（ADR-074）：其他欄位不動，提示詞版本記成最新"
     )
     args = parser.parse_args()
@@ -667,6 +681,15 @@ def main() -> None:
         llm = gemini()
     except MissingApiKeyError as error:
         sys.exit(str(error))
+    if args.backfill_summary:
+        def apply_summary(session: Session, llm: GeminiLLM, row: Scholarship) -> str:
+            ensure_summary(session, llm, row)
+            made = row.extracted.get("summary", [])
+            return f"說明 {len(made)} 句（核對通過 {sum(s['status'] == 'supported' for s in made)}）"
+
+        run_backfill(llm, args.source[0] if args.source else None, args.limit, args.max_cost,
+                     needs_summary, apply_summary, "補說明")
+        return
     if args.backfill_amounts:
         run_backfill(llm, args.source[0] if args.source else None, args.limit, args.max_cost)
         return

@@ -380,11 +380,11 @@ def from_catalogue(session: Session, source: Source) -> bool:
 
 
 def earliest_deadline(windows: list[WindowDraft]) -> str | None:
-    """年月日齊全的窗口裡，最早的截止日（YYYY-MM-DD）；沒有就回傳 None。"""
+    """申請獎學金、年月日齊全的窗口裡，最早的截止日（YYYY-MM-DD）；沒有就回傳 None。"""
     dates = [
         f"{w.closes_year:04d}-{w.closes_month:02d}-{w.closes_day:02d}"
         for w in windows
-        if w.closes_year and w.closes_month and w.closes_day
+        if w.closes_year and w.closes_month and w.closes_day and w.kind == "scholarship"  # ADR-105
     ]
     return min(dates, default=None)
 

@@ -6,7 +6,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.features.scholarships import summary
+from app.features.scholarships import api, summary
 from app.features.scholarships.models import Scholarship
 from app.features.scholarships.schemas import SummaryDraft, SummarySentence
 from app.features.scholarships.verify import ClaimVerdict, Verdicts
@@ -59,6 +59,21 @@ def test_ensure_summary_writes_once_per_version(tmp_path: Path) -> None:
         calls = llm.calls
         assert summary.ensure_summary(session, llm, row) is False
         assert llm.calls == calls
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_detail_returns_only_checked_sentences(tmp_path: Path) -> None:
+    session = SessionLocal()
+    try:
+        row = scholarship(session, tmp_path)
+        summary.ensure_summary(session, FakeLLM(), row)
+        session.flush()
+        detail = api.read_scholarship(row.id, session)
+        assert [(s.text, s.evidence) for s in detail.summary] == [
+            ("由 Test Foundation 提供 20 個名額。", "The Test Foundation offers 20 scholarships"),
+        ]
     finally:
         session.rollback()
         session.close()

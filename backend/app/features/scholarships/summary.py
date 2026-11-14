@@ -54,4 +54,12 @@ def make_summary(llm: StructuredLLM, source: str) -> list[dict[str, Any]]:
 
 def ensure_summary(session: Session, llm: StructuredLLM, row: Scholarship) -> bool:
     """說明不是最新版本就讀這筆抽取用的快照原文、產生並核對，寫進 extracted；回傳有沒有呼叫 AI。"""
-    return False
+    if row.extracted.get("summary_from") == SUMMARY_VERSION or row.source_id is None:
+        return False
+    # 放在函式裡匯入：extract 的補抽指令也會用到這個模組，放在檔案開頭會互相匯入
+    from app.features.scholarships.extract import snapshot_text
+
+    source = snapshot_text(session, row.source_id, row.extracted.get("meta", {}).get("snapshots", []))
+    made = make_summary(llm, source)
+    row.extracted = {**row.extracted, "summary": made, "summary_from": SUMMARY_VERSION}  # JSONB 整個重新指定
+    return True

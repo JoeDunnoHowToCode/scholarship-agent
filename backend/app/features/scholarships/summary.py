@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core import prompts
 from app.core.llm.base import StructuredLLM
+from app.features.documents.checks import quote_in_source, quote_in_table_text
 from app.features.scholarships.amounts import numbers_in
 from app.features.scholarships.models import Scholarship
 from app.features.scholarships.schemas import SummarySentence
@@ -28,6 +29,8 @@ def check_sentences(llm: StructuredLLM, sentences: list[SummarySentence], source
             statuses.append("no_evidence")
         elif not numbers_in(sentence.text) <= numbers_in(sentence.evidence):
             statuses.append("number_not_in_quote")  # 第一關：中文裡的每個數字都要在引用裡（1,400 和 1400 相同）
+        elif not (quote_in_source(sentence.evidence, source) or quote_in_table_text(sentence.evidence, source)):
+            statuses.append("quote_not_found")  # 第二關：引用要在原文裡（和 verify.py 一樣允許表格的字交錯）
         else:
             statuses.append("supported")
     return statuses

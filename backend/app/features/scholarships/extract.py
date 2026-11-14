@@ -443,7 +443,7 @@ def build_extraction(
     return verified, extracted
 
 
-def extract_source(session: Session, llm: GeminiLLM, source: Source) -> str:
+def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool = False) -> str:
     """抽一個來源，回傳一行摘要；內容和提示詞都沒變就跳過。"""
     snapshots = documents(session, source)
     hashes = sorted(s.content_hash for s in snapshots)

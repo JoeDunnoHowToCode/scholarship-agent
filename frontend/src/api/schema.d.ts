@@ -781,6 +781,8 @@ export interface components {
             categories: components["schemas"]["CategoryOut"][];
             /** Cycles */
             cycles: components["schemas"]["CycleOut"][];
+            /** Summary */
+            summary: components["schemas"]["SummaryOut"][];
             /** Offered */
             offered: string;
             /** Offered Evidence */
@@ -895,6 +897,16 @@ export interface components {
         SourceToggle: {
             /** Enabled */
             enabled: boolean;
+        };
+        /**
+         * SummaryOut
+         * @description 獎學金說明的一句與它的原文引用（docs/summary-plan.md）；只回傳通過核對的。
+         */
+        SummaryOut: {
+            /** Text */
+            text: string;
+            /** Evidence */
+            evidence: string;
         };
         /** ValidationError */
         ValidationError: {

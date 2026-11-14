@@ -91,6 +91,22 @@ export default function ScholarshipDetail() {
         )}
       </div>
       <Summary detail={d} />
+      {/* 獎學金說明（docs/summary-plan.md）：每句中文附原文引用；只顯示通過核對的句子，一句都沒有就不顯示 */}
+      {d.summary.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>說明</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {d.summary.map((s, index) => (
+              <div key={index} className="space-y-1">
+                <p>{s.text}</p>
+                <p className="max-w-prose text-xs text-muted-foreground">原文引用：「{s.evidence}」</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
       {/* 其餘內容分頁籤（ADR-090），選到的頁籤記在網址 ?tab=，重新整理和上一頁都會回到同一個。
           內容只在選到時才畫：Base UI 會等離場動畫跑完才移除舊面板，分頁在背景時動畫不會跑，新舊內容會同時出現 */}
       <Tabs value={tab} onValueChange={(value) => setParams({ tab: String(value) }, { replace: true })}>

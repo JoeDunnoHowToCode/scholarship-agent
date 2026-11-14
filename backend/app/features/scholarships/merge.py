@@ -263,6 +263,8 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         name=outline.name,
         name_zh=outline.name_zh,
         provider=outline.provider,
+        offered=outline.offered,  # ADR-105：第一輪讀全文時判斷
+        offered_evidence=outline.offered_evidence,
         categories=categories,
         requirements=list(requirements.values()),
         **values,

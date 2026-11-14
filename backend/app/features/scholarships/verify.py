@@ -31,6 +31,7 @@ Status = Literal[
     "year_not_in_quote",
     "degree_not_in_quote",
     "incomplete",  # 截止日的年月日不齊全，不能建成申請期
+    "closes_before_opens",  # 截止日早於開放日（ADR-103）
 ]
 
 PROMPT = prompts.load(PROMPT_VERSION)  # 文字在 backend/prompts/（ADR-088）
@@ -82,6 +83,10 @@ def rule_status(field: str, draft: ScholarshipDraft) -> Status | None:
         window = draft.windows[int(field.split(":")[1])]
         if window.closes_year and not rules.deadline_year_in_quote(window.closes_year, window.evidence):
             return "year_not_in_quote"
+        opens = (window.opens_year, window.opens_month, window.opens_day)
+        closes = (window.closes_year, window.closes_month, window.closes_day)
+        if all(opens) and all(closes) and closes < opens:
+            return "closes_before_opens"
     quotes = [draft.degrees_evidence]
     if field == "degrees" and not all(rules.degree_supported(d, quotes) for d in draft.degrees):
         return "degree_not_in_quote"

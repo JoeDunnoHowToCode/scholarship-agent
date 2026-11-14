@@ -41,6 +41,7 @@ export const VERIFICATION_NAMES: Record<string, string> = {
   year_not_in_quote: "年份不在引用裡",
   degree_not_in_quote: "學位不在引用裡",
   incomplete: "日期不齊全",
+  closes_before_opens: "截止早於開放",
 };
 
 export const DOC_NAMES: Record<string, string> = {

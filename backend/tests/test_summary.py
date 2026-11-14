@@ -49,3 +49,11 @@ def test_the_ai_decides_the_rest_and_a_missing_answer_is_not_supported() -> None
     llm = FakeLLM(supported={"s0": True, "s1": False})  # s2 沒回答
     assert summary.check_sentences(llm, [who, whom, money], SOURCE) == ["supported", "not_supported", "not_supported"]
     assert llm.calls == 1  # 一次問完
+
+
+def test_make_summary_keeps_three_sentences_with_their_status() -> None:
+    sentence = SummarySentence(text="由 Test Foundation 提供。", evidence="The Test Foundation offers 20 scholarships")
+    llm = FakeLLM(sentences=[sentence] * 4, supported={"s0": True, "s1": True, "s2": True})
+    made = summary.make_summary(llm, SOURCE)
+    assert len(made) == 3
+    assert made[0] == {"text": sentence.text, "evidence": sentence.evidence, "status": "supported"}

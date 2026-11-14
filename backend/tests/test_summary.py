@@ -35,3 +35,8 @@ def test_a_number_missing_from_the_quote_is_number_not_in_quote() -> None:
     right = SummarySentence(text="每月補助 1400 歐元。", evidence="Each scholar receives EUR 1,400 per month.")
     statuses = summary.check_sentences(FakeLLM(supported={"s1": True}), [wrong, right], SOURCE)
     assert statuses[0] == "number_not_in_quote"
+
+
+def test_a_quote_not_in_the_source_is_quote_not_found() -> None:
+    made_up = SummarySentence(text="由 Test Foundation 提供。", evidence="The Test Foundation funds everyone.")
+    assert summary.check_sentences(FakeLLM(), [made_up], SOURCE) == ["quote_not_found"]

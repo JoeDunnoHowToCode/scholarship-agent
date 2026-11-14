@@ -12,7 +12,7 @@ from app.core.llm.base import StructuredLLM
 from app.features.documents.checks import quote_in_source, quote_in_table_text
 from app.features.scholarships.amounts import numbers_in
 from app.features.scholarships.models import Scholarship
-from app.features.scholarships.schemas import SummarySentence
+from app.features.scholarships.schemas import SummaryDraft, SummarySentence
 from app.features.scholarships.verify import Verdicts
 
 SUMMARY_VERSION = "summary-1"  # 改提示詞就要改版本號
@@ -47,7 +47,9 @@ def check_sentences(llm: StructuredLLM, sentences: list[SummarySentence], source
 
 def make_summary(llm: StructuredLLM, source: str) -> list[dict[str, Any]]:
     """寫說明並核對，回傳最多 3 筆 {text, evidence, status}。"""
-    return []
+    sentences = llm.extract(PROMPT.format(text=source), SummaryDraft).sentences[:MAX_SENTENCES]
+    statuses = check_sentences(llm, sentences, source)
+    return [{"text": s.text, "evidence": s.evidence, "status": st} for s, st in zip(sentences, statuses, strict=True)]
 
 
 def ensure_summary(session: Session, llm: StructuredLLM, row: Scholarship) -> bool:

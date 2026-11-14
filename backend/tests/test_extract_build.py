@@ -156,3 +156,16 @@ def test_prompt_change_does_not_reextract_but_model_change_does(tmp_path: Path) 
     finally:
         session.rollback()
         session.close()
+
+
+def test_force_reextracts_a_source_that_has_not_changed(tmp_path: Path) -> None:
+    # ADR-104：要用新版提示詞重抽，就指定來源並加 force
+    session = SessionLocal()
+    try:
+        source = saved_source(session, tmp_path, "https://test-force.example/")
+        llm = FakeLLM()
+        assert extract_source(session, llm, source, force=True) != "unchanged"  # type: ignore[arg-type]
+        assert llm.calls > 0
+    finally:
+        session.rollback()
+        session.close()

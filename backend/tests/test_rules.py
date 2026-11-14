@@ -1,6 +1,7 @@
 """抽取結果程式檢查的單元測試（ADR-045）。"""
 
 from app.features.scholarships import rules
+from app.features.scholarships.schemas import AmountDraft
 
 
 def test_deadline_year_must_be_in_the_quote() -> None:
@@ -80,3 +81,29 @@ def test_window_nationality_uses_the_fixed_erasmus_lists() -> None:
     assert rules.window_nationality("all", [], "Partner Countries") == ("excluded", programme)
     # 沒提到這兩群：照 AI 抽的
     assert rules.window_nationality("listed", ["TW"], "Scholarship applicants") == ("listed", ["TW"])
+
+
+def amount(value: float, period: str, kind: str = "living_allowance", applies_to: str | None = None) -> AmountDraft:
+    return AmountDraft.model_validate({
+        "value": value, "currency": "EUR", "period": period, "kind": kind, "applies_to": applies_to,
+        "evidence": "x",
+    })
+
+
+def test_a_total_that_repeats_the_monthly_amount_is_dropped() -> None:
+    # 總檢查的例子：每月 1,400、總額 33,600（1,400×24）是同一筆錢
+    monthly, total = amount(1400, "month"), amount(33600, "total")
+    assert rules.redundant_totals([monthly, total]) == [monthly]
+    # 每年 6,750、總額 13,500（兩年）也是
+    yearly = amount(6750, "year", "tuition_coverage")
+    assert rules.redundant_totals([yearly, amount(13500, "total", "tuition_coverage")]) == [yearly]
+    # 用途不同、或除不盡，就不是同一筆錢
+    travel_total = amount(33600, "total", "travel")
+    assert rules.redundant_totals([monthly, travel_total]) == [monthly, travel_total]
+    odd_total = amount(30000, "total")
+    assert rules.redundant_totals([monthly, odd_total]) == [monthly, odd_total]
+    # 適用對象不同（兩群人各拿各的）也不拿掉
+    other_group = amount(33600, "total", applies_to="Partner country students")
+    assert rules.redundant_totals([amount(1400, "month", applies_to="Programme country students"), other_group])[1:] == [
+        other_group
+    ]

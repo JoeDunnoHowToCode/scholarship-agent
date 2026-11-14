@@ -60,3 +60,34 @@ def test_saved_extractions_get_the_rules_without_calling_the_ai(tmp_path: Path) 
     finally:
         session.rollback()
         session.close()
+
+
+def test_rechecked_amounts_keep_the_extraction_format(tmp_path: Path) -> None:
+    # 抽取存的金額沒有 status（核對結果在 verification.amounts），重新套用規則後格式要一樣
+    page = tmp_path / "page.html"
+    page.write_text(f"<html><body><p>{QUOTE}</p></body></html>", encoding="utf-8")
+    saved = [{k: v for k, v in amount(value, period).items() if k != "status"}
+             for value, period in ((1400, "month"), (33600, "total"))]
+    session = SessionLocal()
+    try:
+        source = Source(name="Test format", url="https://test-format.example/", kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        now = datetime.now(UTC)
+        session.add(Snapshot(source_id=source.id, url=source.url, fetched_at=now, seen_at=now,
+                             content_hash="d" * 64, file_path=str(page), http_status=200, etag=None, last_modified=None))
+        row = Scholarship(
+            name="Test format", source_id=source.id, countries=["SE"], degrees=["master"],
+            nationality_scope="all", nationalities=[],
+            extracted={"amounts": saved, "windows": [],
+                       "verification": {"deadlines": [], "amounts": ["supported"] * 2, "issues": []},
+                       "meta": {"snapshots": ["d" * 64], "prompts": [], "model": "fake"}},
+        )
+        session.add(row)
+        session.flush()
+        recheck_rules(session, [source.id])
+        session.refresh(row)
+        assert row.extracted["amounts"] == saved[:1]
+    finally:
+        session.rollback()
+        session.close()

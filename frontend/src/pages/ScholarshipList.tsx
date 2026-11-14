@@ -12,11 +12,28 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { CHECK_NAMES, DEGREE_NAMES, GROUP_NAMES, nameOf } from "@/lib/labels";
+import { CHECK_NAMES, DEGREE_NAMES, nameOf } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 type Row = Schemas["ScholarshipRow"];
 type Degree = "bachelor" | "master" | "phd";
+
+// 畫面上的分組（ADR-106）：後端的三組（ADR-059）裡，「時間待確認」再依有沒有申請日期拆成兩組，
+// 有日期的排前面，不會被 90 多筆沒有日期的淹沒。只影響顯示，分數與通知不變
+const SHOWN_GROUPS = {
+  pass: "還能申請",
+  unclear_dated: "時間待確認：有申請日期",
+  unclear_none: "時間待確認：沒有可用的申請日期",
+  fail: "已截止或不適用",
+  none: "還沒評分",
+} as const;
+type ShownGroup = keyof typeof SHOWN_GROUPS;
+const SHOWN_ORDER = Object.keys(SHOWN_GROUPS) as ShownGroup[];
+
+function shownGroup(row: Row): ShownGroup {
+  if (row.group === "unclear") return row.deadline_line ? "unclear_dated" : "unclear_none";
+  return row.group === "pass" || row.group === "fail" ? row.group : "none";
+}
 
 // 下拉選單的「全部」：API 收到時當成沒有篩選
 const ALL = "all";
@@ -106,6 +123,10 @@ export default function ScholarshipList() {
     update({ q: draft.trim() });
   };
   const searching = filters.q !== "";
+  // 搜尋時照相關程度排，不分組；沒搜尋時照畫面上的分組排（sort 是穩定排序，同組裡維持後端的分數順序）
+  const rows = searching
+    ? (list.data?.rows ?? [])
+    : [...(list.data?.rows ?? [])].sort((a, b) => SHOWN_ORDER.indexOf(shownGroup(a)) - SHOWN_ORDER.indexOf(shownGroup(b)));
   // 收起來的篩選裡，有幾個正在套用：寫在按鈕上，收起來也看得出來
   const hiddenActive = [filters.country !== ALL, filters.degree !== ALL, filters.after, filters.before, filters.archived].filter(Boolean).length;
 
@@ -241,15 +262,15 @@ export default function ScholarshipList() {
         </div>
       )}
       {list.data?.rows.length === 0 && <p className="text-sm">沒有符合條件的獎學金，可以放寬篩選條件再試。</p>}
-      {list.data?.rows.map((row, index) => (
+      {rows.map((row, index) => (
         <div key={row.id} className="space-y-2">
-          {/* 沒有搜尋時，時間狀態換了就寫一個分組標題（列表已經依時間狀態、分數排好）；搜尋時改在卡片上標 */}
-          {!searching && (index === 0 || list.data.rows[index - 1].group !== row.group) && (
+          {/* 沒有搜尋時，分組換了就寫一個分組標題；搜尋時改在卡片上標 */}
+          {!searching && (index === 0 || shownGroup(rows[index - 1]) !== shownGroup(row)) && (
             <h2 className="pt-4 text-base font-semibold">
-              {row.group ? GROUP_NAMES[row.group] : "還沒評分"}
+              {SHOWN_GROUPS[shownGroup(row)]}
               {/* 每組幾筆（UI 計畫 C1） */}
               <span className="ml-1 font-normal text-muted-foreground tabular-nums">
-                （{list.data.rows.filter((r) => r.group === row.group).length}）
+                （{rows.filter((r) => shownGroup(r) === shownGroup(row)).length}）
               </span>
             </h2>
           )}
@@ -297,7 +318,7 @@ function ScholarshipCard({ row, showGroup }: { row: Row; showGroup: boolean }) {
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
         <div className="flex flex-wrap gap-2">
-          {showGroup && <Badge variant="secondary">{row.group ? GROUP_NAMES[row.group] : "還沒評分"}</Badge>}
+          {showGroup && <Badge variant="secondary">{SHOWN_GROUPS[shownGroup(row)]}</Badge>}
           {row.stale && <Badge variant="destructive">資料過舊</Badge>}
           {row.status === "archived" && <Badge variant="secondary">已封存</Badge>}
           {flags.map((flag) => (

@@ -2,13 +2,6 @@
 
 export const DEGREE_NAMES: Record<string, string> = { bachelor: "學士", master: "碩士", phd: "博士" };
 
-// 時間狀態（ADR-059）：還能申請 → 時間待確認 → 已截止或不適用
-export const GROUP_NAMES: Record<string, string> = {
-  pass: "還能申請",
-  unclear: "時間待確認",
-  fail: "已截止或不適用",
-};
-
 export const CHECK_NAMES: Record<string, string> = { nationality: "國籍", degree: "學位", time: "時間" };
 export const RESULT_NAMES: Record<string, string> = { pass: "符合", unclear: "待確認", fail: "不符合" };
 export const SUB_SCORE_NAMES: Record<string, string> = { field: "領域契合", country: "想去的國家" };

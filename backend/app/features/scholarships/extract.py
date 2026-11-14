@@ -196,7 +196,7 @@ def extract_long(
 
 
 def save_cycles(
-    session: Session, row: Scholarship, windows: list[WindowDraft], statuses: list[str]
+    session: Session, row: Scholarship, windows: list[WindowDraft], statuses: list[str], offered: str = "unclear"
 ) -> None:
     """申請期整批重寫（ADR-047）。預估的申請期是從真的申請期算出來的，也一起刪掉，
     之後由 cycles 指令依新的資料重新產生，才不會留下依舊資料算出來的預估。"""

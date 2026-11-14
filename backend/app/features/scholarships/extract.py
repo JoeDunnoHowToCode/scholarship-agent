@@ -601,7 +601,7 @@ def recheck_rules(session: Session, source_ids: list[int] | None = None) -> tupl
         ]
         new = {
             **old,
-            "amounts": items,
+            "amounts": [a.model_dump(mode="json") for a in cleaned],  # 和抽取存的格式一樣：核對結果放在 verification
             "amount": amounts.describe(items),
             "verification": {**old["verification"], "amounts": statuses, "deadlines": deadlines},
         }

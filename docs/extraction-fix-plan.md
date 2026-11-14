@@ -1,6 +1,6 @@
 # 抽取修正計畫（2026-11-14，ADR-103、104、105）
 
-狀態：**使用者 11-14 核准**，進行中。
+狀態：**使用者 11-14 核准**，進行中：段 1–3、段 5 的程式完成；段 4 的全部重抽做到 172/249 筆暫停（見段 4）。
 
 使用者 11-14 選 1-B（只重抽指定的來源）、2-B（schema 加欄位），並接受程式規則（ADR-103）。
 
@@ -183,7 +183,14 @@
   國籍有根據 82% → 86%、學位 82% → 85%、截止日 69% → 63%、金額 90% → 92%、規則問題 2.42 → 4.75
   ```
   說明在 `docs/eval/2026-11-14.md`：規則問題的增加是國名檢查的誤報，已修（`fix: EU/EEA countries excluded as a group…`）；截止日是分母變大
-- [ ] 備份後全部重抽一次（約 NT$65） -> verify: `uv run python -m app.features.scholarships.extract --force --max-cost 90`（貼出完成／失敗數）
+- [ ] 備份後全部重抽一次 -> verify: `uv run python -m app.features.scholarships.extract --force --max-cost 100`（貼出完成／失敗數）
+  - 11-14 16:03 開始，16:35 使用者要關電腦先停下：**249 筆完成 172 筆**（extract-13），花 NT$39.1（每個來源約 NT$0.23）；備份 `backend/data/backups/before-reextract-20261114-1603.dump`；之後已執行 `cycles` 更新申請期
+  - **接著做**：只重抽剩下的 77 筆（還是 extract-12 的），在 `backend/` 執行：
+    ```bash
+    uv run python -m app.features.scholarships.extract --force --max-cost 40 $(docker compose exec -T postgres psql -U scholar -d scholar -At -c "select '--source ' || source_id from scholarships where source_id is not null and coalesce(extracted->'meta'->'prompts'->>0, '') <> 'extract-13'")
+    uv run python -m app.features.scholarships.cycles
+    ```
+  - 注意：每天的檢查現在會在抽取後補說明（段 5）。如果明天的檢查比重抽先跑，那 77 筆會先補說明、重抽時說明被洗掉、隔天再補一次，多花約 NT$15
 - [ ] 重新檢查：上次有錯的 128 筆加隨機 30 筆對的，用同一份指示比較修好幾個、新錯幾個 -> verify: 報告寫進 `docs/eval/2026-11-xx-audit.md`
 - [ ] 學習卡、`docs/progress.md` -> verify: 檔案已更新
 

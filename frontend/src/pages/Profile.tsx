@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { api, unwrap, type Schemas } from "@/api/client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -7,6 +7,7 @@ import { CountryMultiSelect, CountrySelect, type CountryOption } from "@/compone
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { TagInput } from "@/components/tag-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageSkeleton } from "@/components/page-skeleton";
@@ -60,15 +61,16 @@ export default function ProfilePage() {
       </Alert>
     );
   // 用版本號當 key：存檔後版本號變了，表單就用新的資料重新開始
-  return <ProfileForm key={profile.data?.version ?? 0} initial={profile.data} save={save} countries={countries.data} />;
+  return (
+    <div className="space-y-4">
+      {/* 每頁一個頁面標題，和其他頁一致（docs/ui-review-2.md D4） */}
+      <h1 className="text-xl font-semibold">個人資料</h1>
+      <ProfileForm key={profile.data?.version ?? 0} initial={profile.data} save={save} countries={countries.data} />
+    </div>
+  );
 }
 
-// 清單欄位在表單上用逗號分隔
-const toList = (text: string) =>
-  text
-    .split(/[,，、]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((item, index) => item === b[index]);
 
 function ProfileForm({ initial, save, countries }: { initial: Profile | null; save: Save; countries: CountryOption[] }) {
   // 表單裡存國碼；選單要的是 { 國碼, 中文名稱 }，用國碼查回來
@@ -77,22 +79,37 @@ function ProfileForm({ initial, save, countries }: { initial: Profile | null; sa
   const [nationality, setNationality] = useState(initial?.nationality ?? "");
   const [degree, setDegree] = useState<Degree>(initial?.target_degree ?? "master");
   const [major, setMajor] = useState(initial?.current_major ?? "");
-  const [fields, setFields] = useState((initial?.target_fields ?? []).join(", "));
+  const [fields, setFields] = useState<string[]>(initial?.target_fields ?? []);
   const [targets, setTargets] = useState<string[]>(initial?.target_countries ?? []);
+  // 有沒有改了還沒存（docs/ui-review-2.md D3）
+  const dirty =
+    nationality !== (initial?.nationality ?? "") ||
+    degree !== (initial?.target_degree ?? "master") ||
+    major !== (initial?.current_major ?? "") ||
+    !sameList(fields, initial?.target_fields ?? []) ||
+    !sameList(targets, initial?.target_countries ?? []);
+  // 有未存的修改時，重新整理或關掉分頁前，瀏覽器會先問一次。
+  // 站內換頁擋不住：react-router 要換成「資料路由」才有 useBlocker，所以在存檔鈕旁邊提醒
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     save.mutate({
       nationality,
       target_degree: degree,
       current_major: major.trim() || null,
-      target_fields: toList(fields),
+      target_fields: fields,
       target_countries: targets,
     });
   };
   return (
     <Card>
       <CardHeader>
-        <CardTitle>個人資料</CardTitle>
+        <CardTitle className="sr-only">個人資料</CardTitle>
         {/* 送給 AI 的欄位見 ADR-055；畫面上只寫白話，不寫 ADR 編號（docs/ui-review-2.md A3） */}
         <CardDescription>
           只存在這台電腦的資料庫；送給 AI 的只有目前科系與想讀的領域。存檔後，評分會在背景重新計算。
@@ -129,8 +146,8 @@ function ProfileForm({ initial, save, countries }: { initial: Profile | null; sa
             <Input id="major" value={major} onChange={(event) => setMajor(event.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="fields">想讀的領域（選填，用逗號分隔）</Label>
-            <Input id="fields" value={fields} onChange={(event) => setFields(event.target.value)} />
+            <Label htmlFor="fields">想讀的領域（選填，可加多個）</Label>
+            <TagInput id="fields" value={fields} onChange={setFields} placeholder="打完按 Enter 加一個，例如 Data Science" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="countries">想去的國家（選填，可選多個）</Label>
@@ -147,10 +164,16 @@ function ProfileForm({ initial, save, countries }: { initial: Profile | null; sa
               <AlertDescription>{save.error.message}</AlertDescription>
             </Alert>
           )}
-          {save.isSuccess && <p className="text-sm text-muted-foreground">已存檔</p>}
-          <Button type="submit" disabled={save.isPending}>
-            {save.isPending ? "存檔中…" : "存檔"}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? "存檔中…" : "存檔"}
+            </Button>
+            {dirty ? (
+              <span className="text-sm text-muted-foreground">有修改還沒存檔</span>
+            ) : (
+              save.isSuccess && <span className="text-sm text-muted-foreground">已存檔</span>
+            )}
+          </div>
         </form>
       </CardContent>
     </Card>

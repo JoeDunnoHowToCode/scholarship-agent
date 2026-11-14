@@ -31,9 +31,10 @@ export default function Ask() {
   const result = ask.data;
   return (
     <div className="space-y-4">
+      {/* 每頁一個頁面標題，和其他頁一致（docs/ui-review-2.md D4） */}
+      <h1 className="text-xl font-semibold">問答</h1>
       <Card>
         <CardHeader>
-          <CardTitle>問答</CardTitle>
           <CardDescription>答案只根據抓下來的資料，附出處；每題約 NT$0–0.3，問題會送到 Gemini。</CardDescription>
         </CardHeader>
         <CardContent>

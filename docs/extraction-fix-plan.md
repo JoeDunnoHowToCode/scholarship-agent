@@ -183,19 +183,32 @@
   國籍有根據 82% → 86%、學位 82% → 85%、截止日 69% → 63%、金額 90% → 92%、規則問題 2.42 → 4.75
   ```
   說明在 `docs/eval/2026-11-14.md`：規則問題的增加是國名檢查的誤報，已修（`fix: EU/EEA countries excluded as a group…`）；截止日是分母變大
-- [ ] 備份後全部重抽一次 -> verify: `uv run python -m app.features.scholarships.extract --force --max-cost 100`（貼出完成／失敗數）
-  - 11-14 16:03 開始，16:35 使用者要關電腦先停下：**249 筆完成 172 筆**（extract-13），花 NT$39.1（每個來源約 NT$0.23）；備份 `backend/data/backups/before-reextract-20261114-1603.dump`；之後已執行 `cycles` 更新申請期
-  - **接著做**：只重抽剩下的 77 筆（還是 extract-12 的），在 `backend/` 執行：
-    ```bash
-    uv run python -m app.features.scholarships.extract --force --max-cost 40 $(docker compose exec -T postgres psql -U scholar -d scholar -At -c "select '--source ' || source_id from scholarships where source_id is not null and coalesce(extracted->'meta'->'prompts'->>0, '') <> 'extract-13'")
-    uv run python -m app.features.scholarships.cycles
-    ```
-  - 注意：每天的檢查現在會在抽取後補說明（段 5）。如果明天的檢查比重抽先跑，那 77 筆會先補說明、重抽時說明被洗掉、隔天再補一次，多花約 NT$15
+- [x] 備份後全部重抽一次 -> verify: `uv run python -m app.features.scholarships.extract --force --max-cost 100`，暫停後用 `--force --source …` 重抽剩下的
+  ```
+  11-14 16:03–16:35：172 筆（NT$39.1）；22:43 起剩下的 77 筆：完成 77、沒變 0、失敗 0（NT$34.5）
+  249/249 筆都是 extract-13；備份 backend/data/backups/before-reextract-20261114-1603.dump
+  日期種類：scholarship 276、admission_only 75、document 16、other 9、payment 7；offered：yes 215、no 26、unclear 8；for_this=false 的金額 75 筆（32 個獎學金）
+  ```
+- [x] 重抽後發現：申請入學就一起審核的獎學金（芬蘭應用科技大學、丹麥學院）被分成 admission_only，申請期不見 → 提示詞 extract-14、section-14 說清楚，只重抽受影響的 10 筆（ADR-104 的做法） -> verify: `extract --force --source …`
+  ```
+  完成 10、沒變 0、失敗 0（NT$3.4）；LAB、Metropolia、Savonia 回到 scholarship；丹麥 3 所與 Vaasa 仍是 admission_only（上次總檢查已判定其中 560 的頁面沒有提供獎學金），交給重新檢查判斷
+  ```
+- [x] 瀏覽器確認詳細頁（不截個資、不按存檔） -> verify: 打開 #132（offered=no）與 #3（教育部）
+  ```
+  #132：{"badge": true, "noCycles": true, "otherDates": true}
+  #3：其他時程「2026-03-16｜補件與文件｜入學許可主…」；申請期裡沒有 3/16；主控台沒有錯誤
+  ```
 - [ ] 重新檢查：上次有錯的 128 筆加隨機 30 筆對的，用同一份指示比較修好幾個、新錯幾個 -> verify: 報告寫進 `docs/eval/2026-11-xx-audit.md`
 - [ ] 學習卡、`docs/progress.md` -> verify: 檔案已更新
 
 ### 段 5 獎學金說明（`docs/summary-plan.md`，ADR-100 說明那條；使用者 11-14 選 A）
-- [ ] 照 `docs/summary-plan.md` 的檢查清單做；補抽排在段 4 的全部重抽之後（先補的話，全部重抽會換掉整個 `extracted`，說明被洗掉、要重做） -> verify: 該計畫各項的指令
+- [x] 核對三關與產生（`tests/test_summary.py` 6 個）、寫入與詳細頁（`tests/test_summary_db.py` 2 個） -> verify: `uv run pytest tests/test_summary.py tests/test_summary_db.py`
+- [x] 每天的檢查抽完就補說明 -> verify: `grep -n "ensure_summary" app/features/pipeline/jobs.py`（第 198 行）
+- [x] 補抽排在全部重抽之後：先 5 筆看品質，再補其餘的 -> verify: `extract --backfill-summary --limit 5`、`extract --backfill-summary --max-cost 60`
+  ```
+  補說明 5（NT$0.5）；補說明 200、不用補 49（已封存或重複）、失敗 0（NT$22.6）
+  205 筆有說明、384 句：supported 288（75%）、not_supported 61、number_not_in_quote 27、quote_not_found 7、no_evidence 1；42 筆一句都沒通過（詳細頁不顯示說明）
+  ```
 
 ## 費用
 

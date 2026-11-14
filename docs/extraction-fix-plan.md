@@ -1,6 +1,6 @@
 # 抽取修正計畫（2026-11-14，ADR-103、104、105）
 
-狀態：**使用者 11-14 核准**，進行中：段 1–3、段 5 的程式完成；段 4 的全部重抽做到 172/249 筆暫停（見段 4）。
+狀態：**11-14 完成**。完整報告在 `docs/extraction-fix-report.md`。
 
 使用者 11-14 選 1-B（只重抽指定的來源）、2-B（schema 加欄位），並接受程式規則（ADR-103）。
 
@@ -158,7 +158,7 @@
   ```
   ✓ built in 431ms
   ```
-- [ ] 瀏覽器確認（不截個資、不按存檔） -> verify: 段 4 重抽後打開一筆 `offered=no` 和一筆有其他時程的詳細頁
+- [x] 瀏覽器確認（不截個資、不按存檔） -> verify: 見段 4
 
 ### 段 3 快取規則（ADR-104，11-14 完成）
 - [x] 只有提示詞版本變了 → 不重抽；模型變了 → 重抽 -> verify: `uv run pytest tests/test_extract_build.py -k prompt_change`
@@ -176,7 +176,7 @@
   ```
 
 ### 段 4 執行與驗證
-- [ ] 完整檢查 -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+- [x] 完整檢查 -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`（結果在最後一次推送前貼在完整報告）
 - [x] 新提示詞跑 57 個樣本的評估，和 11-10 的基準比較 -> verify: `uv run python -m app.features.evaluation.run --models gemini-3.5-flash-lite --rounds 2 --max-cost 20`
   ```
   已達這次評估的上限 NT$20.0，停下（第 2 次只跑完 8 個來源）
@@ -198,8 +198,13 @@
   #132：{"badge": true, "noCycles": true, "otherDates": true}
   #3：其他時程「2026-03-16｜補件與文件｜入學許可主…」；申請期裡沒有 3/16；主控台沒有錯誤
   ```
-- [ ] 重新檢查：上次有錯的 128 筆加隨機 30 筆對的，用同一份指示比較修好幾個、新錯幾個 -> verify: 報告寫進 `docs/eval/2026-11-xx-audit.md`
-- [ ] 學習卡、`docs/progress.md` -> verify: 檔案已更新
+- [x] 重新檢查：上次有錯的 128 筆＋隨機 30 筆對的，用同一份指示（加上新欄位）比較 -> verify: 報告寫進 `docs/eval/2026-11-14-recheck.md`
+  ```
+  截止日 57% → 58%、國籍 69% → 69%、學位 94% → 96%、金額 42% → 69%；錯誤 206 → 156、有錯的筆數 128 → 104
+  上次有錯的 128 筆裡 36 筆全對；上次全對的 30 筆裡 12 筆有錯
+  非申請期被當成申請期 11 → 28（15 個是自費輪次被標成 scholarship；3 筆可能是 extract-14 改錯）
+  ```
+- [x] 學習卡 3–5、`docs/progress.md`、完整報告 `docs/extraction-fix-report.md` -> verify: 檔案已更新
 
 ### 段 5 獎學金說明（`docs/summary-plan.md`，ADR-100 說明那條；使用者 11-14 選 A）
 - [x] 核對三關與產生（`tests/test_summary.py` 6 個）、寫入與詳細頁（`tests/test_summary_db.py` 2 個） -> verify: `uv run pytest tests/test_summary.py tests/test_summary_db.py`

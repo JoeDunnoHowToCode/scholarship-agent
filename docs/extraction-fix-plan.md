@@ -92,15 +92,38 @@
 
 在 `backend/` 執行：
 
-### 段 1 程式規則（ADR-103）
-- [ ] 完全一樣的金額只留一筆 -> verify: `uv run pytest tests/test_rules.py -k duplicate`
-- [ ] 每月 × 月數 ＝ 總額時去掉總額 -> verify: `uv run pytest tests/test_rules.py -k monthly_total`
-- [ ] 引用寫每學期、期間是每年 → 標成待確認 -> verify: `uv run pytest tests/test_rules.py -k semester`
-- [ ] 截止早於開放 → 標成待確認 -> verify: `uv run pytest tests/test_rules.py -k order`
-- [ ] 獎學金和申請期的國籍範圍矛盾 → 標成待確認 -> verify: `uv run pytest tests/test_rules.py -k scope_conflict`
-- [ ] `build_extraction` 套用規則並記下 issue -> verify: `uv run pytest tests/test_extract_build.py`
-- [ ] `--rules-only` 修已存的資料並重建申請期 -> verify: `uv run pytest tests/test_rules_recheck_db.py`
-- [ ] 對本機資料執行一次（先備份） -> verify: `uv run python -m app.features.scholarships.extract --rules-only`（貼出修了幾筆）
+### 段 1 程式規則（ADR-103，11-14 完成）
+- [x] 每月 × 月數（或每年 × 年數）＝ 總額時去掉總額 -> verify: `uv run pytest tests/test_rules.py -k total`
+  ```
+  2 passed, 7 deselected in 0.04s
+  ```
+- [x] 完全一樣的金額只留一筆（一般網頁整份抽也套用；用既有的 `merge_amounts`） -> verify: `uv run pytest tests/test_merge.py -k once`
+  ```
+  3 passed, 15 deselected in 0.05s
+  ```
+- [x] 引用寫每學期、期間是每年 → `period_mismatch` -> verify: `uv run pytest tests/test_amounts.py -k semester`
+  ```
+  1 passed, 7 deselected in 0.04s
+  ```
+- [x] 截止早於開放 → `closes_before_opens`，不問 AI -> verify: `uv run pytest tests/test_verify.py -k before`
+  ```
+  1 passed, 3 deselected in 0.03s
+  ```
+- ~~獎學金和申請期的國籍範圍矛盾 → 標成待確認~~：不做，見「Claude 自行決定」第 9 點
+- [x] `build_extraction` 套用金額規則 -> verify: `uv run pytest tests/test_extract_build.py`
+  ```
+  2 passed in 0.84s
+  ```
+- [x] `--rules-only` 修已存的資料並重建申請期；金額格式和抽取一樣（第一次跑時多存了 status，已修） -> verify: `uv run pytest tests/test_rules_recheck_db.py`
+  ```
+  2 passed in 0.85s
+  ```
+- [x] 對本機資料執行一次（先備份 `backend/data/backups/before-rules-20261114-1511.dump`） -> verify: `uv run python -m app.features.scholarships.extract --rules-only`，再和備份比對
+  ```
+  重新套用規則：看了 249 筆，179 筆有變（其中 156 筆是拿掉第一次多存的 status）
+  和備份比對：23 筆有變（金額描述 21、金額清單 20、核對結果 23）；金額 497 → 472 筆
+  截止日：closes_before_opens 2 筆；金額：period_mismatch 1 筆
+  ```
 
 ### 段 2 schema 加欄位（ADR-105）
 - [ ] 舊資料沒有新欄位時用預設值 -> verify: `uv run pytest tests/test_schemas.py -k defaults`
@@ -141,3 +164,5 @@
 6. 只升 extract、section 的版本；outline、verify 沒用到新欄位。
 7. 重新檢查的樣本：上次有錯的 128 筆，加隨機 30 筆上次全對的（固定亂數種子），才量得到「新錯」。
 8. 段的順序：規則 → schema → 快取 → 執行。快取規則在全部重抽之前改好，重抽改用 `--force`。
+9. 規則 4（國籍範圍矛盾）不做：總檢查的兩個例子都是獎學金寫「不清楚」、申請期寫「不分國籍」，程式判斷不了哪一邊對；獎學金寫「不清楚」本來就顯示待確認。
+10. 截止日的程式檢查搬到 `verify.window_rule`，抽取和 `--rules-only` 共用同一份。

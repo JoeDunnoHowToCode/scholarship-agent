@@ -125,19 +125,55 @@
   截止日：closes_before_opens 2 筆；金額：period_mismatch 1 筆
   ```
 
-### 段 2 schema 加欄位（ADR-105）
-- [ ] 舊資料沒有新欄位時用預設值 -> verify: `uv run pytest tests/test_schemas.py -k defaults`
-- [ ] 只有 `kind=scholarship` 的會變成申請期 -> verify: `uv run pytest tests/test_cycles.py -k kind`
-- [ ] `offered=no` 不產生申請期 -> verify: `uv run pytest tests/test_cycles.py -k offered`
-- [ ] 金額描述只算 `for_this` -> verify: `uv run pytest tests/test_amounts.py -k for_this`
-- [ ] API 回傳新欄位 -> verify: `uv run pytest tests/test_scholarships_api.py -k offered`
-- [ ] 提示詞 extract-13、section-13 -> verify: `uv run pytest tests/test_prompts.py`
-- [ ] 詳細頁顯示「今年沒開」和其他時程 -> verify: `cd ../frontend && npm run gen:api && npm run build`，加上瀏覽器確認（不截個資）
+### 段 2 schema 加欄位（ADR-105，11-14 完成；瀏覽器確認排在段 4 重抽之後）
+- [x] 舊資料沒有新欄位時用預設值（`kind=scholarship`、`for_this=true`、`offered=unclear`） -> verify: `uv run pytest tests/test_schemas.py -k old`
+  ```
+  1 passed, 1 deselected in 0.02s
+  ```
+- [x] 只有 `kind=scholarship` 的會變成申請期；`offered=no` 不產生申請期 -> verify: `uv run pytest tests/test_save_cycles_db.py`
+  ```
+  1 passed in 0.77s
+  ```
+- [x] 長文件的 `offered` 從第一輪（outline）帶到合併結果 -> verify: `uv run pytest tests/test_merge.py -k offered`
+  ```
+  1 passed, 18 deselected in 0.04s
+  ```
+- [x] 金額描述、列表的金額、詳細頁的金額只算 `for_this` -> verify: `uv run pytest tests/test_amounts.py -k other_awards`（詳細頁的部分在下一項）
+  ```
+  1 passed, 8 deselected in 0.04s
+  ```
+- [x] 詳細頁 API 回傳 `offered`、`offered_evidence`、`other_dates`，金額不含其他補助 -> verify: `uv run pytest tests/test_detail_kinds_db.py`
+  ```
+  1 passed in 0.90s
+  ```
+- [x] 最早截止日只算申請獎學金的日期（否則缺截止日的來源不會補抓 PDF） -> verify: `uv run pytest tests/test_extract_build.py -k earliest`
+  ```
+  1 passed, 4 deselected in 0.82s
+  ```
+- [x] 提示詞 extract-13、section-13、outline-9 -> verify: `uv run pytest tests/test_prompts.py`
+  ```
+  15 passed in 0.85s
+  ```
+- [x] 詳細頁顯示「這次不提供」和其他時程 -> verify: `cd ../frontend && npm run gen:api && npm run build`
+  ```
+  ✓ built in 431ms
+  ```
+- [ ] 瀏覽器確認（不截個資、不按存檔） -> verify: 段 4 重抽後打開一筆 `offered=no` 和一筆有其他時程的詳細頁
 
-### 段 3 快取規則（ADR-104）
-- [ ] 只有提示詞版本變了 → 不重抽 -> verify: `uv run pytest -k prompt_change_does_not_reextract`
-- [ ] 模型變了 → 重抽 -> verify: `uv run pytest -k model_change_reextracts`
-- [ ] `--force --source` 指定的會重抽 -> verify: `uv run pytest -k force_source`
+### 段 3 快取規則（ADR-104，11-14 完成）
+- [x] 只有提示詞版本變了 → 不重抽；模型變了 → 重抽 -> verify: `uv run pytest tests/test_extract_build.py -k prompt_change`
+  ```
+  1 passed, 4 deselected in 1.03s
+  ```
+- [x] `--force` 指定的會重抽（這個測試第一次跑就通過：上一步的實作已經處理了 force） -> verify: `uv run pytest tests/test_extract_build.py -k force`
+  ```
+  1 passed, 4 deselected in 1.17s
+  ```
+- [x] 指令列 `--force` 與可重複的 `--source` -> verify: `uv run python -m app.features.scholarships.extract --help`
+  ```
+  --source SOURCE      只抽這個來源 id；可以寫好幾次
+  --force              原文和模型沒變也用最新的提示詞重抽（ADR-104）；通常搭配 --source
+  ```
 
 ### 段 4 執行與驗證
 - [ ] 完整檢查 -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`

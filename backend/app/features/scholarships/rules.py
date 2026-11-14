@@ -83,6 +83,23 @@ ERASMUS_PROGRAMME_COUNTRIES = (  # ISO 3166-1 國碼（ADR-054）
     "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
     "IS", "LI", "NO", "MK", "RS", "TR",
 )
+# 歐盟 27 國＋EEA 3 國＋瑞士：原文常用「non-EU/EEA/Swiss」一次排除這一群，不會寫出每個國名
+# （extract-13 讓 AI 把這種寫法存成 excluded 並列出國碼；docs/extraction-fix-plan.md「Claude 自行決定」第 11 點）
+EU_EEA_CH = (
+    "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
+    "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+    "IS", "LI", "NO", "CH",
+)
+EU_GROUP = re.compile(r"\bEU\b|\bEEA\b|European Union|European Economic Area|Switzerland|Swiss|歐盟|歐洲經濟區", re.IGNORECASE)
+
+
+def excluded_as_group(scope: str, evidence: str | None) -> tuple[str, ...]:
+    """原文用「歐盟／EEA」一次排除時，這些國碼不用逐一在原文找到國名；其他情況回傳空的。"""
+    if scope == "excluded" and evidence and EU_GROUP.search(evidence):
+        return EU_EEA_CH
+    return ()
+
+
 NOT_ASSOCIATED = re.compile(r"(not|non-)\s*associated[^,.;]*", re.IGNORECASE)
 PARTNER_WORD = re.compile(r"\bpartner\b", re.IGNORECASE)
 PROGRAMME_WORD = re.compile(r"\bprogram(me)?\b|associated to the", re.IGNORECASE)

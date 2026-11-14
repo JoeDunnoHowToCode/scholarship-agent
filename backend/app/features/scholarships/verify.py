@@ -125,10 +125,11 @@ def other_issues(draft: ScholarshipDraft, source: str) -> list[str]:
     if rules.quota_sum_mismatch(draft.total_quota, [c.quota for c in draft.categories]):
         issues.append("quota_sum_mismatch")
     # 國碼對應的任一常見名稱出現在原文就算（ADR-054，例如 KR 對應 Korea、South Korea）
+    group = rules.excluded_as_group(draft.nationality_scope, draft.nationality_evidence)
     issues += [
         f"nationality_not_in_source:{n}"
         for n in draft.nationalities
-        if not any(rules.name_in_source(name, source) for name in countries.names_for(n))
+        if n not in group and not any(rules.name_in_source(name, source) for name in countries.names_for(n))
     ]
     return issues
 

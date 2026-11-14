@@ -577,7 +577,41 @@ def recheck_amounts() -> None:
 def recheck_rules(session: Session, source_ids: list[int] | None = None) -> tuple[int, int]:
     """改了程式規則後（ADR-103），對已存的抽取結果重新套用：金額去重與核對、截止日的程式檢查，
     有變的重建申請期。不呼叫 AI、不花錢。source_ids 不給就是全部。回傳（看了幾筆, 改了幾筆）。"""
-    return 0, 0
+    query = select(Scholarship).where(Scholarship.source_id.is_not(None))
+    if source_ids is not None:
+        query = query.where(Scholarship.source_id.in_(source_ids))
+    checked = changed = 0
+    for row in session.scalars(query).all():
+        old = row.extracted
+        if row.source_id is None or "verification" not in old or "meta" not in old:
+            continue  # 很早期的資料，沒有核對結果
+        checked += 1
+        windows = [WindowDraft.model_validate(w) for w in old.get("windows", [])]
+        # 金額：去重後用快照原文重新核對（和抽取時一樣只用程式）
+        saved = [AmountDraft.model_validate({k: v for k, v in a.items() if k != "status"}) for a in old.get("amounts", [])]
+        cleaned = merge.clean_amounts(saved)
+        raw = snapshot_text(session, row.source_id, old["meta"]["snapshots"]) if cleaned else ""
+        statuses = [amounts.amount_status(a, raw) for a in cleaned]
+        items = [{**a.model_dump(mode="json"), "status": s} for a, s in zip(cleaned, statuses, strict=True)]
+        # 截止日：程式檢查排在「沒值、沒引用、各節說法不同」之後（和 verify.verify 的順序一樣）
+        deadlines = [
+            status if status in ("conflict", "incomplete", "empty", "no_evidence")
+            else verify.window_rule(windows[i]) or status
+            for i, status in enumerate(old["verification"]["deadlines"])
+        ]
+        new = {
+            **old,
+            "amounts": items,
+            "amount": amounts.describe(items),
+            "verification": {**old["verification"], "amounts": statuses, "deadlines": deadlines},
+        }
+        if new == old:
+            continue
+        changed += 1
+        row.extracted = new  # JSONB 整個重新指定
+        row.amount = new["amount"]
+        save_cycles(session, row, windows, deadlines)
+    return checked, changed
 
 
 def main() -> None:

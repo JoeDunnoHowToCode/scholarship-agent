@@ -77,16 +77,21 @@ def claims(draft: ScholarshipDraft) -> dict[str, tuple[Any, str | None]]:
     return found
 
 
+def window_rule(window: WindowDraft) -> Status | None:
+    """一個截止日的程式檢查：年份要在引用裡（ADR-045）、截止不能早於開放（ADR-103）；沒問題回傳 None。"""
+    if window.closes_year and not rules.deadline_year_in_quote(window.closes_year, window.evidence):
+        return "year_not_in_quote"
+    opens = (window.opens_year, window.opens_month, window.opens_day)
+    closes = (window.closes_year, window.closes_month, window.closes_day)
+    if all(opens) and all(closes) and closes < opens:
+        return "closes_before_opens"
+    return None
+
+
 def rule_status(field: str, draft: ScholarshipDraft) -> Status | None:
     """程式檢查（ADR-045）：截止日年份要在引用裡、學位關鍵字；沒問題回傳 None。"""
-    if field.startswith("deadline:"):
-        window = draft.windows[int(field.split(":")[1])]
-        if window.closes_year and not rules.deadline_year_in_quote(window.closes_year, window.evidence):
-            return "year_not_in_quote"
-        opens = (window.opens_year, window.opens_month, window.opens_day)
-        closes = (window.closes_year, window.closes_month, window.closes_day)
-        if all(opens) and all(closes) and closes < opens:
-            return "closes_before_opens"
+    if field.startswith("deadline:") and (problem := window_rule(draft.windows[int(field.split(":")[1])])):
+        return problem
     quotes = [draft.degrees_evidence]
     if field == "degrees" and not all(rules.degree_supported(d, quotes) for d in draft.degrees):
         return "degree_not_in_quote"

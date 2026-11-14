@@ -207,6 +207,7 @@ def amount_items(extracted: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         {**item, "status": statuses[index] if index < len(statuses) else None}
         for index, item in enumerate(extracted.get("amounts", []))
+        if item.get("for_this", True)  # ADR-105：同一頁其他補助的錢不顯示
     ]
 
 

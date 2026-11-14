@@ -84,11 +84,16 @@ def money(value: float) -> str:
     return f"{value:,.0f}" if value == int(value) else f"{value:,.2f}"
 
 
+def own(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """只留這個獎學金的錢（ADR-105）；同一頁其他補助的照樣存著，但不算。舊資料沒有 for_this，當成是。"""
+    return [item for item in items if item.get("for_this", True)]
+
+
 def headline(items: list[dict[str, Any]]) -> str | None:
     """列表上的大概金額：只看核對通過的；先找生活津貼，再依學費補助、旅費、其他的順序；
     同一種用途裡先挑每月的，再來是每年、總額、一次。同用途、同期間、同幣別、只是適用對象不同的，顯示範圍。
     items 是抽取結果裡的金額加上核對狀態（status）。"""
-    supported = [item for item in items if item.get("status") == "supported"]
+    supported = [item for item in own(items) if item.get("status") == "supported"]
     for kind in KIND_ORDER:
         same_kind = [item for item in supported if item["kind"] == kind]
         if not same_kind:
@@ -109,7 +114,7 @@ KIND_NAMES = {"living_allowance": "生活津貼", "tuition_coverage": "學費補
 def describe(items: list[dict[str, Any]]) -> str | None:
     """scholarships.amount 的文字：每一筆都寫用途與適用對象，沒核對通過的標待確認；沒有金額回傳 None。"""
     parts = []
-    for item in items:
+    for item in own(items):
         notes = [KIND_NAMES[item["kind"]]]
         if item.get("applies_to"):
             notes.append(item["applies_to"])

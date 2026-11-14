@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { CHECK_NAMES, DEGREE_NAMES, GROUP_NAMES, nameOf } from "@/lib/labels";
+import { cn } from "@/lib/utils";
 
 type Row = Schemas["ScholarshipRow"];
 type Degree = "bachelor" | "master" | "phd";
@@ -20,7 +21,15 @@ type Degree = "bachelor" | "master" | "phd";
 // 下拉選單的「全部」：API 收到時當成沒有篩選
 const ALL = "all";
 
-type Filters = { q: string; country: string; degree: string; openOnly: boolean; after: string; before: string };
+type Filters = {
+  q: string;
+  country: string;
+  degree: string;
+  openOnly: boolean;
+  after: string;
+  before: string;
+  archived: boolean;
+};
 
 const DEGREE_ITEMS = [
   { value: ALL, label: "所有學位" },
@@ -35,6 +44,7 @@ const PARAM_NAMES: Record<keyof Filters, string> = {
   openOnly: "open",
   after: "after",
   before: "before",
+  archived: "archived",
 };
 
 function filtersFrom(params: URLSearchParams): Filters {
@@ -45,6 +55,7 @@ function filtersFrom(params: URLSearchParams): Filters {
     openOnly: params.get("open") === "1",
     after: params.get("after") ?? "",
     before: params.get("before") ?? "",
+    archived: params.get("archived") === "1",
   };
 }
 
@@ -62,6 +73,8 @@ function paramsFrom(filters: Filters): URLSearchParams {
 export default function ScholarshipList() {
   const [params, setParams] = useSearchParams();
   const filters = filtersFrom(params);
+  // 手機上國家、學位、日期、已封存收進「更多篩選」（ADR-106）；桌機一直顯示
+  const [moreOpen, setMoreOpen] = useState(false);
   // 搜尋框打字時先存在這裡，按 Enter 或「搜尋」才送出（每次搜尋要算一次向量）
   const [draft, setDraft] = useState(filters.q);
   // 沒填的條件不送（undefined 不會出現在網址上）
@@ -72,6 +85,7 @@ export default function ScholarshipList() {
     open_only: filters.openOnly || undefined,
     deadline_after: filters.after || undefined,
     deadline_before: filters.before || undefined,
+    archived: filters.archived || undefined, // 預設不列已封存的（ADR-106）
   };
   const list = useQuery({
     queryKey: ["scholarships", query],
@@ -92,6 +106,8 @@ export default function ScholarshipList() {
     update({ q: draft.trim() });
   };
   const searching = filters.q !== "";
+  // 收起來的篩選裡，有幾個正在套用：寫在按鈕上，收起來也看得出來
+  const hiddenActive = [filters.country !== ALL, filters.degree !== ALL, filters.after, filters.before, filters.archived].filter(Boolean).length;
 
   return (
     <div className="space-y-4">
@@ -100,7 +116,8 @@ export default function ScholarshipList() {
         <Input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="搜尋：名稱、領域或想讀的方向，中英文都可以（例如：數據科學、DEAI）"
+          placeholder="搜尋名稱、領域或想讀的方向"
+          aria-label="搜尋獎學金（中英文都可以，例如：數據科學、DEAI）"
         />
         <Button type="submit">搜尋</Button>
         {searching && (
@@ -117,48 +134,65 @@ export default function ScholarshipList() {
         )}
       </form>
       <div className="flex flex-wrap items-end gap-4">
-        <div className="space-y-1">
-          <Label>留學國家</Label>
-          <Select items={countryItems} value={filters.country} onValueChange={(value) => update({ country: value ?? ALL })}>
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {countryItems.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label>學位</Label>
-          <Select items={DEGREE_ITEMS} value={filters.degree} onValueChange={(value) => update({ degree: value ?? ALL })}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DEGREE_ITEMS.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="after">截止日從</Label>
-          <Input id="after" type="date" value={filters.after} onChange={(event) => update({ after: event.target.value })} />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="before">截止日到</Label>
-          <Input id="before" type="date" value={filters.before} onChange={(event) => update({ before: event.target.value })} />
+        {/* contents：打開時這一組直接排進外層的 flex；手機上收起時整組隱藏 */}
+        <div className={moreOpen ? "contents" : "hidden sm:contents"}>
+          <div className="space-y-1">
+            <Label>留學國家</Label>
+            <Select items={countryItems} value={filters.country} onValueChange={(value) => update({ country: value ?? ALL })}>
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {countryItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>學位</Label>
+            <Select items={DEGREE_ITEMS} value={filters.degree} onValueChange={(value) => update({ degree: value ?? ALL })}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DEGREE_ITEMS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="after">截止日期從</Label>
+            <Input id="after" type="date" value={filters.after} onChange={(event) => update({ after: event.target.value })} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="before">截止日期到</Label>
+            <Input id="before" type="date" value={filters.before} onChange={(event) => update({ before: event.target.value })} />
+          </div>
+          <Label className="flex items-center gap-2 pb-2">
+            <Switch checked={filters.archived} onCheckedChange={(checked) => update({ archived: checked })} />
+            顯示已封存
+          </Label>
         </div>
         <Label className="flex items-center gap-2 pb-2">
           <Switch checked={filters.openOnly} onCheckedChange={(checked) => update({ openOnly: checked })} />
           只看開放中的
         </Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={cn("mb-1 sm:hidden", moreOpen && "bg-muted")}
+          aria-expanded={moreOpen}
+          onClick={() => setMoreOpen(!moreOpen)}
+        >
+          {moreOpen ? "收起篩選" : `更多篩選${hiddenActive ? `（${hiddenActive}）` : ""}`}
+        </Button>
       </div>
 
       {list.data?.scores_outdated && (
@@ -173,7 +207,13 @@ export default function ScholarshipList() {
           <AlertDescription>{list.error.message}</AlertDescription>
         </Alert>
       )}
-      {list.isPending && <Skeleton className="h-40 w-full" />}
+      {list.isPending && (
+        <div className="space-y-3" aria-busy="true" aria-label="載入中">
+          {[0, 1, 2].map((index) => (
+            <Skeleton key={index} className="h-32 w-full rounded-xl" />
+          ))}
+        </div>
+      )}
       {searching && list.data && !list.data.semantic && (
         <Alert>
           <AlertTitle>這次只用關鍵字搜尋</AlertTitle>

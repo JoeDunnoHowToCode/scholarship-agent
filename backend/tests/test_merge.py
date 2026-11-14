@@ -387,3 +387,17 @@ def test_amounts_from_all_sections_are_kept_once_each() -> None:
     )
     # 數字、幣別、期間、用途、適用對象都一樣的，只留第一次出現的那筆與它的引用（幣別不分大小寫、適用對象不管空白）
     assert merge.merge_amounts([[general], [general_again, excellent]]) == [general, excellent]
+
+
+def test_one_extraction_keeps_each_amount_once() -> None:
+    # 一般網頁整份抽也會把同一筆錢寫兩次（總檢查：每月 1,400 從三句話各抽一次）
+    def amount(value: float, period: str, applies_to: str | None = None, evidence: str = "x") -> AmountDraft:
+        return AmountDraft.model_validate({"value": value, "currency": "EUR", "period": period,
+                                           "kind": "living_allowance", "applies_to": applies_to, "evidence": evidence})
+
+    first = amount(1400, "month", evidence="1,400 EUR per month")
+    cleaned = merge.clean_amounts([first, amount(1400, "month", evidence="monthly 1400 EUR"), amount(33600, "total")])
+    assert cleaned == [first]  # 一樣的只留第一筆（和它的引用）；33,600 是 1,400×24
+    # 適用對象不同的兩筆都留
+    partner = amount(1400, "month", applies_to="Partner country students")
+    assert merge.clean_amounts([first, partner]) == [first, partner]

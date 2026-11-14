@@ -124,3 +124,17 @@ def test_backfill_keeps_other_fields_and_marks_the_prompts_current() -> None:
     # 其他欄位原樣保留，也沒有改到傳進來的 dict（JSONB 要整個重新指定）
     assert new["name"] == "ReSound" and new["nationality_scope"] == "all"
     assert old["amount"] == "EUR 1,400 per month" and "amounts" not in old
+
+
+def test_a_per_semester_quote_stored_as_yearly_is_flagged() -> None:
+    # 總檢查的例子：原文寫每學期 1,800 €，卻存成每年；不知道一年幾學期，所以只標待確認、不換算
+    page = "Coverage of tuition fees of 1.800 € per semester; Insurance package."
+    evidence = "Coverage of tuition fees of 1.800 € per semester"
+
+    def amount(period: str) -> schemas.AmountDraft:
+        return schemas.AmountDraft(value=1800, currency="EUR", period=period, kind="tuition_coverage",
+                                   applies_to=None, evidence=evidence)
+
+    assert amounts.amount_status(amount("year"), page) == "period_mismatch"
+    assert amounts.amount_status(amount("unclear"), page) == "supported"
+    assert amounts.amount_status(amount("year"), "每學期 1,800 歐元") == "quote_not_found"  # 其他關照舊先檢查

@@ -27,3 +27,11 @@ class FakeLLM:
 def test_a_sentence_without_a_quote_is_no_evidence() -> None:
     sentences = [SummarySentence(text="由 Test Foundation 提供。", evidence=None)]
     assert summary.check_sentences(FakeLLM(), sentences, SOURCE) == ["no_evidence"]
+
+
+def test_a_number_missing_from_the_quote_is_number_not_in_quote() -> None:
+    # 中文寫 1,500 歐元，引用寫的是 1,400：程式就擋下，不用問 AI；1,400 和 1400 視為相同
+    wrong = SummarySentence(text="每月補助 1,500 歐元。", evidence="Each scholar receives EUR 1,400 per month.")
+    right = SummarySentence(text="每月補助 1400 歐元。", evidence="Each scholar receives EUR 1,400 per month.")
+    statuses = summary.check_sentences(FakeLLM(supported={"s1": True}), [wrong, right], SOURCE)
+    assert statuses[0] == "number_not_in_quote"

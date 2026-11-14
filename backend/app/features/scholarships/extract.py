@@ -601,7 +601,12 @@ def recheck_rules(session: Session, source_ids: list[int] | None = None) -> tupl
         ]
         new = {
             **old,
-            "amounts": [a.model_dump(mode="json") for a in cleaned],  # 和抽取存的格式一樣：核對結果放在 verification
+            # 留下的金額沿用原本存的那筆（不重新產生，格式和當初抽取存的一樣）；核對結果放在 verification
+            "amounts": [
+                {k: v for k, v in item.items() if k != "status"}
+                for item, draft in zip(old.get("amounts", []), saved, strict=True)
+                if any(draft is kept for kept in cleaned)
+            ],
             "amount": amounts.describe(items),
             "verification": {**old["verification"], "amounts": statuses, "deadlines": deadlines},
         }

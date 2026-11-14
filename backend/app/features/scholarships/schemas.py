@@ -66,6 +66,10 @@ class AmountDraft(BaseModel):
     )
     applies_to: str | None = Field(description="適用對象，例如「一般生」「非歐盟學生」；所有人都一樣就留空")
     evidence: str | None = Field(description="寫著這個金額的原文句子，逐字引用")
+    for_this: bool = Field(  # ADR-105
+        default=True,
+        description="這筆錢是不是這個獎學金給的；同一頁介紹的其他獎學金、補助或學校的其他優惠填 false",
+    )
 
 
 class RequirementDraft(BaseModel):
@@ -82,6 +86,9 @@ class RequirementDraft(BaseModel):
 # 截止日適用哪些申請人（ADR-047）：國籍範圍沿用 ADR-043 的寫法；申請類型分獎學金、自費、不分
 WindowScope = Literal["all", "listed", "excluded"]
 Funding = Literal["scholarship", "self_funded", "any"]
+# 日期的種類（ADR-105）：只有 scholarship 會變成申請期、送截止提醒
+WindowKind = Literal["scholarship", "admission_only", "document", "payment", "other"]
+Offered = Literal["yes", "no", "unclear"]
 
 
 class WindowDraft(BaseModel):
@@ -112,6 +119,15 @@ class WindowDraft(BaseModel):
         description="適用申請獎學金的人填 scholarship；適用自費生填 self_funded；不分填 any"
     )
     evidence: str | None = Field(description="寫著這個截止日的原文句子，逐字引用")
+    # ADR-105；預設值讓重抽前的舊資料維持原本的行為
+    kind: WindowKind = Field(
+        default="scholarship",
+        description=(
+            "這個日期是什麼：申請這個獎學金的期間（包括和入學申請一起申請獎學金）填 scholarship；"
+            "只有入學申請、沒有這個獎學金填 admission_only；補件、上傳文件、成績或證明的期限填 document；"
+            "繳費或付訂金的期限填 payment；面試、放榜、報到等其他時程填 other"
+        ),
+    )
 
 
 class AmountList(BaseModel):
@@ -169,6 +185,11 @@ class ScholarshipDraft(ProgramFacts):
     name_zh: str | None = Field(description="中文名稱；原文不是中文就翻譯")
     categories: list[CategoryDraft] = Field(description="名額類別；只有一種也要填一個")
     requirements: list[RequirementDraft] = Field(description="申請要交的文件")
+    offered: Offered = Field(  # ADR-105；預設值讓重抽前的舊資料維持原本的行為
+        default="unclear",
+        description="這一屆或下一屆有沒有提供這個獎學金：原文寫明有填 yes；寫明這次不提供、已停辦填 no；沒寫填 unclear",
+    )
+    offered_evidence: str | None = Field(default=None, description="寫著有沒有提供的原文句子，逐字引用")
 
 
 class OutlineCategory(BaseModel):
@@ -200,6 +221,11 @@ class Outline(BaseModel):
     category_details: list[OutlineCategory] = Field(
         default_factory=list, description="每個類別的名額、學位、國家，順序和 category_names 一致"
     )
+    offered: Offered = Field(  # ADR-105；預設值讓重抽前的舊資料維持原本的行為
+        default="unclear",
+        description="這一屆或下一屆有沒有提供這個獎學金：原文寫明有填 yes；寫明這次不提供、已停辦填 no；沒寫填 unclear",
+    )
+    offered_evidence: str | None = Field(default=None, description="寫著有沒有提供的原文句子，逐字引用")
 
 
 class CategoryFact(BaseModel):

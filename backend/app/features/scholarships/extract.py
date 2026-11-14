@@ -207,6 +207,9 @@ def save_cycles(
         # 年月日不齊全、或年份是模型自己補的，不建申請期（docs/day-04.md「Claude 自行決定」第 4 點）
         if status in ("incomplete", "year_not_in_quote"):
             continue
+        # ADR-105：補件、繳費、只有入學的日期不是申請期；原文寫明這次不提供就一個都不建
+        if window.kind != "scholarship" or offered == "no":
+            continue
         assert window.closes_year and window.closes_month and window.closes_day
         try:
             closes_at, assumed = cycles.to_utc(
@@ -299,7 +302,7 @@ def save(
                     snapshot_id=snapshot_id,
                 )
             )
-    save_cycles(session, row, draft.windows, extracted["verification"]["deadlines"])
+    save_cycles(session, row, draft.windows, extracted["verification"]["deadlines"], draft.offered)
 
     session.execute(delete(Requirement).where(Requirement.scholarship_id == row.id))
     session.execute(delete(ScholarshipCategory).where(ScholarshipCategory.scholarship_id == row.id))
@@ -497,7 +500,9 @@ def rebuild_cycles() -> None:
         rows = session.scalars(select(Scholarship).where(Scholarship.source_id.is_not(None))).all()
         for row in rows:
             windows = [WindowDraft.model_validate(w) for w in row.extracted.get("windows", [])]
-            save_cycles(session, row, windows, row.extracted["verification"]["deadlines"])
+            save_cycles(
+                session, row, windows, row.extracted["verification"]["deadlines"], row.extracted.get("offered", "unclear")
+            )
     print(f"已重建 {len(rows)} 筆獎學金的申請期；接著執行 cycles 指令更新狀態與預估")
 
 
@@ -615,7 +620,7 @@ def recheck_rules(session: Session, source_ids: list[int] | None = None) -> tupl
         changed += 1
         row.extracted = new  # JSONB 整個重新指定
         row.amount = new["amount"]
-        save_cycles(session, row, windows, deadlines)
+        save_cycles(session, row, windows, deadlines, old.get("offered", "unclear"))
     return checked, changed
 
 

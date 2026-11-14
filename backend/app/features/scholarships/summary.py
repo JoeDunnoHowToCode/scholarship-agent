@@ -13,6 +13,7 @@ from app.features.documents.checks import quote_in_source, quote_in_table_text
 from app.features.scholarships.amounts import numbers_in
 from app.features.scholarships.models import Scholarship
 from app.features.scholarships.schemas import SummarySentence
+from app.features.scholarships.verify import Verdicts
 
 SUMMARY_VERSION = "summary-1"  # 改提示詞就要改版本號
 CHECK_VERSION = "summary-check-1"
@@ -23,7 +24,7 @@ MAX_SENTENCES = 3
 
 def check_sentences(llm: StructuredLLM, sentences: list[SummarySentence], source: str) -> list[str]:
     """每句的核對結果：no_evidence、number_not_in_quote、quote_not_found、not_supported、supported。"""
-    statuses = []
+    statuses: list[str] = []
     for sentence in sentences:
         if not sentence.evidence:
             statuses.append("no_evidence")
@@ -32,7 +33,15 @@ def check_sentences(llm: StructuredLLM, sentences: list[SummarySentence], source
         elif not (quote_in_source(sentence.evidence, source) or quote_in_table_text(sentence.evidence, source)):
             statuses.append("quote_not_found")  # 第二關：引用要在原文裡（和 verify.py 一樣允許表格的字交錯）
         else:
-            statuses.append("supported")
+            statuses.append("ask")
+    # 第三關：剩下的一次問完；AI 沒回答到的算不支持（和 verify.py 一樣）
+    to_ask = {f"s{i}": sentences[i] for i, status in enumerate(statuses) if status == "ask"}
+    if to_ask:
+        lines = [f"- {key}：句子 = {s.text}；引用 = 「{s.evidence}」" for key, s in to_ask.items()]
+        verdicts = llm.extract(CHECK_PROMPT.format(claims="\n".join(lines)), Verdicts)
+        answers = {v.claim: v.supported for v in verdicts.verdicts}
+        for key in to_ask:
+            statuses[int(key[1:])] = "supported" if answers.get(key) else "not_supported"
     return statuses
 
 

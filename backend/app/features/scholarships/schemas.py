@@ -282,3 +282,16 @@ def section_schema(category_names: list[str]) -> type[SectionFacts]:
         category_facts=(list[fact], Field(description="這一節提到的類別規則")),
         requirements=(list[requirement], Field(description="這一節提到的申請文件")),
     )
+
+
+class SummarySentence(BaseModel):
+    """獎學金說明的一句（ADR-100 說明那條）。"""
+
+    text: str = Field(description="一句繁體中文說明")
+    evidence: str | None = Field(description="支持這句話的原文句子，逐字複製，不要改寫或翻譯")
+
+
+class SummaryDraft(BaseModel):
+    """AI 寫的獎學金說明：2–3 句，每句附原文引用。"""
+
+    sentences: list[SummarySentence] = Field(description="2–3 句說明：誰提供、給誰、補助什麼")

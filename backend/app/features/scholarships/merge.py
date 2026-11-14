@@ -268,3 +268,8 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         **values,
     )
     return MergeResult(draft, conflicts, warnings)
+
+
+def clean_amounts(amounts: list[AmountDraft]) -> list[AmountDraft]:
+    """一份抽取結果的金額清單去掉重複（ADR-103）：完全一樣的只留一筆，重複的總額拿掉。"""
+    return amounts

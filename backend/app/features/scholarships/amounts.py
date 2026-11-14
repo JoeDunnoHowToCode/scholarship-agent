@@ -52,9 +52,12 @@ def numbers_in(text: str) -> set[float]:
     return found
 
 
+SEMESTER = re.compile(r"semester|semestre|學期", re.IGNORECASE)
+
+
 def amount_status(amount: AmountDraft, source: str) -> str:
     """金額的核對結果，只用程式、不另外問 AI（docs/day-09.md「Claude 自行決定」第 21 點）：
-    supported、no_evidence、invalid_currency、quote_not_found、number_not_in_quote。"""
+    supported、no_evidence、invalid_currency、quote_not_found、number_not_in_quote、period_mismatch。"""
     if not amount.evidence:
         return "no_evidence"
     if pycountry.currencies.get(alpha_3=amount.currency.upper()) is None:
@@ -64,6 +67,8 @@ def amount_status(amount: AmountDraft, source: str) -> str:
         return "quote_not_found"
     if not any(math.isclose(number, amount.value) for number in numbers_in(amount.evidence)):
         return "number_not_in_quote"
+    if amount.period == "year" and SEMESTER.search(amount.evidence):
+        return "period_mismatch"  # 引用寫每學期卻存成每年（ADR-103）；不知道一年幾學期，不換算
     return "supported"
 
 

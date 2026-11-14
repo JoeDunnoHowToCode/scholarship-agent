@@ -148,7 +148,7 @@ class AmountOut(BaseModel):
     kind: str  # living_allowance、tuition_coverage、travel、other
     applies_to: str | None
     evidence: str | None
-    status: str | None  # supported、no_evidence、invalid_currency、quote_not_found、number_not_in_quote；舊資料沒有
+    status: str | None  # supported、no_evidence、invalid_currency、quote_not_found、number_not_in_quote、period_mismatch；舊資料沒有
 
 
 class ChangeOut(BaseModel):

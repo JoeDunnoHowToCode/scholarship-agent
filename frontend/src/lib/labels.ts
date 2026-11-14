@@ -79,6 +79,7 @@ export const AMOUNT_STATUS_NAMES: Record<string, string> = {
   invalid_currency: "幣別代碼不對",
   quote_not_found: "引用不在原文",
   number_not_in_quote: "數字不在引用裡",
+  period_mismatch: "期間和引用不合",
 };
 
 export const EVENT_KIND_NAMES: Record<string, string> = {

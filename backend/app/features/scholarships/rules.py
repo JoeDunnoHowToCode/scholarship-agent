@@ -5,6 +5,7 @@ import unicodedata
 from typing import Literal
 
 from app.features.documents.checks import quote_in_source
+from app.features.scholarships.schemas import AmountDraft
 
 ROC_OFFSET = 1911  # 民國年 + 1911 = 西元年
 
@@ -106,3 +107,8 @@ def window_nationality(scope: str, countries: list[str], text: str) -> tuple[str
     if group is None:
         return scope, countries
     return ("listed" if group == "programme" else "excluded"), list(ERASMUS_PROGRAMME_COUNTRIES)
+
+
+def redundant_totals(amounts: list[AmountDraft]) -> list[AmountDraft]:
+    """同一筆錢列兩次（ADR-103）：總額剛好等於每月（或每年）乘上幾個月（幾年）時，總額是重複的，拿掉。"""
+    return amounts

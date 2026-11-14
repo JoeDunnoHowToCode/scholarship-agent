@@ -120,3 +120,39 @@ def test_earliest_deadline_ignores_dates_that_are_not_scholarship_applications()
 
     assert earliest_deadline([window(9, "document"), window(20, "scholarship")]) == "2027-03-20"
     assert earliest_deadline([window(9, "payment")]) is None
+
+
+def saved_source(session: Any, tmp_path: Path, url: str) -> Source:
+    page = tmp_path / "page.html"
+    page.write_text(PAGE, encoding="utf-8")
+    source = Source(name="Test cache", url=url, kind=SourceKind.UNIVERSITY)
+    session.add(source)
+    session.flush()
+    now = datetime.now(UTC)
+    session.add(Snapshot(source_id=source.id, url=source.url, fetched_at=now, seen_at=now,
+                         content_hash="e" * 64, file_path=str(page), http_status=200, etag=None, last_modified=None))
+    session.flush()
+    extract_source(session, FakeLLM(), source)  # type: ignore[arg-type]
+    return source
+
+
+def set_meta(session: Any, source: Source, **changes: Any) -> None:
+    row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).one()
+    row.extracted = {**row.extracted, "meta": {**row.extracted["meta"], **changes}}  # JSONB 整個重新指定
+    session.flush()
+
+
+def test_prompt_change_does_not_reextract_but_model_change_does(tmp_path: Path) -> None:
+    # ADR-104：提示詞改版不再讓所有來源重抽（原文沒變就沿用）；換模型照舊重抽
+    session = SessionLocal()
+    try:
+        source = saved_source(session, tmp_path, "https://test-cache.example/")
+        set_meta(session, source, prompts=["extract-1", "outline-1", "section-1", "verify-1"])
+        llm = FakeLLM()
+        assert extract_source(session, llm, source) == "unchanged"  # type: ignore[arg-type]
+        assert llm.calls == 0
+        set_meta(session, source, model="another-model")
+        assert extract_source(session, FakeLLM(), source) != "unchanged"  # type: ignore[arg-type]
+    finally:
+        session.rollback()
+        session.close()

@@ -78,3 +78,14 @@ def test_each_window_year_and_quote_are_checked_on_their_own() -> None:
     scholarship = draft([], None).model_copy(update={"degrees": [], "windows": windows})
     result = verify.verify(NoCallLLM(), scholarship, source, [])
     assert result["deadlines"] == ["year_not_in_quote", "quote_not_found", "incomplete"]
+
+
+def test_a_window_that_closes_before_it_opens_is_flagged() -> None:
+    # 總檢查的例子：開放 2026 年 10 月、截止卻是 2007 年 1 月；不用問 AI 就知道不對
+    window = WindowDraft(label=None, intake=None, opens_year=2026, opens_month=10, opens_day=1,
+                         closes_year=2007, closes_month=1, closes_day=15, closes_time=None, timezone=None,
+                         nationality_scope="all", nationalities=[], funding="any",
+                         evidence="Applications open 1 October 2026 and close 15 January 2007")
+    source = "Applications open 1 October 2026 and close 15 January 2007."
+    scholarship = draft([], None).model_copy(update={"degrees": [], "windows": [window]})
+    assert verify.verify(NoCallLLM(), scholarship, source, [])["deadlines"] == ["closes_before_opens"]

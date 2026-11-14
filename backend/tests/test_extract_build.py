@@ -104,3 +104,19 @@ def test_extraction_keeps_each_amount_once(tmp_path: Path) -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_earliest_deadline_ignores_dates_that_are_not_scholarship_applications() -> None:
+    # ADR-105：補件日期不算截止日，否則「缺截止日」的來源就不會去補抓 PDF（pdfs.missing_data）
+    from app.features.scholarships.extract import earliest_deadline
+    from app.features.scholarships.schemas import WindowDraft
+
+    def window(day: int, kind: str) -> WindowDraft:
+        return WindowDraft.model_validate({
+            "label": None, "intake": None, "opens_year": None, "opens_month": None, "opens_day": None,
+            "closes_year": 2027, "closes_month": 3, "closes_day": day, "closes_time": None, "timezone": None,
+            "nationality_scope": "all", "nationalities": [], "funding": "any", "evidence": None, "kind": kind,
+        })
+
+    assert earliest_deadline([window(9, "document"), window(20, "scholarship")]) == "2027-03-20"
+    assert earliest_deadline([window(9, "payment")]) is None

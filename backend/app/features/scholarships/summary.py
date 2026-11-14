@@ -52,6 +52,11 @@ def make_summary(llm: StructuredLLM, source: str) -> list[dict[str, Any]]:
     return [{"text": s.text, "evidence": s.evidence, "status": st} for s, st in zip(sentences, statuses, strict=True)]
 
 
+def needs_summary(row: Scholarship) -> bool:
+    """補抽說明時要不要做這筆：已封存、重複的不做（docs/summary-plan.md「Claude 自行決定」第 3 點）。"""
+    return True
+
+
 def ensure_summary(session: Session, llm: StructuredLLM, row: Scholarship) -> bool:
     """說明不是最新版本就讀這筆抽取用的快照原文、產生並核對，寫進 extracted；回傳有沒有呼叫 AI。"""
     if row.extracted.get("summary_from") == SUMMARY_VERSION or row.source_id is None:

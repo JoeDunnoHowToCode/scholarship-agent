@@ -40,3 +40,12 @@ def test_a_number_missing_from_the_quote_is_number_not_in_quote() -> None:
 def test_a_quote_not_in_the_source_is_quote_not_found() -> None:
     made_up = SummarySentence(text="由 Test Foundation 提供。", evidence="The Test Foundation funds everyone.")
     assert summary.check_sentences(FakeLLM(), [made_up], SOURCE) == ["quote_not_found"]
+
+
+def test_the_ai_decides_the_rest_and_a_missing_answer_is_not_supported() -> None:
+    who = SummarySentence(text="由 Test Foundation 提供。", evidence="The Test Foundation offers 20 scholarships")
+    whom = SummarySentence(text="給非歐盟學生。", evidence="scholarships to non-EU students")
+    money = SummarySentence(text="每月 1,400 歐元。", evidence="Each scholar receives EUR 1,400 per month.")
+    llm = FakeLLM(supported={"s0": True, "s1": False})  # s2 沒回答
+    assert summary.check_sentences(llm, [who, whom, money], SOURCE) == ["supported", "not_supported", "not_supported"]
+    assert llm.calls == 1  # 一次問完

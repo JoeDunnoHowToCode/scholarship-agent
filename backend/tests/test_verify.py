@@ -89,3 +89,13 @@ def test_a_window_that_closes_before_it_opens_is_flagged() -> None:
     source = "Applications open 1 October 2026 and close 15 January 2007."
     scholarship = draft([], None).model_copy(update={"degrees": [], "windows": [window]})
     assert verify.verify(NoCallLLM(), scholarship, source, [])["deadlines"] == ["closes_before_opens"]
+
+
+def test_eu_countries_excluded_as_a_group_are_not_flagged_one_by_one() -> None:
+    # 原文寫「只限非歐盟／EEA 學生」，AI 照提示詞列出被排除的歐盟各國：原文本來就不會寫出每個國名，不算問題
+    scholarship = draft([], None).model_copy(update={
+        "nationality_scope": "excluded", "nationalities": ["AT", "FR", "NO", "CH", "JP"],
+        "nationality_evidence": "The scholarship is only for non-EU/EEA students.",
+    })
+    source = "The scholarship is only for non-EU/EEA students."
+    assert verify.other_issues(scholarship, source) == ["nationality_not_in_source:JP"]  # 日本不在歐盟，照樣要在原文找得到

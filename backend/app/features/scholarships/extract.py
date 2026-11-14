@@ -444,7 +444,10 @@ def build_extraction(
 
 
 def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool = False) -> str:
-    """抽一個來源，回傳一行摘要；內容和提示詞都沒變就跳過。"""
+    """抽一個來源，回傳一行摘要；原文和模型都沒變就跳過。
+
+    ADR-104：提示詞改版不再讓已抽過的來源重抽（每筆照樣記下用的版本）；要用新版重抽就指定 force。
+    """
     snapshots = documents(session, source)
     hashes = sorted(s.content_hash for s in snapshots)
     meta = {
@@ -453,11 +456,12 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool
         "model": settings.llm_model,
     }
     existing = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
-    if existing and existing.extracted.get("meta") == meta:
-        return "unchanged"
     old_meta = existing.extracted.get("meta", {}) if existing else {}
-    if existing and {k: v for k, v in old_meta.items() if k != "snapshots"} == {k: v for k, v in meta.items() if k != "snapshots"}:
-        # ADR-079：只有網頁內容變了（提示詞、模型沒變）：只看和獎學金有關的段落有沒有變
+    same_model = bool(existing) and not force and old_meta.get("model") == meta["model"]
+    if existing and same_model and old_meta.get("snapshots") == hashes:
+        return "unchanged"
+    if existing and same_model:
+        # ADR-079：只有網頁內容變了（模型沒變）：只看和獎學金有關的段落有沒有變
         new_fingerprint = relevance_fingerprint(session, source.id, hashes)
         # 這個功能上線前抽的資料沒存指紋：用上次抽取時的快照算
         old_fingerprint = existing.extracted.get("relevance") or relevance_fingerprint(

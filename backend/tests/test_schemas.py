@@ -6,6 +6,12 @@ import pytest
 from pydantic import ValidationError
 
 from app.features.scholarships import schemas
+from app.features.scholarships.schemas import (
+    AmountDraft,
+    Outline,
+    ScholarshipDraft,
+    WindowDraft,
+)
 
 FACT: dict[str, Any] = {
     "quota": None, "degrees": [], "countries": [], "amount": None,
@@ -42,3 +48,19 @@ def test_section_schema_only_accepts_outline_category_names() -> None:
             **SECTION, "category_facts": [],
             "requirements": [{**REQUIREMENT, "category": "藝術學群"}],
         })
+
+
+def test_old_extractions_without_the_new_fields_keep_working() -> None:
+    # ADR-105：新欄位在重抽前不存在；沒有時的行為要和以前一樣（申請獎學金的日期、這個獎學金的錢、不清楚有沒有開）
+    window = WindowDraft.model_validate({
+        "label": None, "intake": None, "opens_year": None, "opens_month": None, "opens_day": None,
+        "closes_year": 2027, "closes_month": 1, "closes_day": 15, "closes_time": None, "timezone": None,
+        "nationality_scope": "all", "nationalities": [], "funding": "any", "evidence": "15 January 2027",
+    })
+    amount = AmountDraft.model_validate({"value": 1400, "currency": "EUR", "period": "month",
+                                         "kind": "living_allowance", "applies_to": None, "evidence": "x"})
+    outline = Outline.model_validate({"name": "Test", "name_zh": None, "provider": None, "category_names": []})
+    assert (window.kind, amount.for_this, outline.offered, outline.offered_evidence) == (
+        "scholarship", True, "unclear", None,
+    )
+    assert "offered" in ScholarshipDraft.model_fields and "offered_evidence" in ScholarshipDraft.model_fields

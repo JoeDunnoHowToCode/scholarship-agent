@@ -109,6 +109,25 @@ def window_nationality(scope: str, countries: list[str], text: str) -> tuple[str
     return ("listed" if group == "programme" else "excluded"), list(ERASMUS_PROGRAMME_COUNTRIES)
 
 
+# 總額可以是每月乘上幾個月、每年乘上幾年（docs/extraction-fix-plan.md「Claude 自行決定」第 5 點）
+TIMES = {"month": (2, 48), "year": (2, 6)}
+
+
 def redundant_totals(amounts: list[AmountDraft]) -> list[AmountDraft]:
-    """同一筆錢列兩次（ADR-103）：總額剛好等於每月（或每年）乘上幾個月（幾年）時，總額是重複的，拿掉。"""
-    return amounts
+    """同一筆錢列兩次（ADR-103）：總額剛好等於每月（或每年）乘上幾個月（幾年）時，總額是重複的，拿掉。
+
+    用途、幣別要一樣；適用對象一樣或其中一筆沒寫（兩群人各拿各的就不算重複）。
+    """
+    def same_money(total: AmountDraft, part: AmountDraft) -> bool:
+        if (part.kind, part.currency.upper()) != (total.kind, total.currency.upper()) or part.value <= 0:
+            return False
+        if part.applies_to and total.applies_to and part.applies_to.strip().lower() != total.applies_to.strip().lower():
+            return False
+        times = total.value / part.value
+        low, high = TIMES[part.period]
+        return times.is_integer() and low <= times <= high
+
+    return [
+        a for a in amounts
+        if not (a.period == "total" and any(p.period in TIMES and same_money(a, p) for p in amounts))
+    ]

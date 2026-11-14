@@ -27,6 +27,14 @@ export const CYCLE_STATUS_NAMES: Record<string, string> = {
   estimated: "預估",
 };
 
+// 不是申請獎學金的日期（ADR-105）
+export const OTHER_DATE_NAMES: Record<string, string> = {
+  admission_only: "只有入學申請",
+  document: "補件與文件",
+  payment: "繳費",
+  other: "其他時程",
+};
+
 export const FUNDING_NAMES: Record<string, string> = { scholarship: "申請獎學金", self_funded: "自費", any: "不限" };
 
 // 驗證者的結果（ADR-008、045、053）

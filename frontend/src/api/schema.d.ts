@@ -624,6 +624,20 @@ export interface components {
             official_url: string | null;
         };
         /**
+         * OtherDateOut
+         * @description 不是申請這個獎學金的日期（ADR-105），例如補件、繳費；分類錯了也看得到。
+         */
+        OtherDateOut: {
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string | null;
+            /** Closes */
+            closes: string | null;
+            /** Evidence */
+            evidence: string | null;
+        };
+        /**
          * ProfileIn
          * @description API 與指令收到的個人資料；國籍、想讀的學位必填，其他選填（ADR-055）。
          */
@@ -767,6 +781,12 @@ export interface components {
             categories: components["schemas"]["CategoryOut"][];
             /** Cycles */
             cycles: components["schemas"]["CycleOut"][];
+            /** Offered */
+            offered: string;
+            /** Offered Evidence */
+            offered_evidence: string | null;
+            /** Other Dates */
+            other_dates: components["schemas"]["OtherDateOut"][];
             /** Requirements */
             requirements: components["schemas"]["RequirementOut"][];
             /** Scores */

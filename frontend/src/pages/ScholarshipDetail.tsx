@@ -17,6 +17,7 @@ import {
   DEGREE_NAMES,
   DOC_NAMES,
   FUNDING_NAMES,
+  OTHER_DATE_NAMES,
   RESULT_NAMES,
   SCOPE_NAMES,
   SUB_SCORE_NAMES,
@@ -66,11 +67,16 @@ export default function ScholarshipDetail() {
         <div className="min-w-0 space-y-1">
           <h1 className="text-xl font-semibold">{d.name}</h1>
           <p className="text-muted-foreground">{[d.name_zh, d.provider].filter(Boolean).join("｜")}</p>
-          {(d.stale || d.status === "archived") && (
+          {(d.stale || d.status === "archived" || d.offered === "no") && (
             <div className="flex flex-wrap gap-2">
               {d.stale && <Badge variant="destructive">資料過舊</Badge>}
               {d.status === "archived" && <Badge variant="secondary">已封存</Badge>}
+              {/* ADR-105：原文寫明這次不提供 */}
+              {d.offered === "no" && <Badge variant="destructive">這次不提供</Badge>}
             </div>
+          )}
+          {d.offered === "no" && d.offered_evidence && (
+            <p className="max-w-prose text-sm text-muted-foreground">「{d.offered_evidence}」</p>
           )}
         </div>
         {d.official_url && (
@@ -119,8 +125,27 @@ export default function ScholarshipDetail() {
                     </li>
                   ))}
                 </ul>
-                {d.cycles.length === 0 && <p className="text-sm text-muted-foreground">原文沒有截止日</p>}
+                {d.cycles.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {d.offered === "no" ? "原文寫明這次不提供，沒有申請期" : "原文沒有截止日"}
+                  </p>
+                )}
               </Section>
+              {/* ADR-105：補件、繳費、只有入學的日期不算申請期，另外列出來；分類錯了也看得到 */}
+              {d.other_dates.length > 0 && (
+                <Section title="其他時程（不是申請獎學金的日期）">
+                  <ul className="divide-y">
+                    {d.other_dates.map((o, index) => (
+                      <li key={index} className="space-y-1 py-3 text-sm first:pt-0 last:pb-0">
+                        <p className="font-medium">
+                          {[o.closes ?? "日期不齊全", nameOf(OTHER_DATE_NAMES, o.kind), o.label].filter(Boolean).join("｜")}
+                        </p>
+                        {o.evidence && <p className="max-w-prose text-muted-foreground">「{o.evidence}」</p>}
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
               <Section title="補助">
                 <Fact label="補助內容">{d.coverage ?? "—"}</Fact>
                 {d.amounts.length > 0 ? (

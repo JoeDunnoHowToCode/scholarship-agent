@@ -75,11 +75,12 @@ def nationality_fit(cycle: Cycle, user: str) -> CheckResult:
     return checks.nationality_check(user, cycle.nationality_scope, list(cycle.nationalities))
 
 
-def describe_cycle(cycle: Cycle, now: datetime | None = None) -> str:
+def describe_cycle(cycle: Cycle, now: datetime | None = None, label: bool = True) -> str:
     """例如「2026-11-01 → 2027-01-15（開放中，截止日未核對）Partner countries」（ADR-081）。
 
     日期用原文的時區（原文沒寫時區時存的是 UTC+14，就用 UTC+14 換回原本的日期）；
     狀態照 now 那一刻重算，不用資料庫裡上次更新的狀態。
+    label=False：不接原文標籤，給列表卡片與詳細頁的摘要列用（docs/ui-review-2.md B3）。
     """
     zone = ZoneInfo(cycle.timezone) if cycle.timezone and not cycle.timezone_assumed else EARLIEST_ZONE
     opens = f"{cycle.opens_at.astimezone(zone):%Y-%m-%d}" if cycle.opens_at else "開放日原文沒寫"
@@ -89,7 +90,7 @@ def describe_cycle(cycle: Cycle, now: datetime | None = None) -> str:
         notes.append(cycle.evidence)  # 例如「依 2022 年的日期推估」（ADR-058）
     if not cycle.estimated and cycle.verification != "supported":
         notes.append("截止日未核對")
-    return f"{opens} → {cycle.closes_at.astimezone(zone):%Y-%m-%d}（{'，'.join(notes)}）{cycle.label or ''}".strip()
+    return f"{opens} → {cycle.closes_at.astimezone(zone):%Y-%m-%d}（{'，'.join(notes)}）{(cycle.label or '') if label else ''}".strip()
 
 
 def time_reason(row: Scholarship, user: str, possible: list[Cycle]) -> str:

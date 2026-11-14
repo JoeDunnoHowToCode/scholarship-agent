@@ -299,7 +299,7 @@ def to_row(row: Scholarship, match: Match | None, today: date, nationality: str 
         status=row.status.value,
         stale=stale_of(row, today),
         next_deadline=next_deadline(list(row.cycles)),
-        deadline_line=describe_cycle(shown, now) if shown else None,
+        deadline_line=describe_cycle(shown, now, label=False) if shown else None,
         score=match.total if match else None,
         category=match.category_name if match else None,
         group=time_check["result"] if time_check else None,
@@ -470,7 +470,7 @@ def read_scholarship(scholarship_id: int, session: DbSession) -> ScholarshipDeta
     profile = get_profile(session, CURRENT_USER_ID)
     shown = card_cycle(list(row.cycles), profile.nationality if profile else None)  # 國籍只在本機用來挑申請期
     return ScholarshipDetail(
-        deadline_line=describe_cycle(shown, datetime.now(UTC)) if shown else None,
+        deadline_line=describe_cycle(shown, datetime.now(UTC), label=False) if shown else None,
         amount_headline=amounts.headline(amount_items(row.extracted)),
         id=row.id,
         name=row.name,

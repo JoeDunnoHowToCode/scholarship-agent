@@ -57,9 +57,9 @@ from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
 # 提示詞版本：改了提示詞就要改號碼；和快照雜湊、模型一起決定要不要重抽（ADR-013）
-PROMPT_VERSION = "extract-13"
+PROMPT_VERSION = "extract-14"
 OUTLINE_VERSION = "outline-9"
-SECTION_VERSION = "section-13"
+SECTION_VERSION = "section-14"
 # 只補金額的提示詞（ADR-074）；改了提示詞就要改號碼
 AMOUNTS_VERSION = "amounts-1"
 SEEN_WINDOW = timedelta(days=7)  # 抽取只用這麼多天內還抓得到的網址（11-09 使用者選 C）

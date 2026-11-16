@@ -83,3 +83,18 @@ def test_the_daily_refresh_does_not_recall_a_scholarship_without_any_cycle(tmp_p
     finally:
         session.rollback()
         session.close()
+
+
+def test_a_source_disabled_as_not_a_scholarship_is_reenabled_when_the_judgment_changes(tmp_path: Path) -> None:
+    # 判斷可能錯（11-16 重抽有 16 個，多半是「這一屆沒有」或壞掉的網頁）；改了提示詞重抽、不再判斷成不是獎學金時，
+    # 程式自己停用的來源要自己打開，獎學金改回使用中。使用者在設定頁停用的不動
+    session = SessionLocal()
+    try:
+        source, row = run(session, tmp_path, "The school does not offer scholarships or tuition waivers.")
+        assert source.enabled is False
+        extract_source(session, FakeLLM(DRAFT), source, force=True)  # type: ignore[arg-type]
+        assert (source.enabled, source.disabled_at, source.review_note) == (True, None, None)
+        assert row.status == ScholarshipStatus.ACTIVE
+    finally:
+        session.rollback()
+        session.close()

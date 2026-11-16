@@ -63,7 +63,7 @@ from app.features.scholarships.extract import (
     disabled_as_not_scholarship,
     extract_source,
 )
-from app.features.scholarships.models import EMBEDDING_DIMENSIONS, Scholarship
+from app.features.scholarships.models import EMBEDDING_DIMENSIONS, MAIN_KEY, Scholarship
 from app.features.scholarships.summary import ensure_summary, needs_summary
 from app.features.search.index import index_scholarship, index_source
 from app.features.search.models import Chunk
@@ -133,7 +133,8 @@ def due_source_ids(session: Session, today: date) -> list[int]:
     """今天要檢查的來源（ADR-058）：依獎學金的狀態決定每天、每 7 天或每 30 天；需人工的不檢查。"""
     rows = session.execute(
         select(Source, Scholarship)
-        .outerjoin(Scholarship, Scholarship.source_id == Source.id)
+        # 一個來源有好幾筆獎學金時（ADR-108），頻率看頁面主角那一筆，來源只排一次
+        .outerjoin(Scholarship, (Scholarship.source_id == Source.id) & (Scholarship.key == MAIN_KEY))
         .where(
             Source.enabled.is_(True),
             Source.status == SourceStatus.APPROVED,

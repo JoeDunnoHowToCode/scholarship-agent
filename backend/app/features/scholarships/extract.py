@@ -527,7 +527,11 @@ def disable_not_scholarship(source: Source, row: Scholarship, quote: str) -> Non
 
 def disabled_as_not_scholarship(session: Session, since: datetime) -> list[str]:
     """since 以後因為判斷不是獎學金而停用的來源名稱（每日報告用）。"""
-    return []
+    return list(session.scalars(
+        select(Source.name)
+        .where(Source.disabled_at >= since, Source.review_note.startswith(NOT_SCHOLARSHIP_NOTE))
+        .order_by(Source.id)
+    ))
 
 
 def rebuild_cycles() -> None:

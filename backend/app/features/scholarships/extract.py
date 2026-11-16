@@ -625,21 +625,28 @@ def recheck_rules(session: Session, source_ids: list[int] | None = None) -> tupl
         new = {
             **old,
             # 留下的金額沿用原本存的那筆（不重新產生，格式和當初抽取存的一樣）；核對結果放在 verification
-            "amounts": [
-                {k: v for k, v in item.items() if k != "status"}
-                for item, draft in zip(old.get("amounts", []), saved, strict=True)
-                if any(draft is kept for kept in cleaned)
-            ],
+            "amounts": [stored(kept, old.get("amounts", []), saved) for kept in cleaned],
             "amount": amounts.describe(items),
             "verification": {**old["verification"], "amounts": statuses, "deadlines": deadlines},
         }
-        if new == old:
-            continue
-        changed += 1
-        row.extracted = new  # JSONB 整個重新指定
-        row.amount = new["amount"]
+        if new != old:
+            changed += 1
+            row.extracted = new  # JSONB 整個重新指定
+            row.amount = new["amount"]
+        # 申請期一律重建：建申請期的規則也可能改了（例如 ADR-110 的推算年份），抽取結果沒變也要套用
         save_cycles(session, row, windows, deadlines, old.get("offered", "unclear"))
     return checked, changed
+
+
+def stored(kept: AmountDraft, items: list[dict[str, Any]], saved: list[AmountDraft]) -> dict[str, Any]:
+    """去重後留下的金額，用當初存的那筆 dict（格式不變、不帶 status）；兩群人合併的（ADR-107）是新物件，
+    用合併前第一筆的 dict 換上合併後的適用對象。"""
+    for item, draft in zip(items, saved, strict=True):
+        if draft is kept:
+            return {k: v for k, v in item.items() if k != "status"}
+    first = next(item for item, draft in zip(items, saved, strict=True)
+                 if draft.model_copy(update={"applies_to": kept.applies_to}) == kept)
+    return {**{k: v for k, v in first.items() if k != "status"}, "applies_to": kept.applies_to}
 
 
 def main() -> None:

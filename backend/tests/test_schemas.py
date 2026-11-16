@@ -64,3 +64,25 @@ def test_old_extractions_without_the_new_fields_keep_working() -> None:
         "scholarship", True, "unclear", None,
     )
     assert "offered" in ScholarshipDraft.model_fields and "offered_evidence" in ScholarshipDraft.model_fields
+
+
+def test_standard_fields_default_so_old_extractions_behave_as_before() -> None:
+    # ADR-107：百分比、第一年、學位 other、下一屆公布說明、不是獎學金、國家群組；舊資料沒有這些欄位時照舊
+    window = WindowDraft.model_validate({
+        "label": None, "intake": None, "opens_year": None, "opens_month": None, "opens_day": None,
+        "closes_year": 2027, "closes_month": 1, "closes_day": 15, "closes_time": None, "timezone": None,
+        "nationality_scope": "all", "nationalities": [], "funding": "any", "evidence": "15 January 2027",
+    })
+    amount = AmountDraft.model_validate({"value": 1400, "currency": "EUR", "period": "month",
+                                         "kind": "living_allowance", "applies_to": None, "evidence": "x"})
+    outline = Outline.model_validate({"name": "Test", "name_zh": None, "provider": None, "category_names": []})
+    assert (amount.percent, window.nationality_groups) == (None, [])
+    assert (outline.not_scholarship, outline.next_cycle_note, outline.nationality_groups) == (False, None, [])
+    for name in ("not_scholarship", "not_scholarship_evidence", "next_cycle_note", "next_cycle_evidence",
+                 "nationality_groups"):
+        assert name in ScholarshipDraft.model_fields
+    # C1 B：百分比的補助沒有金額數字；C4 C：只有第一年；F1 B：不是學士、碩士、博士的課程
+    percent = AmountDraft.model_validate({"value": None, "percent": 50, "currency": "EUR", "period": "first_year",
+                                          "kind": "tuition_coverage", "applies_to": None, "evidence": "50%"})
+    assert (percent.value, percent.percent, percent.period) == (None, 50, "first_year")
+    assert "other" in schemas.Degree.__args__

@@ -77,3 +77,21 @@ def test_detail_returns_only_checked_sentences(tmp_path: Path) -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_every_scholarship_of_a_source_gets_a_summary(tmp_path: Path) -> None:
+    # ADR-108：一頁有好幾筆獎學金時，抽完後每一筆都要補說明，不是只有第一筆
+    session = SessionLocal()
+    try:
+        main = scholarship(session, tmp_path)
+        other = Scholarship(name="Test other", source_id=main.source_id, key="othergrant", countries=["SE"],
+                            degrees=["master"], nationality_scope="all", nationalities=[],
+                            extracted={"meta": {"snapshots": ["f" * 64]}, "verification": {}})
+        session.add(other)
+        session.flush()
+        assert main.source_id is not None
+        assert summary.summarize_source(session, FakeLLM(), main.source_id) == 2
+        assert main.extracted["summary_from"] == other.extracted["summary_from"] == summary.SUMMARY_VERSION
+    finally:
+        session.rollback()
+        session.close()

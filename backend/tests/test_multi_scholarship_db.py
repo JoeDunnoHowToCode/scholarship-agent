@@ -11,7 +11,11 @@ from sqlalchemy.orm import Session
 
 from app.features.scholarships.extract import extract_source
 from app.features.scholarships.models import Scholarship, ScholarshipStatus
-from app.features.scholarships.schemas import OtherScholarship, ScholarshipDraft
+from app.features.scholarships.schemas import (
+    AmountDraft,
+    OtherScholarship,
+    ScholarshipDraft,
+)
 from app.features.sources.models import Snapshot, Source, SourceKind
 from app.shared.db import SessionLocal
 from tests.test_extract_build import DRAFT, PAGE, FakeLLM
@@ -82,7 +86,10 @@ class MultiLLM(FakeLLM):
         if schema is ScholarshipDraft:
             for name in self.draft.other_scholarships:
                 if f"只抽「{name.name}」" in prompt:
-                    return DRAFT.model_copy(update={"name": self.focused_name or name.name})
+                    # 頁面自己寫了這個獎學金的金額（沒有金額也沒有申請期的不會存，見下面的測試）
+                    own = AmountDraft(value=600, currency="EUR", period="once", kind="other", applies_to=None,
+                                      evidence=f"{name.name}: 600 EUR")
+                    return DRAFT.model_copy(update={"name": self.focused_name or name.name, "amounts": [own]})
         return super().extract(prompt, schema)
 
 

@@ -8,7 +8,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, create_model
 
-Degree = Literal["bachelor", "master", "phd"]
+# other：不是學士、碩士、博士的課程，例如進階研究所文憑、短期課程（F1 B，ADR-107）
+Degree = Literal["bachelor", "master", "phd", "other"]
 # 國籍資格的範圍（ADR-043）：開放所有國籍、只限列出的國家、排除列出的國家、沒寫
 NationalityScope = Literal["all", "listed", "excluded", "unclear"]
 # 文件類型代號（docs/day-03.md「Claude 自行決定」第 13 點）
@@ -49,17 +50,25 @@ class CategoryDraft(BaseModel):
 
 
 # 金額的期間與用途（ADR-070）
-AmountPeriod = Literal["month", "year", "total", "once", "unclear"]
+# first_year：只有第一年才有的減免或折扣（C4 C，ADR-107）
+AmountPeriod = Literal["month", "year", "total", "once", "first_year", "unclear"]
 AmountKind = Literal["living_allowance", "tuition_coverage", "travel", "other"]
 
 
 class AmountDraft(BaseModel):
     """獎學金給你的一筆錢（ADR-070）；學費、申請費這類要你付的錢不列。"""
 
-    value: float = Field(description="金額數字，照原文換成阿拉伯數字，例如「1 萬 6 千」填 16000、「1,400」填 1400")
+    value: float | None = Field(
+        description="金額數字，照原文換成阿拉伯數字，例如「1 萬 6 千」填 16000、「1,400」填 1400；只寫百分比時留空"
+    )
+    # C1 B（ADR-107）：學費減 50% 存成 percent=50、value 留空；預設值讓舊資料照舊
+    percent: float | None = Field(default=None, description="原文寫的是百分比時填數字，例如學費減免 50% 填 50；沒有就留空")
     currency: str = Field(description="ISO 4217 三碼幣別，例如 EUR、USD、TWD、GBP")
     period: AmountPeriod = Field(
-        description="每月填 month、每年填 year、整個學程的總額填 total、一次給的錢（例如安家費）填 once；原文沒說填 unclear"
+        description=(
+            "每月填 month、每年填 year、整個學程的總額填 total、一次給的錢（例如安家費）填 once；"
+            "只有第一年才有的減免或折扣填 first_year；原文沒說填 unclear"
+        )
     )
     kind: AmountKind = Field(
         description="用途：生活津貼 living_allowance、學費補助或減免 tuition_coverage、旅費 travel、其他 other"
@@ -89,6 +98,12 @@ Funding = Literal["scholarship", "self_funded", "any"]
 # 日期的種類（ADR-105）：只有 scholarship 會變成申請期、送截止提醒
 WindowKind = Literal["scholarship", "admission_only", "document", "payment", "other"]
 Offered = Literal["yes", "no", "unclear"]
+# 國家群組（D1 C，ADR-109）：原文用群組寫國籍時，AI 填群組代號，程式展開成國碼（groups.py）
+GROUPS_DESCRIPTION = (
+    "原文用群組寫國籍時填群組代號：歐盟 EU、歐洲經濟區 EEA、Erasmus+ Programme countries（歐盟與參與國）"
+    "ERASMUS_PROGRAMME、Erasmus+ Partner countries ERASMUS_PARTNER、非洲聯盟 AU、西巴爾幹 WESTERN_BALKANS；"
+    "其他群組（例如學校自訂的 Tier 1）照原文寫群組名稱。群組裡的國家不要再列進國家清單；沒有群組就留空清單"
+)
 
 
 class WindowDraft(BaseModel):
@@ -119,6 +134,7 @@ class WindowDraft(BaseModel):
         description="適用申請獎學金的人填 scholarship；適用自費生填 self_funded；不分填 any"
     )
     evidence: str | None = Field(description="寫著這個截止日的原文句子，逐字引用")
+    nationality_groups: list[str] = Field(default=[], description=GROUPS_DESCRIPTION)  # ADR-109
     # ADR-105；預設值讓重抽前的舊資料維持原本的行為
     kind: WindowKind = Field(
         default="scholarship",
@@ -164,6 +180,7 @@ class ProgramFacts(BaseModel):
         )
     )
     nationality_evidence: str | None = Field(description="描述國籍資格的原文句子，逐字引用")
+    nationality_groups: list[str] = Field(default=[], description=GROUPS_DESCRIPTION)  # ADR-109
     nationality_conditions: str | None = Field(
         description="特定國籍申請人的附加條件，例如台灣申請人需另附的文件"
     )
@@ -190,6 +207,19 @@ class ScholarshipDraft(ProgramFacts):
         description="這一屆或下一屆有沒有提供這個獎學金：原文寫明有填 yes；寫明這次不提供、已停辦填 no；沒寫填 unclear",
     )
     offered_evidence: str | None = Field(default=None, description="寫著有沒有提供的原文句子，逐字引用")
+    # B1 B（ADR-107）：只存最新一屆；下一屆還沒公布日期、但原文說了何時公布時記下來
+    next_cycle_note: str | None = Field(
+        default=None, description="下一屆還沒公布日期、但原文說了何時公布時，照原文寫這句話的意思；沒有就留空"
+    )
+    next_cycle_evidence: str | None = Field(default=None, description="寫著下一屆何時公布的原文句子，逐字引用")
+    # A2 C（ADR-107）：頁面沒有提供任何獎學金時填 true，程式停用這個來源
+    not_scholarship: bool = Field(
+        default=False,
+        description="整個頁面沒有提供任何獎學金或補助（例如只有入學資訊、原文寫明不提供補助）填 true；有就填 false",
+    )
+    not_scholarship_evidence: str | None = Field(
+        default=None, description="寫著沒有提供獎學金的原文句子，逐字引用；not_scholarship 是 false 時留空"
+    )
 
 
 class OutlineCategory(BaseModel):
@@ -226,6 +256,19 @@ class Outline(BaseModel):
         description="這一屆或下一屆有沒有提供這個獎學金：原文寫明有填 yes；寫明這次不提供、已停辦填 no；沒寫填 unclear",
     )
     offered_evidence: str | None = Field(default=None, description="寫著有沒有提供的原文句子，逐字引用")
+    # B1 B（ADR-107）：只存最新一屆；下一屆還沒公布日期、但原文說了何時公布時記下來
+    next_cycle_note: str | None = Field(
+        default=None, description="下一屆還沒公布日期、但原文說了何時公布時，照原文寫這句話的意思；沒有就留空"
+    )
+    next_cycle_evidence: str | None = Field(default=None, description="寫著下一屆何時公布的原文句子，逐字引用")
+    # A2 C（ADR-107）：頁面沒有提供任何獎學金時填 true，程式停用這個來源
+    not_scholarship: bool = Field(
+        default=False,
+        description="整個頁面沒有提供任何獎學金或補助（例如只有入學資訊、原文寫明不提供補助）填 true；有就填 false",
+    )
+    not_scholarship_evidence: str | None = Field(
+        default=None, description="寫著沒有提供獎學金的原文句子，逐字引用；not_scholarship 是 false 時留空"
+    )
 
 
 class CategoryFact(BaseModel):

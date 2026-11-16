@@ -136,7 +136,9 @@ def redundant_totals(amounts: list[AmountDraft]) -> list[AmountDraft]:
     用途、幣別要一樣；適用對象一樣或其中一筆沒寫（兩群人各拿各的就不算重複）。
     """
     def same_money(total: AmountDraft, part: AmountDraft) -> bool:
-        if (part.kind, part.currency.upper()) != (total.kind, total.currency.upper()) or part.value <= 0:
+        if part.value is None or total.value is None or part.value <= 0:
+            return False  # 只有百分比的（ADR-107）沒有數字可以比
+        if (part.kind, part.currency.upper()) != (total.kind, total.currency.upper()):
             return False
         if part.applies_to and total.applies_to and part.applies_to.strip().lower() != total.applies_to.strip().lower():
             return False

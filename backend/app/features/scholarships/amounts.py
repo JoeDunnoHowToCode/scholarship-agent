@@ -69,7 +69,7 @@ def amount_status(amount: AmountDraft, source: str) -> str:
     numbers = numbers_in(amount.evidence)
     # 差額也算（C2 A，ADR-107）：原文寫原價與實付時，存的是減了多少
     differences = {a - b for a in numbers for b in numbers if a > b}
-    if not any(math.isclose(number, amount.value) for number in numbers | differences):
+    if amount.value is None or not any(math.isclose(number, amount.value) for number in numbers | differences):
         return "number_not_in_quote"
     if amount.period == "year" and SEMESTER.search(amount.evidence):
         return "period_mismatch"  # 引用寫每學期卻存成每年（ADR-103）；不知道一年幾學期，不換算

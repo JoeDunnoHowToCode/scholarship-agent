@@ -181,3 +181,30 @@ def test_another_scholarship_without_amounts_or_dates_on_the_page_is_not_saved(t
     finally:
         session.rollback()
         session.close()
+
+
+def test_another_scholarship_on_a_catalogue_page_does_not_take_the_catalogue_nationality(tmp_path: Path) -> None:
+    # ADR-053 的目錄依據只適用於 Erasmus Mundus 學程本身（主角）；同一頁拆出來的其他獎學金（例如學校的補助）
+    # 沒寫國籍就是不清楚，不能借用目錄頁（11-17 依標準重新檢查發現）
+    from app.features.sources.catalogue import CATALOGUE_URL
+
+    session = SessionLocal()
+    try:
+        source = source_with_page(session, tmp_path)
+        source.parent_id = session.scalars(select(Source.id).where(Source.url == CATALOGUE_URL)).one()
+        llm = MultiLLM(["Regional Grant"])
+        own = AmountDraft(value=600, currency="EUR", period="once", kind="other", applies_to=None, evidence="600 EUR")
+        unclear = DRAFT.model_copy(update={"name": "Regional Grant", "amounts": [own], "nationality_scope": "unclear",
+                                           "nationalities": [], "nationality_evidence": None})
+        llm.extract = lambda prompt, schema: (  # type: ignore[method-assign]
+            unclear if schema is ScholarshipDraft and "只抽「Regional Grant」" in prompt
+            else MultiLLM.extract(llm, prompt, schema)
+        )
+        extract_source(session, llm, source)  # type: ignore[arg-type]
+        other = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id,
+                                                          Scholarship.key == "regionalgrant")).one()
+        assert other.nationality_scope == "unclear"
+        assert other.extracted["verification"]["nationality"] != "catalogue"
+    finally:
+        session.rollback()
+        session.close()

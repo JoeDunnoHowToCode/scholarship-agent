@@ -142,9 +142,10 @@ class ScoreOut(BaseModel):
 class AmountOut(BaseModel):
     """獎學金給你的一筆錢與核對結果（ADR-070）。"""
 
-    value: float
+    value: float | None  # 只寫百分比的補助沒有金額數字（ADR-107）
+    percent: float | None = None  # 例如學費減免 50% 是 50；舊資料沒有
     currency: str
-    period: str  # month、year、once、unclear
+    period: str  # month、year、total、once、first_year、unclear
     kind: str  # living_allowance、tuition_coverage、travel、other
     applies_to: str | None
     evidence: str | None
@@ -205,6 +206,8 @@ class ScholarshipDetail(BaseModel):
     summary: list[SummaryOut]
     offered: str  # yes、no、unclear（ADR-105）；舊資料是 unclear
     offered_evidence: str | None
+    next_cycle_note: str | None  # 下一屆還沒公布日期時，原文怎麼說（ADR-107 B1 B）
+    next_cycle_evidence: str | None
     other_dates: list[OtherDateOut]
     requirements: list[RequirementOut]
     scores: list[ScoreOut]
@@ -509,6 +512,8 @@ def read_scholarship(scholarship_id: int, session: DbSession) -> ScholarshipDeta
         ],
         offered=extracted.get("offered", "unclear"),
         offered_evidence=extracted.get("offered_evidence"),
+        next_cycle_note=extracted.get("next_cycle_note"),
+        next_cycle_evidence=extracted.get("next_cycle_evidence"),
         other_dates=other_dates(extracted),
         requirements=requirements,
         scores=scores,

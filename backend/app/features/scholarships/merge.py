@@ -272,6 +272,27 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
     return MergeResult(draft, conflicts, warnings)
 
 
+def merge_groups(amounts: list[AmountDraft]) -> list[AmountDraft]:
+    """兩群人金額一樣就合併成一筆（C5 A，ADR-107）：用途、數值、幣別、期間、是不是這個獎學金的錢都一樣，
+    而且兩筆都寫了適用對象，就留第一筆（和它的引用），適用對象用「、」接起來。沒寫適用對象的代表所有人，不合併。"""
+    kept: dict[tuple[Any, ...], AmountDraft] = {}
+    result: list[AmountDraft] = []
+    for amount in amounts:
+        if not amount.applies_to:
+            result.append(amount)
+            continue
+        key = (amount.value, amount.currency.upper(), amount.period, amount.kind, amount.for_this)
+        if key in kept:
+            first = kept[key]
+            merged = first.model_copy(update={"applies_to": f"{first.applies_to}、{amount.applies_to}"})
+            kept[key] = merged
+            result[result.index(first)] = merged
+        else:
+            kept[key] = amount
+            result.append(amount)
+    return result
+
+
 def clean_amounts(amounts: list[AmountDraft]) -> list[AmountDraft]:
-    """一份抽取結果的金額清單去掉重複（ADR-103）：完全一樣的只留一筆，重複的總額拿掉。"""
-    return rules.redundant_totals(merge_amounts([amounts]))
+    """一份抽取結果的金額清單去掉重複（ADR-103）：完全一樣的只留一筆，重複的總額拿掉，兩群人一樣的合併（ADR-107）。"""
+    return merge_groups(rules.redundant_totals(merge_amounts([amounts])))

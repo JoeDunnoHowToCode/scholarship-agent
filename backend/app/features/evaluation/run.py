@@ -33,7 +33,7 @@ from app.features.scholarships.extract import (
     documents,
 )
 from app.features.scholarships.models import Scholarship
-from app.features.scholarships.schemas import ScholarshipDraft
+from app.features.scholarships.schemas import AmountDraft, ScholarshipDraft
 from app.features.sources.models import Discovery, Source, SourceStatus
 from app.shared.db import SessionLocal
 
@@ -50,6 +50,13 @@ def pick_sample(non_erasmus: list[int], erasmus: list[int], n: int = ERASMUS_SAM
     pool = sorted(set(erasmus))  # 先排序：輸入順序不同也挑到同一批
     chosen = random.Random(seed).sample(pool, min(n, len(pool)))
     return sorted(set(non_erasmus) | set(chosen))
+
+
+def amount_number(amount: AmountDraft) -> str:
+    """比對用的數字：1400、只寫百分比的寫 50%（ADR-107），兩個都沒填寫 ?。"""
+    if amount.value is not None:
+        return f"{amount.value:g}"
+    return f"{amount.percent:g}%" if amount.percent is not None else "?"
 
 
 def record_of(
@@ -71,11 +78,7 @@ def record_of(
         "nationality": f"{verified.nationality_scope}:{','.join(sorted(c.upper() for c in verified.nationalities))}"
         + "".join(f"+{group}" for group in sorted(verified.nationality_groups)),  # 群組代號（ADR-109）
         "degrees": sorted(verified.degrees),
-        # 只寫百分比的補助沒有金額數字（ADR-107），寫成 50%
-        "amounts": sorted(
-            f"{a.kind}:{f'{a.value:g}' if a.value is not None else f'{a.percent:g}%'}:{a.currency}:{a.period}"
-            for a in verified.amounts
-        ),
+        "amounts": sorted(f"{a.kind}:{amount_number(a)}:{a.currency}:{a.period}" for a in verified.amounts),
     }
     evidence = {
         "deadlines": " / ".join(w.evidence for w in windows if w.evidence),

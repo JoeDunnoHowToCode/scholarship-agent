@@ -155,3 +155,22 @@ def test_every_scholarship_of_a_source_gets_a_vector() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_another_scholarship_without_amounts_or_dates_on_the_page_is_not_saved(tmp_path: Path) -> None:
+    # ADR-108：只列出名字、簡介或連結的外部資助管道不是同一頁的另一個獎學金；
+    # 11-17 重抽後拆出來的 150 筆有 41 筆沒有金額也沒有申請期，程式擋下來
+    session = SessionLocal()
+    try:
+        source = source_with_page(session, tmp_path)
+        llm = MultiLLM(["Campus France"])
+        bare = DRAFT.model_copy(update={"name": "Campus France", "amounts": [], "windows": []})
+        llm.extract = lambda prompt, schema: (  # type: ignore[method-assign]
+            bare if schema is ScholarshipDraft and "只抽「Campus France」" in prompt else MultiLLM.extract(llm, prompt, schema)
+        )
+        extract_source(session, llm, source)  # type: ignore[arg-type]
+        keys = sorted(session.scalars(select(Scholarship.key).where(Scholarship.source_id == source.id)))
+        assert keys == ["main"]
+    finally:
+        session.rollback()
+        session.close()

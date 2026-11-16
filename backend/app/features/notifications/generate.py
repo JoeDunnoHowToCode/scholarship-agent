@@ -102,6 +102,8 @@ def generate(session: Session, user_id: int, now: datetime) -> dict[str, int]:
         .all()  # 先變成清單：查詢結果本身有 keys()，直接給 dict() 會被當成對照表而出錯
     )
     for row in rows:
+        if row.extracted.get("gone"):
+            continue  # 頁面上不再出現的其他獎學金（ADR-108）：已封存，不通知
         score = scores.get(row.id)
         if score is None or score < threshold:
             continue

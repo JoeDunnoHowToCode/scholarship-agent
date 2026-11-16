@@ -2,16 +2,19 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.features.scholarships.extract import extract_source
-from app.features.scholarships.models import Scholarship
+from app.features.scholarships.models import Scholarship, ScholarshipStatus
+from app.features.scholarships.schemas import OtherScholarship, ScholarshipDraft
 from app.features.sources.models import Snapshot, Source, SourceKind
 from app.shared.db import SessionLocal
-from tests.test_extract_build import PAGE, FakeLLM
+from tests.test_extract_build import DRAFT, PAGE, FakeLLM
 
 
 def scholarship(source_id: int, key: str) -> Scholarship:
@@ -61,6 +64,45 @@ def test_reextracting_the_page_updates_its_main_scholarship(tmp_path: Path) -> N
         extract_source(session, FakeLLM(), source)  # type: ignore[arg-type]
         assert main.name == "Test Global Scholarship"
         assert other.name == "Test erasmusgrant"
+    finally:
+        session.rollback()
+        session.close()
+
+
+class MultiLLM(FakeLLM):
+    """主角的抽取列出同一頁的其他獎學金；提示詞寫「只抽『某某』」時回傳那一個（假的 AI）。"""
+
+    def __init__(self, others: list[str], focused_name: str | None = None) -> None:
+        super().__init__(DRAFT.model_copy(update={
+            "other_scholarships": [OtherScholarship(name=name, evidence=f"{name} is also offered") for name in others],
+        }))
+        self.focused_name = focused_name
+
+    def extract(self, prompt: str, schema: type[Any]) -> Any:
+        if schema is ScholarshipDraft:
+            for name in self.draft.other_scholarships:
+                if f"只抽「{name.name}」" in prompt:
+                    return DRAFT.model_copy(update={"name": self.focused_name or name.name})
+        return super().extract(prompt, schema)
+
+
+def test_other_scholarships_on_the_page_are_saved_and_archived_when_gone(tmp_path: Path) -> None:
+    session = SessionLocal()
+    try:
+        source = source_with_page(session, tmp_path)
+        extract_source(session, MultiLLM(["Regional Grant"]), source)  # type: ignore[arg-type]
+        rows = {row.key: row for row in session.scalars(select(Scholarship).where(Scholarship.source_id == source.id))}
+        assert sorted(rows) == ["main", "regionalgrant"]
+        assert (rows["main"].name, rows["regionalgrant"].name) == ("Test Global Scholarship", "Regional Grant")
+        assert rows["regionalgrant"].extracted["focus"] == "Regional Grant"
+        # AI 這次寫成 Regional Grants：同一來源內名稱很像（相似度 ≥ 0.9）就是同一筆，不另外新增
+        extract_source(session, MultiLLM(["Regional Grants"]), source, force=True)  # type: ignore[arg-type]
+        keys = sorted(session.scalars(select(Scholarship.key).where(Scholarship.source_id == source.id)))
+        assert keys == ["main", "regionalgrant"] and rows["regionalgrant"].name == "Regional Grants"
+        # 頁面上不再出現：封存，不刪
+        extract_source(session, MultiLLM([]), source, force=True)  # type: ignore[arg-type]
+        assert rows["regionalgrant"].status == ScholarshipStatus.ARCHIVED
+        assert rows["main"].status == ScholarshipStatus.ACTIVE
     finally:
         session.rollback()
         session.close()

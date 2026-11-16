@@ -166,3 +166,35 @@ def test_recheck_does_not_rebuild_cycles_for_a_scholarship_gone_from_its_page(tm
     finally:
         session.rollback()
         session.close()
+
+
+def test_recheck_leaves_a_gone_scholarship_without_cycles_even_when_its_dates_are_valid(tmp_path: Path) -> None:
+    # 上一個測試的日期年份不在引用裡，本來就不會建申請期，所以它在修正前也會通過；這個用合法的日期重現問題
+    quote = "Applications close 15 January 2099"
+    page = tmp_path / "page.html"
+    page.write_text(f"<html><body><p>{quote}.</p></body></html>", encoding="utf-8")
+    window = {"label": None, "intake": None, "opens_year": None, "opens_month": None, "opens_day": None,
+              "closes_year": 2099, "closes_month": 1, "closes_day": 15, "closes_time": None, "timezone": None,
+              "nationality_scope": "all", "nationalities": [], "funding": "any", "evidence": quote}
+    session = SessionLocal()
+    try:
+        source = Source(name="Test gone valid", url="https://test-gone-valid.example/", kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        now = datetime.now(UTC)
+        session.add(Snapshot(source_id=source.id, url=source.url, fetched_at=now, seen_at=now,
+                             content_hash="6" * 64, file_path=str(page), http_status=200, etag=None, last_modified=None))
+        row = Scholarship(
+            name="Test gone valid", source_id=source.id, key="regionalgrant", countries=["SE"], degrees=["master"],
+            nationality_scope="all", nationalities=[],
+            extracted={"amounts": [], "windows": [window], "gone": True,
+                       "verification": {"deadlines": ["supported"], "amounts": [], "issues": []},
+                       "meta": {"snapshots": ["6" * 64], "prompts": [], "model": "fake"}},
+        )
+        session.add(row)
+        session.flush()
+        recheck_rules(session, [source.id])
+        assert session.scalars(select(Cycle).where(Cycle.scholarship_id == row.id)).all() == []
+    finally:
+        session.rollback()
+        session.close()

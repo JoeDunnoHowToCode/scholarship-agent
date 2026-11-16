@@ -66,7 +66,8 @@ def claims(draft: ScholarshipDraft) -> dict[str, tuple[Any, str | None]]:
     nationality = (
         None
         if draft.nationality_scope == "unclear"
-        else f"{draft.nationality_scope} {', '.join(draft.nationalities)}".strip()
+        # 群組代號也列出來（ADR-109），核對的 AI 才知道「listed」指的是哪些人
+        else f"{draft.nationality_scope} {', '.join([*draft.nationalities, *draft.nationality_groups])}".strip()
     )
     found: dict[str, tuple[Any, str | None]] = {
         "nationality": (nationality, draft.nationality_evidence),

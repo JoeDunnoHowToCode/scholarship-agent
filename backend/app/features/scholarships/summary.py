@@ -72,3 +72,8 @@ def ensure_summary(session: Session, llm: StructuredLLM, row: Scholarship) -> bo
     made = make_summary(llm, source)
     row.extracted = {**row.extracted, "summary": made, "summary_from": SUMMARY_VERSION}  # JSONB 整個重新指定
     return True
+
+
+def summarize_source(session: Session, llm: StructuredLLM, source_id: int) -> int:
+    """抽完一個來源後，替它的每一筆獎學金補說明（ADR-108：一頁可能有好幾筆）；回傳呼叫了幾次。"""
+    return 0

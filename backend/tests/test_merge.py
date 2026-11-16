@@ -434,3 +434,14 @@ def test_percent_amounts_are_not_merged_with_different_percents() -> None:
 
     assert merge.clean_amounts([percent(50, None), percent(30, None)]) == [percent(50, None), percent(30, None)]
     assert merge.clean_amounts([percent(50, "EU"), percent(30, "non-EU")]) == [percent(50, "EU"), percent(30, "non-EU")]
+
+
+def test_long_documents_take_the_next_cycle_note_and_not_scholarship_from_the_outline() -> None:
+    # ADR-107（B1 B、A2 C）：和 offered 一樣，長文件在第一輪讀全文時判斷，合併後的結果要帶著
+    outline = OUTLINE.model_copy(update={
+        "next_cycle_note": "Next call in autumn", "next_cycle_evidence": "The next call opens in autumn",
+        "not_scholarship": True, "not_scholarship_evidence": "No scholarships are offered",
+    })
+    draft = merge.merge_sections(outline, [section()]).draft
+    assert (draft.next_cycle_note, draft.next_cycle_evidence) == ("Next call in autumn", "The next call opens in autumn")
+    assert (draft.not_scholarship, draft.not_scholarship_evidence) == (True, "No scholarships are offered")

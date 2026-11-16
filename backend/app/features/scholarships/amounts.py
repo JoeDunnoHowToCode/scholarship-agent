@@ -57,7 +57,8 @@ SEMESTER = re.compile(r"semester|semestre|學期", re.IGNORECASE)
 
 def amount_status(amount: AmountDraft, source: str) -> str:
     """金額的核對結果，只用程式、不另外問 AI（docs/day-09.md「Claude 自行決定」第 21 點）：
-    supported、no_evidence、invalid_currency、quote_not_found、number_not_in_quote、period_mismatch。"""
+    supported、no_evidence、invalid_currency、quote_not_found、number_not_in_quote、period_mismatch。
+    數字可以是引用裡寫的，或引用裡兩個數字的差。"""
     if not amount.evidence:
         return "no_evidence"
     if pycountry.currencies.get(alpha_3=amount.currency.upper()) is None:
@@ -65,7 +66,10 @@ def amount_status(amount: AmountDraft, source: str) -> str:
     # 和驗證者一樣：表格的字被交錯排列時，允許引用切成幾截就近出現
     if not (quote_in_source(amount.evidence, source) or quote_in_table_text(amount.evidence, source)):
         return "quote_not_found"
-    if not any(math.isclose(number, amount.value) for number in numbers_in(amount.evidence)):
+    numbers = numbers_in(amount.evidence)
+    # 差額也算（C2 A，ADR-107）：原文寫原價與實付時，存的是減了多少
+    differences = {a - b for a in numbers for b in numbers if a > b}
+    if not any(math.isclose(number, amount.value) for number in numbers | differences):
         return "number_not_in_quote"
     if amount.period == "year" and SEMESTER.search(amount.evidence):
         return "period_mismatch"  # 引用寫每學期卻存成每年（ADR-103）；不知道一年幾學期，不換算

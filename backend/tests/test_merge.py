@@ -408,3 +408,19 @@ def test_long_documents_take_offered_from_the_outline() -> None:
     outline = OUTLINE.model_copy(update={"offered": "no", "offered_evidence": "No scholarships are offered for 2027"})
     draft = merge.merge_sections(outline, [section()]).draft
     assert (draft.offered, draft.offered_evidence) == ("no", "No scholarships are offered for 2027")
+
+
+def test_same_amount_for_two_groups_becomes_one_item() -> None:
+    # C5 A（ADR-107）：用途、數值、幣別、期間都一樣，只是適用對象不同，就合併成一筆，適用對象寫兩群
+    def amount(applies_to: str | None, evidence: str) -> AmountDraft:
+        return AmountDraft.model_validate({"value": 1400, "currency": "EUR", "period": "month",
+                                           "kind": "living_allowance", "applies_to": applies_to, "evidence": evidence})
+
+    programme = amount("Programme country students", "Programme: 1,400 EUR per month")
+    partner = amount("Partner country students", "Partner: 1,400 EUR per month")
+    assert merge.clean_amounts([programme, partner]) == [
+        programme.model_copy(update={"applies_to": "Programme country students、Partner country students"})
+    ]
+    # 其中一筆沒寫適用對象（所有人）時不合併，維持原樣
+    everyone = amount(None, "1,400 EUR per month")
+    assert merge.clean_amounts([everyone, partner]) == [everyone, partner]

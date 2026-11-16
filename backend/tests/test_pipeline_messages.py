@@ -156,3 +156,17 @@ def test_missing_homepages_have_their_own_kind_and_count_as_gone() -> None:
     assert report.site_gone("httpx.ConnectTimeout: timed out") is False
     assert report.site_gone("TemporaryFetchError: robots.txt 暫時無法讀取（520）") is False
     assert report.site_gone(None) is False
+
+
+def test_report_lists_sources_disabled_as_not_scholarships() -> None:
+    # A2 C（ADR-107）：判斷不是獎學金而停用的來源列在每日報告，判斷錯可以到設定頁重新打開
+    _, lines = report.report_message(
+        local_date=date(2026, 11, 17),
+        started_at=datetime(2026, 11, 17, 0, 10, tzinfo=UTC),
+        finished_at=datetime(2026, 11, 17, 2, 0, tzinfo=UTC),
+        sources={"extracted": 2, "unchanged": 100},
+        new_events=0,
+        skipped=[],
+        not_scholarship=["Test School A", "Test School B"],
+    )
+    assert "判斷不是獎學金而停用 2 個（判斷錯請到設定頁重新打開）：Test School A、Test School B" in lines

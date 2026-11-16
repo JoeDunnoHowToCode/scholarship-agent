@@ -233,3 +233,24 @@ def test_unclear_pairs_go_to_the_ai() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_a_candidate_is_approved_when_any_scholarship_on_the_page_passes() -> None:
+    # ADR-108：一頁有好幾筆獎學金時，候選的四條規則以獎學金為單位，任一筆通過就加入；
+    # agent 加的來源重抽後也一樣，任一筆有效就不算「抽不到有效獎學金」
+    session = SessionLocal()
+    try:
+        without_real_candidates(session)
+        source = candidate(session, "https://test-multi-candidate.example/s")
+        scholarship(session, source, ["US"], name="US Main Scholarship")  # 主角不過；key 是 main，依索引排在下面那筆前面
+        other = Scholarship(
+            name="Europe Grant", source_id=source.id, key="regionaleuropegrant", countries=["SE"], degrees=["master"],
+            nationality_scope="all", nationalities=[], extracted={"verification": {"degrees": "supported"}},
+        )
+        session.add(other)
+        session.flush()
+        assert decide_candidate(session, source, NOW) == "approved"
+        assert track_extraction(session, source, NOW) is False and source.empty_extractions == 0
+    finally:
+        session.rollback()
+        session.close()

@@ -424,3 +424,13 @@ def test_same_amount_for_two_groups_becomes_one_item() -> None:
     # 其中一筆沒寫適用對象（所有人）時不合併，維持原樣
     everyone = amount(None, "1,400 EUR per month")
     assert merge.clean_amounts([everyone, partner]) == [everyone, partner]
+
+
+def test_percent_amounts_are_not_merged_with_different_percents() -> None:
+    # C1 B（ADR-107）：只寫百分比的金額數字都是空白，比對時要看百分比，50% 和 30% 是兩筆
+    def percent(value: float, applies_to: str | None) -> AmountDraft:
+        return AmountDraft.model_validate({"value": None, "percent": value, "currency": "EUR", "period": "year",
+                                           "kind": "tuition_coverage", "applies_to": applies_to, "evidence": "x"})
+
+    assert merge.clean_amounts([percent(50, None), percent(30, None)]) == [percent(50, None), percent(30, None)]
+    assert merge.clean_amounts([percent(50, "EU"), percent(30, "non-EU")]) == [percent(50, "EU"), percent(30, "non-EU")]

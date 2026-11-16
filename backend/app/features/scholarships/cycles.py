@@ -148,8 +148,9 @@ def refresh(session: Session, now: datetime) -> Counter[str]:
             latest = max((c.closes_at for c in row.cycles if not c.estimated), default=None)
             if latest is not None and is_stale(latest, now.date()):
                 counts["stale"] += 1
-        elif row.status == ScholarshipStatus.ARCHIVED:
-            row.status = ScholarshipStatus.ACTIVE  # 有開放中或即將開放的申請期：喚回
+        elif row.status == ScholarshipStatus.ARCHIVED and statuses:
+            # 有開放中或即將開放的申請期：喚回；一個申請期都沒有的（例如判斷不是獎學金而封存的）維持封存
+            row.status = ScholarshipStatus.ACTIVE
             counts["recalled"] += 1
     return counts
 

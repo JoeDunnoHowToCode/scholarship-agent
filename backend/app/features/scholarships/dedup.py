@@ -9,7 +9,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from sqlalchemy import select
 
-from app.features.scholarships.models import Scholarship
+from app.features.scholarships.models import MAIN_KEY, Scholarship
 from app.features.search.similar import similar_pairs
 from app.shared.db import SessionLocal
 
@@ -47,6 +47,7 @@ class Candidate:
     provider: str | None
     name: str
     official_url: str | None
+    main: bool = True  # 是不是頁面的主角（ADR-108）；同一頁的其他獎學金網址和主角一樣，不拿網址比對
 
 
 def find_duplicates(items: list[Candidate]) -> dict[int, int]:
@@ -67,7 +68,7 @@ def find_duplicates(items: list[Candidate]) -> dict[int, int]:
     first_with_key: dict[tuple[str, ...], int] = {}  # 比對鍵 → 第一個有這個鍵的 id
     for item in items:
         keys: list[tuple[str, ...]] = []
-        if item.official_url:
+        if item.official_url and item.main:
             keys.append(("url", normalize_url(item.official_url)))
         if item.provider:
             keys.append(("provider+name", normalize_name(item.provider), normalize_name(item.name)))
@@ -89,7 +90,7 @@ def main() -> None:
     with SessionLocal() as session, session.begin():
         rows = session.scalars(select(Scholarship).where(Scholarship.source_id.is_not(None))).all()
         found = find_duplicates(
-            [Candidate(r.id, r.provider, r.name, r.official_url) for r in rows]
+            [Candidate(r.id, r.provider, r.name, r.official_url, r.key == MAIN_KEY) for r in rows]
         )
         for row in rows:
             row.duplicate_of = found.get(row.id)

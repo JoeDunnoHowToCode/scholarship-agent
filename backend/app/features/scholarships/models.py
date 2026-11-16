@@ -14,6 +14,7 @@ from sqlalchemy import (
     Identity,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -38,6 +39,8 @@ def _enum_values(enum_cls: type[enum.Enum]) -> list[str]:
 
 class Scholarship(Base):
     __tablename__ = "scholarships"
+    # 一頁有幾個獎學金就存幾筆（ADR-108）：同一個來源用 key 分開
+    __table_args__ = (UniqueConstraint("source_id", "key", name="scholarships_source_id_key_key"),)
 
     # ADR-025：整數自動遞增的主鍵
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
@@ -76,10 +79,10 @@ class Scholarship(Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIMENSIONS))
     embed_model: Mapped[str | None] = mapped_column(Text)
     embed_hash: Mapped[str | None] = mapped_column(String(64))
-    # 抽自哪個來源；重跑時用它找到同一筆更新（冪等）。跨來源合併是第 4 天的去重
-    source_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("sources.id"), unique=True
-    )
+    # 抽自哪個來源；重跑時用（來源, key）找到同一筆更新（冪等）。跨來源合併是第 4 天的去重
+    source_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("sources.id"))
+    # 同一來源裡的哪一個獎學金（ADR-108）：頁面的主角固定是 main，同一頁的其他獎學金是正規化的名稱
+    key: Mapped[str] = mapped_column(Text, server_default="main")
 
 
 class ScholarshipCategory(Base):

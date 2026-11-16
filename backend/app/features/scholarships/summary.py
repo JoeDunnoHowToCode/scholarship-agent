@@ -5,6 +5,7 @@
 
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core import prompts
@@ -76,4 +77,5 @@ def ensure_summary(session: Session, llm: StructuredLLM, row: Scholarship) -> bo
 
 def summarize_source(session: Session, llm: StructuredLLM, source_id: int) -> int:
     """抽完一個來源後，替它的每一筆獎學金補說明（ADR-108：一頁可能有好幾筆）；回傳呼叫了幾次。"""
-    return 0
+    rows = session.scalars(select(Scholarship).where(Scholarship.source_id == source_id).order_by(Scholarship.id))
+    return sum(ensure_summary(session, llm, row) for row in rows.all() if needs_summary(row))

@@ -64,7 +64,7 @@ from app.features.scholarships.extract import (
     extract_source,
 )
 from app.features.scholarships.models import EMBEDDING_DIMENSIONS, MAIN_KEY, Scholarship
-from app.features.scholarships.summary import ensure_summary, needs_summary
+from app.features.scholarships.summary import summarize_source
 from app.features.search.index import index_scholarship, index_source
 from app.features.search.models import Chunk
 from app.features.sources.catalogue import CATALOGUE_URL, import_programmes
@@ -196,13 +196,11 @@ def process_source(source_id: int) -> dict[str, str]:
             session.commit()
             # 獎學金說明（docs/summary-plan.md）：整份重抽會換掉 extracted、說明跟著消失，所以抽完就補；
             # 原文沒變的已經是最新版本，不會再呼叫 AI；說明失敗不影響抽取本身
-            row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
-            if row is not None and needs_summary(row):
-                try:
-                    ensure_summary(session, llm, row)
-                    session.commit()
-                except LLMError:
-                    session.rollback()
+            try:
+                summarize_source(session, llm, source.id)  # 一頁可能有好幾筆（ADR-108）
+                session.commit()
+            except LLMError:
+                session.rollback()
             embedder = GeminiEmbedder(
                 settings.embedding_model, settings.google_api_key, EMBEDDING_DIMENSIONS,
                 settings.llm_requests_per_minute,

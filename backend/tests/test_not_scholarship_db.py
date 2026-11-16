@@ -53,3 +53,17 @@ def test_the_quote_must_be_in_the_page_before_a_source_is_disabled(tmp_path: Pat
     finally:
         session.rollback()
         session.close()
+
+
+def test_the_daily_report_finds_sources_disabled_as_not_scholarships_since_the_run_started(tmp_path: Path) -> None:
+    from app.features.scholarships.extract import disabled_as_not_scholarship
+
+    session = SessionLocal()
+    try:
+        started = datetime.now(UTC)
+        source, _ = run(session, tmp_path, "The school does not offer scholarships or tuition waivers.")
+        assert source.name in disabled_as_not_scholarship(session, started)
+        assert source.name not in disabled_as_not_scholarship(session, datetime.now(UTC))
+    finally:
+        session.rollback()
+        session.close()

@@ -63,7 +63,12 @@ from app.features.scholarships.extract import (
     disabled_as_not_scholarship,
     extract_source,
 )
-from app.features.scholarships.models import EMBEDDING_DIMENSIONS, MAIN_KEY, Scholarship
+from app.features.scholarships.models import (
+    EMBEDDING_DIMENSIONS,
+    MAIN_KEY,
+    Scholarship,
+    main_of,
+)
 from app.features.scholarships.summary import summarize_source
 from app.features.search.index import index_scholarship, index_source
 from app.features.search.models import Chunk
@@ -338,7 +343,7 @@ def track_unreachable(
         )
         if notice is None:
             continue
-        row = session.scalars(select(Scholarship).where(Scholarship.source_id == source_id)).first()
+        row = session.scalars(main_of(source_id)).first()
         name = row.name if row else source.name
         if notice == "unreachable":
             marked.append((name, error))

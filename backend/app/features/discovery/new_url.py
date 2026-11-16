@@ -10,7 +10,7 @@ from app.features.costs.usage import TAIPEI
 from app.features.notifications.generate import add_system_event
 from app.features.pipeline.report import new_url_found_message, new_url_mismatch_message
 from app.features.profiles.service import CURRENT_USER_ID
-from app.features.scholarships.models import Scholarship
+from app.features.scholarships.models import main_of
 from app.features.sources.models import Source
 
 # 主辦單位名稱裡太常見、不能用來辨認的字
@@ -72,7 +72,7 @@ def apply_new_url(session: Session, source: Source, new_url: str, page_text: str
 
 def decide_new_url(session: Session, source: Source, new_url: str, page_text: str) -> tuple[bool, str]:
     """判斷並套用（不發通知）：（有沒有換, 沒換的原因）。每天的發掘工作用它，最後一天合成一則通知（ADR-093）。"""
-    row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
+    row = session.scalars(main_of(source.id)).first()
     names = [source.name] + ([row.name] if row is not None else [])
     # 只差結尾的 / 也算同一個網址（目錄匯入的網址常有 /，agent 提議的常沒有）
     variants = {new_url.rstrip("/"), new_url.rstrip("/") + "/"}

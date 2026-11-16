@@ -29,7 +29,7 @@ from app.features.notifications.generate import add_system_event
 from app.features.pipeline.errors import classify
 from app.features.pipeline.report import new_url_digest_message, site_gone
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
-from app.features.scholarships.models import Scholarship
+from app.features.scholarships.models import main_of
 from app.features.sources.models import Discovery, Source, SourceKind
 from app.shared.db import SessionLocal
 from app.shared.settings import settings
@@ -106,7 +106,7 @@ def run_new_url(deps: Deps, source_id: int, now: datetime) -> tuple[str, str, st
         source = session.get(Source, source_id)
         if source is None or session.scalar(select(exists().where(*recent))):
             return None
-        row = session.scalars(select(Scholarship).where(Scholarship.source_id == source_id)).first()
+        row = session.scalars(main_of(source_id)).first()
         name, old = source.name, source.url
         task = new_url_task(name, row.name if row else None, row.provider if row else None, old)
     box = deps.toolbox([], SUBMISSIONS["new_url"])

@@ -156,7 +156,10 @@ def merge_amounts(sections: list[list[AmountDraft]]) -> list[AmountDraft]:
     """各節抽到的金額取聯集（ADR-070）：數字、幣別、期間、用途、適用對象都一樣的，只留第一次出現的那筆與它的引用。"""
     kept: dict[tuple[Any, ...], AmountDraft] = {}
     for amount in (a for section in sections for a in section):
-        key = (amount.value, amount.currency.upper(), amount.period, amount.kind, normalized(amount.applies_to or ""))
+        key = (
+            amount.value, amount.percent, amount.currency.upper(), amount.period, amount.kind,
+            normalized(amount.applies_to or ""),
+        )
         kept.setdefault(key, amount)
     return list(kept.values())
 
@@ -281,7 +284,7 @@ def merge_groups(amounts: list[AmountDraft]) -> list[AmountDraft]:
         if not amount.applies_to:
             result.append(amount)
             continue
-        key = (amount.value, amount.currency.upper(), amount.period, amount.kind, amount.for_this)
+        key = (amount.value, amount.percent, amount.currency.upper(), amount.period, amount.kind, amount.for_this)
         if key in kept:
             first = kept[key]
             merged = first.model_copy(update={"applies_to": f"{first.applies_to}、{amount.applies_to}"})

@@ -42,3 +42,15 @@ def test_find_duplicates_by_same_link_or_same_provider_and_title() -> None:
         dedup.Candidate(24, "IMBRSea consortium", "Erasmus Mundus Scholarships", "https://imbrsea.eu/apply"),
     ]
     assert dedup.find_duplicates(erasmus) == {}
+
+
+def test_scholarships_from_the_same_page_are_not_duplicates_by_url() -> None:
+    # ADR-108：一頁拆成好幾筆時，它們的官方網址都是那一頁；同一來源的多筆不互相比對網址
+    same_page = "https://test.example/scholarships"
+    found = dedup.find_duplicates([
+        dedup.Candidate(1, "Test University", "Global Scholarship", same_page),
+        dedup.Candidate(2, "Test University", "Regional Grant", same_page, main=False),
+    ])
+    assert found == {}
+    # 不同來源、網址一樣的照舊算重複
+    assert dedup.find_duplicates([dedup.Candidate(1, None, "A", same_page), dedup.Candidate(3, None, "B", same_page)]) == {3: 1}

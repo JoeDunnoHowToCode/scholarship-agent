@@ -34,3 +34,27 @@ def test_only_scholarship_dates_become_cycles_and_not_when_it_is_not_offered() -
     finally:
         session.rollback()
         session.close()
+
+
+def test_a_date_without_a_year_becomes_the_next_such_day_marked_year_inferred() -> None:
+    # B3 B（ADR-110）：原文只寫月日，AI 不填年份（驗證狀態 incomplete）；程式取今天以後最近的那一天，
+    # 標 year_inferred；它不是預估（estimated 照舊是 False），所以照常送提醒
+    from datetime import UTC, datetime
+
+    session = SessionLocal()
+    try:
+        row = Scholarship(name="Test inferred year", countries=["FR"], degrees=["master"], nationality_scope="all",
+                          nationalities=[], extracted={})
+        session.add(row)
+        session.flush()
+        no_year = window(1, "scholarship").model_copy(update={"closes_year": None, "evidence": "1 March"})
+        no_day = window(1, "scholarship").model_copy(update={"closes_year": None, "closes_day": None})
+        save_cycles(session, row, [no_year, no_day], ["incomplete", "incomplete"])
+        today = datetime.now(UTC).date()
+        expected_year = today.year if (3, 1) >= (today.month, today.day) else today.year + 1
+        built = session.scalars(select(Cycle).where(Cycle.scholarship_id == row.id)).all()
+        assert [(c.closes_at.year, c.closes_at.month, c.closes_at.day) for c in built] == [(expected_year, 3, 1)]
+        assert (built[0].verification, built[0].estimated) == ("year_inferred", False)  # 沒有日的照舊不建
+    finally:
+        session.rollback()
+        session.close()

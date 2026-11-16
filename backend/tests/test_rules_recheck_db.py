@@ -91,3 +91,47 @@ def test_rechecked_amounts_keep_the_extraction_format(tmp_path: Path) -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_recheck_merges_two_groups_and_builds_cycles_for_dates_without_a_year(tmp_path: Path) -> None:
+    # C5 A：兩群人一樣的金額合併成一筆，合併後的那筆要存回去（不能因為是新物件就被丟掉）
+    # ADR-110：抽取結果沒變，只有月日的申請期也要重建出來（規則改了，申請期要跟著重建）
+    programme = "Programme students: EUR 1,400 per month"
+    partner = "Partner students: EUR 1,400 per month"
+    page = tmp_path / "page.html"
+    page.write_text(f"<html><body><p>{programme}</p><p>{partner}</p><p>Deadline 1 March.</p></body></html>",
+                    encoding="utf-8")
+
+    def group(applies_to: str, evidence: str) -> dict[str, object]:
+        return {"value": 1400, "currency": "EUR", "period": "month", "kind": "living_allowance",
+                "applies_to": applies_to, "evidence": evidence}
+
+    window = {"label": None, "intake": None, "opens_year": None, "opens_month": None, "opens_day": None,
+              "closes_year": None, "closes_month": 3, "closes_day": 1, "closes_time": None, "timezone": None,
+              "nationality_scope": "all", "nationalities": [], "funding": "any", "evidence": "Deadline 1 March"}
+    session = SessionLocal()
+    try:
+        source = Source(name="Test groups", url="https://test-groups.example/", kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        now = datetime.now(UTC)
+        session.add(Snapshot(source_id=source.id, url=source.url, fetched_at=now, seen_at=now,
+                             content_hash="e" * 64, file_path=str(page), http_status=200, etag=None, last_modified=None))
+        row = Scholarship(
+            name="Test groups", source_id=source.id, countries=["SE"], degrees=["master"],
+            nationality_scope="all", nationalities=[],
+            extracted={"amounts": [group("Programme", programme), group("Partner", partner)], "windows": [window],
+                       "verification": {"deadlines": ["incomplete"], "amounts": ["supported"] * 2, "issues": []},
+                       "meta": {"snapshots": ["e" * 64], "prompts": [], "model": "fake"}},
+        )
+        session.add(row)
+        session.flush()
+        recheck_rules(session, [source.id])
+        session.refresh(row)
+        assert [a["applies_to"] for a in row.extracted["amounts"]] == ["Programme、Partner"]
+        assert row.extracted["verification"]["amounts"] == ["supported"]
+        cycle = session.scalars(select(Cycle).where(Cycle.scholarship_id == row.id)).one()
+        assert cycle.verification == "year_inferred"
+    finally:
+        session.rollback()
+        session.close()

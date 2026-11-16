@@ -77,7 +77,7 @@ def test_standard_fields_default_so_old_extractions_behave_as_before() -> None:
                                          "kind": "living_allowance", "applies_to": None, "evidence": "x"})
     outline = Outline.model_validate({"name": "Test", "name_zh": None, "provider": None, "category_names": []})
     assert (amount.percent, window.nationality_groups) == (None, [])
-    assert (outline.not_scholarship, outline.next_cycle_note, outline.nationality_groups) == (False, None, [])
+    assert (outline.not_scholarship, outline.next_cycle_note) == (False, None)
     for name in ("not_scholarship", "not_scholarship_evidence", "next_cycle_note", "next_cycle_evidence",
                  "nationality_groups"):
         assert name in ScholarshipDraft.model_fields

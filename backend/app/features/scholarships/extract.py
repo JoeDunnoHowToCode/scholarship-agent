@@ -525,6 +525,11 @@ def disable_not_scholarship(source: Source, row: Scholarship, quote: str) -> Non
     row.status = ScholarshipStatus.ARCHIVED
 
 
+def disabled_as_not_scholarship(session: Session, since: datetime) -> list[str]:
+    """since 以後因為判斷不是獎學金而停用的來源名稱（每日報告用）。"""
+    return []
+
+
 def rebuild_cycles() -> None:
     """改了申請期的規則後，用已存的抽取結果重建所有申請期（不呼叫 AI、不花錢）。"""
     with SessionLocal() as session, session.begin():

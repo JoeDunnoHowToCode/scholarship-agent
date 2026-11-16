@@ -108,3 +108,22 @@ def test_the_nationality_claim_names_the_country_groups() -> None:
         "nationality_evidence": "EU and Swiss citizens",
     })
     assert verify.claims(groups_draft)["nationality"] == ("listed CH, EU", "EU and Swiss citizens")
+
+
+def test_not_scholarship_is_judged_by_the_ai_check_too() -> None:
+    # A2 C（ADR-107）：11-16 重抽時，引用在原文裡卻判錯的有好幾個（只說這一屆沒有、講的是學費）；
+    # 「不是獎學金」也交給核對的 AI：引用要撐得起「完全不提供任何獎學金，不是只有這一屆沒有」
+    from app.features.scholarships.verify import ClaimVerdict, Verdicts
+
+    quote = "This edition will be self-funded only"
+
+    class Judge:
+        def extract(self, prompt: str, schema: type[Any]) -> Any:
+            claims = [line[2:].split("：")[0] for line in prompt.splitlines() if line.startswith("- ")]
+            return Verdicts(verdicts=[ClaimVerdict(claim=c, supported=c != "not_scholarship", reason="")
+                                      for c in claims])
+
+    flagged = draft([], None).model_copy(update={"not_scholarship": True, "not_scholarship_evidence": quote})
+    status = verify.verify(Judge(), flagged, f"Intro. {quote}. More.", [])  # type: ignore[arg-type]
+    assert status["not_scholarship"] == "not_supported"
+    assert "not_scholarship" not in verify.verify(Judge(), draft([], None), quote, [])  # type: ignore[arg-type]

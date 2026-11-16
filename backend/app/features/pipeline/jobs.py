@@ -59,7 +59,10 @@ from app.features.pipeline.report import (
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships import dedup
 from app.features.scholarships.cycles import is_stale, refresh
-from app.features.scholarships.extract import disabled_as_not_scholarship, extract_source
+from app.features.scholarships.extract import (
+    disabled_as_not_scholarship,
+    extract_source,
+)
 from app.features.scholarships.models import EMBEDDING_DIMENSIONS, Scholarship
 from app.features.scholarships.summary import ensure_summary, needs_summary
 from app.features.search.index import index_scholarship, index_source

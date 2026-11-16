@@ -524,6 +524,8 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool
     if extracted.get("mode") == "whole":
         for key, name in others[:MAX_OTHERS]:
             other_verified, other_extracted = build_extraction(session, llm, source, snapshots, meta, focus=name)
+            if not has_own_details(other_verified):
+                continue  # 頁面只列了名字或連結（外部資助管道），不算同一頁的另一個獎學金
             kept.add(save(session, source, other_verified, other_extracted, latest.id, key).id)
     archive_gone(session, source.id, kept)
     checks = " ".join(f"{f}={status[f]}" for f in ("nationality", "degrees"))
@@ -538,6 +540,11 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool
 def award_key(name: str) -> str:
     """同一頁其他獎學金的 key（ADR-108）：名稱去掉標點與空白、不分大小寫，例如 Regional Grant → regionalgrant。"""
     return re.sub(r"[\W_]+", "", unicodedata.normalize("NFKC", name).casefold())
+
+
+def has_own_details(draft: ScholarshipDraft) -> bool:
+    """同一頁的另一個獎學金要有頁面自己寫的金額或申請期（ADR-108）；兩個都沒有就只是被提到。"""
+    return any(a.for_this for a in draft.amounts) or any(w.kind == "scholarship" for w in draft.windows)
 
 
 SAME_AWARD = 0.9  # 同一來源內 key 的相似度到這裡就當成同一筆（「Claude 自行決定」第 5 點）

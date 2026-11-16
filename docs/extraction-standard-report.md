@@ -287,3 +287,36 @@ key: Mapped[str] = mapped_column(Text, server_default="main")
   - 依標準重新檢查：7 個 sub agent 約 113 萬 tokens；extract-17 後再檢查：2 個約 30 萬 tokens
   - 查國家群組清單：約 7 萬 tokens
   - 都是 effort medium
+
+## 附錄：「Claude 自行決定」26 點的驗證證據
+
+在 `backend/` 執行，11-17 跑過的結果附在後面。「—」代表那一點是數字、流程或文件，沒有對應的測試，證據寫在說明欄。
+
+| # | 決定（計畫的編號） | 證據 |
+| --- | --- | --- |
+| 1 | 推算年份用 `year_inferred`，照常提醒 | `test_save_cycles_db.py`、`test_notification_rules.py -k inferred`：2 passed；本機 32 個申請期 |
+| 2 | 學位 other 不符合想讀的學位 | `degree_check` 只認使用者的學位（未改）；`test_rules.py -k other`：1 passed |
+| 3 | EACEA 目錄的學程照樣停用 | — 查過 `catalogue.py` 不動 `enabled` |
+| 4 | 群組清單放在程式裡 | `test_groups.py`：3 passed；`groups.py` 附官方出處 |
+| 5 | 其他獎學金名稱相似度 ≥ 0.9 算同一筆 | `test_multi_scholarship_db.py`（Regional Grant／Grants）：7 passed |
+| 6 | 段 3 排最後 | — 執行順序 |
+| 7 | 停止條件（低 5 個百分點就停） | — 評估沒有觸發，`docs/eval/2026-11-16.md` |
+| 8 | AI 自己補的年份不推算 | `save_cycles` 只推算 `incomplete`（`test_save_cycles_db.py`） |
+| 9 | 年份推估在評分裡算未核對 | — `score.py` 的 `verified` 只認 supported（未改） |
+| 10 | 兩群合併只在都寫了適用對象時 | `test_merge.py -k same_amount`：1 passed |
+| 11 | `--rules-only` 每筆都重建申請期 | `test_rules_recheck_db.py`：5 passed |
+| 12 | 不另外呼叫「列出獎學金」 | `test_multi_scholarship_db.py`（假 AI 主抽取順便列出） |
+| 13 | 主角 key 固定 main | `test_multi_scholarship_db.py -k main_scholarship`；遷移後 `\d scholarships` |
+| 14 | 一頁最多另外抽 5 個、長文件不拆 | — `MAX_OTHERS`、`mode == "whole"` |
+| 15 | 不在頁面上的封存、標 gone | `test_multi_scholarship_db.py`、`test_rules_recheck_db.py`（gone 兩個） |
+| 16 | 不是獎學金也封存獎學金 | `test_not_scholarship_db.py`：5 passed |
+| 17 | refresh 只在有申請期時喚回 | `test_not_scholarship_db.py -k recall` |
+| 18 | 只有主角比網址；候選排除同一來源 | `test_dedup.py -k same_page`、`test_candidates_db.py -k own_page`：各 1 passed |
+| 19 | 學位 other 只在顯示時叫「其他」 | 瀏覽器確認 #1125「學位：碩士、其他」 |
+| 20 | 評估上限 NT$48 | — 兩輪都跑完，NT$35.82 |
+| 21 | 不是獎學金也交給核對 AI | `test_verify.py -k not_scholarship`：1 passed；停用 16 → 1 |
+| 22 | 沒有自己的金額或申請期不存 | `test_multi_scholarship_db.py -k without_amounts`；拆分 150 → 108 |
+| 23 | 程式停用的來源判斷改了自動打開 | `test_not_scholarship_db.py -k reenabled` |
+| 24 | gone 不通知 | `test_generate_db.py -k gone`：1 passed |
+| 25 | 目錄國籍只給主角 | `test_multi_scholarship_db.py -k catalogue`；已存的 148 筆改回不清楚 |
+| 26 | 重新檢查只抽 42 筆拆分資料 | — 固定亂數 20261117，`standard-2026-11-16/ids.json` |

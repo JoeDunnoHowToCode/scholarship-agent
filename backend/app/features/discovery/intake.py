@@ -106,7 +106,10 @@ def find_duplicate(session: Session, row: Scholarship, ask: SameCheck | None) ->
     others = session.scalars(
         select(Scholarship)
         .join(Source, Source.id == Scholarship.source_id)
-        .where(Scholarship.id != row.id, Scholarship.duplicate_of.is_(None), Source.enabled.is_(True))
+        .where(
+            Scholarship.id != row.id, Scholarship.duplicate_of.is_(None), Source.enabled.is_(True),
+            Scholarship.source_id != row.source_id,  # 同一頁拆出來的多筆不互相比對（ADR-108）
+        )
         .options(selectinload(Scholarship.cycles))
         .order_by(Scholarship.id)
     ).all()

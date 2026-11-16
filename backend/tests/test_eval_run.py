@@ -85,3 +85,17 @@ def test_a_record_shows_percent_amounts_and_country_groups() -> None:
     row = record_of(SOURCE, "m1", 1, grouped, extracted, 2.5, 0.001, None)
     assert row["fields"]["amounts"] == ["tuition_coverage:50%:EUR:first_year"]
     assert row["fields"]["nationality"] == "listed:FR,TW+EU"
+
+
+def test_a_record_survives_an_amount_without_value_or_percent() -> None:
+    # AI 兩個都沒填時（schema 允許），評估不能當掉
+    empty = {"value": None, "percent": None, "currency": "EUR", "period": "year", "kind": "tuition_coverage",
+             "applies_to": None, "evidence": "tuition waiver"}
+    blank = draft().model_copy(update={
+        "amounts": [ScholarshipDraft.model_validate({**draft().model_dump(), "amounts": [empty]}).amounts[0]],
+    })
+    extracted: dict[str, Any] = {"verification": {"nationality": None, "degrees": None, "deadlines": [],
+                                                  "amounts": [], "categories": {}, "issues": []}}
+    assert record_of(SOURCE, "m1", 1, blank, extracted, 1.0, 0.0, None)["fields"]["amounts"] == [
+        "tuition_coverage:?:EUR:year"
+    ]

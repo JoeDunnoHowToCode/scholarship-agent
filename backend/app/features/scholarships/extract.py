@@ -692,6 +692,8 @@ def recheck_rules(session: Session, source_ids: list[int] | None = None) -> tupl
         old = row.extracted
         if row.source_id is None or "verification" not in old or "meta" not in old:
             continue  # 很早期的資料，沒有核對結果
+        if old.get("gone"):
+            continue  # 頁面上不再出現的其他獎學金（ADR-108）：已封存，不重建申請期
         checked += 1
         windows = [WindowDraft.model_validate(w) for w in old.get("windows", [])]
         # 金額：去重後用快照原文重新核對（和抽取時一樣只用程式）

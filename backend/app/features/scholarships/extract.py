@@ -23,7 +23,6 @@ from app.core import prompts
 from app.core.fetch.text import decode_snapshot, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
 from app.features.costs.llm import gemini
-from app.features.documents.checks import quote_in_source
 from app.features.documents.chunking import chunk_html, chunk_transcript, group_sections
 from app.features.documents.transcribe import transcribe
 from app.features.scholarships import (
@@ -446,10 +445,6 @@ def build_extraction(
         status["nationality"] = "catalogue"
     # 金額的核對只用程式（docs/day-09.md「Claude 自行決定」第 21 點），結果和其他欄位一起存在 verification
     status["amounts"] = [amounts.amount_status(a, raw) for a in verified.amounts]
-    if verified.not_scholarship:
-        # A2 C（ADR-107）：判斷不是獎學金要停用來源，引用一定要真的在原文裡
-        quote = verified.not_scholarship_evidence
-        status["not_scholarship"] = "supported" if quote and quote_in_source(quote, raw) else "quote_not_found"
     amount_items = [
         {**a.model_dump(mode="json"), "status": s} for a, s in zip(verified.amounts, status["amounts"], strict=True)
     ]

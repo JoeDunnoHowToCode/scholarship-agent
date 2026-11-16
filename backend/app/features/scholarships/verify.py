@@ -75,7 +75,13 @@ def claims(draft: ScholarshipDraft) -> dict[str, tuple[Any, str | None]]:
     }
     for index, window in enumerate(draft.windows):
         found[f"deadline:{index}"] = (window_value(window), window.evidence)
+    if draft.not_scholarship:
+        # A2 C（ADR-107）：判斷不是獎學金會停用來源，所以也要核對；「這一屆沒有」不算（那是 offered=no）
+        found["not_scholarship"] = (NOT_SCHOLARSHIP_CLAIM, draft.not_scholarship_evidence)
     return found
+
+
+NOT_SCHOLARSHIP_CLAIM = "這個學校或學程完全不提供任何獎學金或補助（不是只有這一屆、這次招生沒有，也不是只講學費）"
 
 
 def window_rule(window: WindowDraft) -> Status | None:
@@ -170,6 +176,8 @@ def verify(
         "deadlines": [status[f"deadline:{i}"] for i in range(len(draft.windows))],
         "categories": category_issues(draft, source),
         "issues": other_issues(draft, source),
+        # 只有 AI 判斷不是獎學金時才有這一項
+        **({"not_scholarship": status["not_scholarship"]} if "not_scholarship" in status else {}),
     }
 
 

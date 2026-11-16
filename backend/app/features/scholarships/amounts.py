@@ -67,18 +67,28 @@ def amount_status(amount: AmountDraft, source: str) -> str:
     if not (quote_in_source(amount.evidence, source) or quote_in_table_text(amount.evidence, source)):
         return "quote_not_found"
     numbers = numbers_in(amount.evidence)
+    # 百分比（C1 B，ADR-107）：引用裡要有這個百分比；同時有金額時金額也要在引用裡
+    if amount.percent is not None and not any(math.isclose(number, amount.percent) for number in numbers):
+        return "number_not_in_quote"
+    if amount.value is None and amount.percent is not None:
+        return period_check(amount)
     # 差額也算（C2 A，ADR-107）：原文寫原價與實付時，存的是減了多少
     differences = {a - b for a in numbers for b in numbers if a > b}
     if amount.value is None or not any(math.isclose(number, amount.value) for number in numbers | differences):
         return "number_not_in_quote"
-    if amount.period == "year" and SEMESTER.search(amount.evidence):
-        return "period_mismatch"  # 引用寫每學期卻存成每年（ADR-103）；不知道一年幾學期，不換算
+    return period_check(amount)
+
+
+def period_check(amount: AmountDraft) -> str:
+    """引用寫每學期卻存成每年（ADR-103）；不知道一年幾學期，不換算，只標待確認。"""
+    if amount.period == "year" and amount.evidence and SEMESTER.search(amount.evidence):
+        return "period_mismatch"
     return "supported"
 
 
 # 列表上的大概金額先找哪一種用途（docs/day-09.md「Claude 自行決定」第 23 點）
 KIND_ORDER = ("living_allowance", "tuition_coverage", "travel", "other")
-PERIOD_NAMES = {"month": "每月", "year": "每年", "total": "總額", "once": "一次", "unclear": ""}
+PERIOD_NAMES = {"month": "每月", "year": "每年", "total": "總額", "once": "一次", "first_year": "第一年", "unclear": ""}
 # 同一種用途有好幾種期間時，列表先挑哪一種（字典的順序）：每月最能比較，總額與一次比較難比
 PERIOD_ORDER = list(PERIOD_NAMES)
 
@@ -97,7 +107,8 @@ def headline(items: list[dict[str, Any]]) -> str | None:
     """列表上的大概金額：只看核對通過的；先找生活津貼，再依學費補助、旅費、其他的順序；
     同一種用途裡先挑每月的，再來是每年、總額、一次。同用途、同期間、同幣別、只是適用對象不同的，顯示範圍。
     items 是抽取結果裡的金額加上核對狀態（status）。"""
-    supported = [item for item in own(items) if item.get("status") == "supported"]
+    # 只有百分比、沒有金額數字的（ADR-107）不能比較大小，不放進大概金額
+    supported = [item for item in own(items) if item.get("status") == "supported" and item.get("value") is not None]
     for kind in KIND_ORDER:
         same_kind = [item for item in supported if item["kind"] == kind]
         if not same_kind:
@@ -124,9 +135,18 @@ def describe(items: list[dict[str, Any]]) -> str | None:
             notes.append(item["applies_to"])
         if item.get("status") != "supported":
             notes.append("待確認")
-        amount = f"{PERIOD_NAMES[item['period']]} {money(item['value'])} {item['currency']}".strip()
+        amount = f"{PERIOD_NAMES[item['period']]} {amount_text(item)}".strip()
         parts.append(f"{amount}（{'，'.join(notes)}）")
     return "；".join(parts) or None
+
+
+def amount_text(item: dict[str, Any]) -> str:
+    """一筆錢的數字部分：「1,400 EUR」「減免 50%」，兩個都有時「4,500 EUR（減免 50%）」。"""
+    percent = f"減免 {item['percent']:g}%" if item.get("percent") is not None else None
+    if item.get("value") is None:
+        return percent or ""
+    number = f"{money(item['value'])} {item['currency']}"
+    return f"{number}（{percent}）" if percent else number
 
 
 def with_amounts(

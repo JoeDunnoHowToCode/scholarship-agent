@@ -69,3 +69,19 @@ def test_report_has_numbers_and_the_checklist_can_be_tallied() -> None:
     checklist = disagreements_markdown(items, "m1", "m2")
     assert "https://test.example/" in checklist and "Apply by 15 January 2027" in checklist
     assert tally(checklist) == {"A": 0, "B": 0, "都對": 0, "都錯": 0, "未填": 1}
+
+
+def test_a_record_shows_percent_amounts_and_country_groups() -> None:
+    # ADR-107、109：只寫百分比的補助沒有金額數字；國籍用群組代號時清單是空的，比對時要看得到群組
+    percent = {"value": None, "percent": 50, "currency": "EUR", "period": "first_year", "kind": "tuition_coverage",
+               "applies_to": None, "evidence": "50% in the first year"}
+    grouped = draft().model_copy(update={
+        "amounts": [ScholarshipDraft.model_validate({**draft().model_dump(), "amounts": [percent]}).amounts[0]],
+        "nationality_groups": ["EU"],
+    })
+    extracted: dict[str, Any] = {"verification": {"nationality": "supported", "degrees": "supported",
+                                                  "deadlines": ["supported"], "amounts": ["supported"],
+                                                  "categories": {}, "issues": []}}
+    row = record_of(SOURCE, "m1", 1, grouped, extracted, 2.5, 0.001, None)
+    assert row["fields"]["amounts"] == ["tuition_coverage:50%:EUR:first_year"]
+    assert row["fields"]["nationality"] == "listed:FR,TW+EU"

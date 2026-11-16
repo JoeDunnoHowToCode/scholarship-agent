@@ -222,7 +222,10 @@ class ScholarshipDraft(ProgramFacts):
     # A2 C（ADR-107）：頁面沒有提供任何獎學金時填 true，程式停用這個來源
     not_scholarship: bool = Field(
         default=False,
-        description="整個頁面沒有提供任何獎學金或補助（例如只有入學資訊、原文寫明不提供補助）填 true；有就填 false",
+        description=(
+            "只有原文明寫這個學校或學程不提供任何獎學金或補助才填 true；只說這一屆沒有（offered=no）、"
+            "網頁壞掉或內容無關、只是沒提到獎學金，都填 false"
+        ),
     )
     not_scholarship_evidence: str | None = Field(
         default=None, description="寫著沒有提供獎學金的原文句子，逐字引用；not_scholarship 是 false 時留空"
@@ -230,8 +233,9 @@ class ScholarshipDraft(ProgramFacts):
     other_scholarships: list[OtherScholarship] = Field(  # ADR-108
         default=[],
         description=(
-            "同一頁還介紹了哪些可以另外申請、有自己的金額或申請期的獎學金或補助（不是這筆資料的主角）；"
-            "只是提到名字、或是這個獎學金的一部分就不要列；沒有就留空清單"
+            "同一頁還介紹了哪些獎學金或補助，而且頁面自己寫了它的金額或申請期（不是這筆資料的主角）；"
+            "只列出名字、簡介或連結的外部資助管道（政府獎學金、基金會、貸款等）不要列，"
+            "這個獎學金的一部分也不要列；沒有就留空清單"
         ),
     )
 
@@ -278,7 +282,10 @@ class Outline(BaseModel):
     # A2 C（ADR-107）：頁面沒有提供任何獎學金時填 true，程式停用這個來源
     not_scholarship: bool = Field(
         default=False,
-        description="整個頁面沒有提供任何獎學金或補助（例如只有入學資訊、原文寫明不提供補助）填 true；有就填 false",
+        description=(
+            "只有原文明寫這個學校或學程不提供任何獎學金或補助才填 true；只說這一屆沒有（offered=no）、"
+            "網頁壞掉或內容無關、只是沒提到獎學金，都填 false"
+        ),
     )
     not_scholarship_evidence: str | None = Field(
         default=None, description="寫著沒有提供獎學金的原文句子，逐字引用；not_scholarship 是 false 時留空"

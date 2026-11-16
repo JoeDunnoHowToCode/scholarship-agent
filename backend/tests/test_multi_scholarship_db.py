@@ -125,3 +125,33 @@ def test_a_source_with_several_scholarships_is_checked_once_a_day() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+class FakeEmbedder:
+    """假的向量模型：每段文字回傳固定的向量。"""
+
+    model_id = "fake-embedder"
+
+    def embed_documents(self, items: list[tuple[str, str]]) -> list[list[float]]:
+        from app.features.scholarships.models import EMBEDDING_DIMENSIONS
+
+        return [[0.1] * EMBEDDING_DIMENSIONS for _ in items]
+
+
+def test_every_scholarship_of_a_source_gets_a_vector() -> None:
+    # 去重（ADR-097）用獎學金的向量比對；一頁有好幾筆時每一筆都要有
+    from app.features.search.index import index_scholarship
+
+    session = SessionLocal()
+    try:
+        source = Source(name="Test vectors", url="https://test-vectors.example/", kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        rows = [scholarship(source.id, "main"), scholarship(source.id, "regionalgrant")]
+        session.add_all(rows)
+        session.flush()
+        assert index_scholarship(session, FakeEmbedder(), source) == 2  # type: ignore[arg-type]
+        assert all(row.embed_model == "fake-embedder" for row in rows)
+    finally:
+        session.rollback()
+        session.close()

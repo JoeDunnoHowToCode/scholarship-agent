@@ -27,6 +27,7 @@ from app.features.scholarships import (
     changes,
     countries,
     cycles,
+    groups,
     merge,
     relevance,
     rules,
@@ -229,9 +230,9 @@ def save_cycles(
         except ValueError:
             continue  # 不存在的日期（例如 2 月 30 日），不建申請期
         # Erasmus+ 的固定分群（Programme／Partner countries）用程式的國家清單，不靠模型列
-        scope, countries = rules.window_nationality(
-            window.nationality_scope, window.nationalities, window.label or window.evidence or ""
-        )
+        # 國家群組展開成國碼（ADR-109）；Erasmus+ 的固定分群仍由說明文字判斷
+        scope, countries = groups.expand(window.nationality_scope, window.nationalities, window.nationality_groups)
+        scope, countries = rules.window_nationality(scope, countries, window.label or window.evidence or "")
         cycle = Cycle(
             scholarship_id=row.id,
             intake=window.intake,
@@ -276,8 +277,10 @@ def save(
     row.fields = draft.fields
     row.coverage = draft.coverage
     row.amount = extracted["amount"]  # 由金額清單產生的文字（ADR-070）
-    row.nationality_scope = draft.nationality_scope
-    row.nationalities = draft.nationalities
+    # 國家群組展開成國碼（ADR-109）；抽取結果裡照樣留著群組代號
+    row.nationality_scope, row.nationalities = groups.expand(
+        draft.nationality_scope, draft.nationalities, draft.nationality_groups
+    )
     row.nationality_conditions = draft.nationality_conditions
     row.language_requirements = draft.language_requirements
     row.other_eligibility = draft.other_eligibility

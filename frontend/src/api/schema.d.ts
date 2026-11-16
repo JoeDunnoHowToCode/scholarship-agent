@@ -361,7 +361,9 @@ export interface components {
          */
         AmountOut: {
             /** Value */
-            value: number;
+            value: number | null;
+            /** Percent */
+            percent?: number | null;
             /** Currency */
             currency: string;
             /** Period */
@@ -653,7 +655,7 @@ export interface components {
              * @description 想讀的學位
              * @enum {string}
              */
-            target_degree: "bachelor" | "master" | "phd";
+            target_degree: "bachelor" | "master" | "phd" | "other";
             /**
              * Current Major
              * @description 目前科系（選填）
@@ -685,7 +687,7 @@ export interface components {
              * @description 想讀的學位
              * @enum {string}
              */
-            target_degree: "bachelor" | "master" | "phd";
+            target_degree: "bachelor" | "master" | "phd" | "other";
             /**
              * Current Major
              * @description 目前科系（選填）
@@ -788,6 +790,10 @@ export interface components {
             offered: string;
             /** Offered Evidence */
             offered_evidence: string | null;
+            /** Next Cycle Note */
+            next_cycle_note: string | null;
+            /** Next Cycle Evidence */
+            next_cycle_evidence: string | null;
             /** Other Dates */
             other_dates: components["schemas"]["OtherDateOut"][];
             /** Requirements */
@@ -1040,7 +1046,7 @@ export interface operations {
             query?: {
                 q?: string | null;
                 country?: string | null;
-                degree?: ("bachelor" | "master" | "phd") | null;
+                degree?: ("bachelor" | "master" | "phd" | "other") | null;
                 open_only?: boolean;
                 deadline_after?: string | null;
                 deadline_before?: string | null;

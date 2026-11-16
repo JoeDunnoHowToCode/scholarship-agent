@@ -14,7 +14,7 @@ import {
   AMOUNT_PERIOD_NAMES,
   AMOUNT_STATUS_NAMES,
   CHECK_NAMES,
-  DEGREE_NAMES,
+  DEGREE_LABELS,
   DOC_NAMES,
   FUNDING_NAMES,
   OTHER_DATE_NAMES,
@@ -132,6 +132,13 @@ export default function ScholarshipDetail() {
                 {d.cycles.length > 0 && d.cycles.every((c) => c.status === "closed") && (
                   <p className="text-sm text-muted-foreground">目前沒有開放中或即將開放的申請期</p>
                 )}
+                {/* B1 B（ADR-107）：下一屆還沒公布日期時，原文怎麼說 */}
+                {d.next_cycle_note && !d.cycles.some((c) => c.status === "open" || c.status === "upcoming") && (
+                  <div className="space-y-1 text-sm">
+                    <p>下一屆：{d.next_cycle_note}</p>
+                    <Quote text={d.next_cycle_evidence} open={false} />
+                  </div>
+                )}
                 {/* 已截止的收起來（docs/ui-review-2.md C1）：只在對照往年時間時有用，不該排在最前面 */}
                 {d.cycles.some((c) => c.status === "closed") && (
                   <details className="group border-t pt-3 text-sm">
@@ -168,7 +175,7 @@ export default function ScholarshipDetail() {
                       <li key={index} className="space-y-1 py-3 text-sm first:pt-0 last:pb-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium">
-                            {`${nameOf(AMOUNT_PERIOD_NAMES, a.period)} ${a.value.toLocaleString("en-US")} ${a.currency}`.trim()}
+                            {`${nameOf(AMOUNT_PERIOD_NAMES, a.period)} ${amountText(a)}`.trim()}
                           </span>
                           <span>{nameOf(AMOUNT_KIND_NAMES, a.kind)}</span>
                           <Badge variant={a.status === "supported" ? "secondary" : "outline"}>
@@ -219,7 +226,7 @@ export default function ScholarshipDetail() {
                   {d.nationality_conditions && `（${d.nationality_conditions}）`}
                 </Fact>
                 <Fact label="可讀學位" check={d.degrees_check} quote={d.degrees_evidence}>
-                  {d.degrees.map((degree) => nameOf(DEGREE_NAMES, degree)).join("、") || "原文沒寫"}
+                  {d.degrees.map((degree) => nameOf(DEGREE_LABELS, degree)).join("、") || "原文沒寫"}
                 </Fact>
                 <Fact label="語言">{d.language_requirements ?? "—"}</Fact>
                 <Fact label="其他資格">{d.other_eligibility ?? "—"}</Fact>
@@ -235,7 +242,7 @@ export default function ScholarshipDetail() {
                       <li key={c.name} className="space-y-1 py-3 text-sm first:pt-0 last:pb-0">
                         <p className="font-medium">{c.name}</p>
                         <p className="text-muted-foreground">
-                          {[`名額 ${c.quota ?? "原文沒寫"}`, c.degrees.map((x) => nameOf(DEGREE_NAMES, x)).join("、")]
+                          {[`名額 ${c.quota ?? "原文沒寫"}`, c.degrees.map((x) => nameOf(DEGREE_LABELS, x)).join("、")]
                             .filter(Boolean)
                             .join("｜")}
                         </p>
@@ -423,6 +430,14 @@ function Fact({
 }
 
 // 申請期一期一塊：第一行是日期與狀態，第二行是適用對象與核對結果，下面是原文引用
+// 一筆錢的數字：「1,400 EUR」「減免 50%」，兩個都有時「4,500 EUR（減免 50%）」（ADR-107 C1 B）
+function amountText(a: { value: number | null; percent?: number | null; currency: string }): string {
+  const percent = a.percent != null ? `減免 ${a.percent}%` : null;
+  if (a.value == null) return percent ?? "";
+  const number = `${a.value.toLocaleString("en-US")} ${a.currency}`;
+  return percent ? `${number}（${percent}）` : number;
+}
+
 function CycleList({ cycles }: { cycles: Cycle[] }) {
   return (
     <ul className="divide-y">

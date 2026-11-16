@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { CHECK_NAMES, DEGREE_NAMES, nameOf } from "@/lib/labels";
+import { CHECK_NAMES, DEGREE_LABELS, DEGREE_NAMES, nameOf } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 type Row = Schemas["ScholarshipRow"];
@@ -327,7 +327,7 @@ function ScholarshipCard({ row, showGroup }: { row: Row; showGroup: boolean }) {
             </Badge>
           ))}
           <span className="text-muted-foreground">
-            {row.degrees.map((degree) => nameOf(DEGREE_NAMES, degree)).join("、")}｜
+            {row.degrees.map((degree) => nameOf(DEGREE_LABELS, degree)).join("、")}｜
             {row.countries.map((country) => country.name).join("、") || "國家沒寫"}
           </span>
         </div>

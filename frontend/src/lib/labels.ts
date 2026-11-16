@@ -1,6 +1,8 @@
 // 代號換成中文；後端的代號見 backend/app/features/scholarships/schemas.py 與 matching/score.py
 
 export const DEGREE_NAMES: Record<string, string> = { bachelor: "學士", master: "碩士", phd: "博士" };
+// 顯示用：獎學金的學位多一種「其他」（不是學士、碩士、博士的課程，ADR-107 F1 B）；個人資料與篩選照舊只用上面三種
+export const DEGREE_LABELS: Record<string, string> = { ...DEGREE_NAMES, other: "其他" };
 
 export const CHECK_NAMES: Record<string, string> = { nationality: "國籍", degree: "學位", time: "時間" };
 export const RESULT_NAMES: Record<string, string> = { pass: "符合", unclear: "待確認", fail: "不符合" };
@@ -74,6 +76,7 @@ export const AMOUNT_PERIOD_NAMES: Record<string, string> = {
   year: "每年",
   total: "總額",
   once: "一次",
+  first_year: "第一年", // 只有第一年才有的減免或折扣（ADR-107 C4 C）
   unclear: "",
 };
 export const AMOUNT_STATUS_NAMES: Record<string, string> = {
@@ -103,7 +106,7 @@ const ISSUE_NAMES: Record<string, string> = {
 
 export function issueName(issue: string): string {
   const [code, detail] = issue.split(":");
-  if (code === "degree_not_in_quote" && detail) return `${nameOf(DEGREE_NAMES, detail)}不在學位引用裡`;
+  if (code === "degree_not_in_quote" && detail) return `${nameOf(DEGREE_LABELS, detail)}不在學位引用裡`;
   return nameOf(ISSUE_NAMES, code);
 }
 

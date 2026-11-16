@@ -68,9 +68,14 @@ def record_of(
             f"{w.closes_year:04d}-{w.closes_month:02d}-{w.closes_day:02d}"
             for w in windows if w.closes_year and w.closes_month and w.closes_day
         ),
-        "nationality": f"{verified.nationality_scope}:{','.join(sorted(c.upper() for c in verified.nationalities))}",
+        "nationality": f"{verified.nationality_scope}:{','.join(sorted(c.upper() for c in verified.nationalities))}"
+        + "".join(f"+{group}" for group in sorted(verified.nationality_groups)),  # 群組代號（ADR-109）
         "degrees": sorted(verified.degrees),
-        "amounts": sorted(f"{a.kind}:{a.value:g}:{a.currency}:{a.period}" for a in verified.amounts),
+        # 只寫百分比的補助沒有金額數字（ADR-107），寫成 50%
+        "amounts": sorted(
+            f"{a.kind}:{f'{a.value:g}' if a.value is not None else f'{a.percent:g}%'}:{a.currency}:{a.period}"
+            for a in verified.amounts
+        ),
     }
     evidence = {
         "deadlines": " / ".join(w.evidence for w in windows if w.evidence),

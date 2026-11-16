@@ -37,8 +37,10 @@ DEGREE_KEYWORDS = {
 
 
 def degree_supported(degree: str, quotes: list[str | None]) -> bool:
-    """這個學位的關鍵字要出現在任一句引用裡（例如原文沒寫「學士」就不能填 bachelor）。"""
-    return any(quote and DEGREE_KEYWORDS[degree].search(quote) for quote in quotes)
+    """這個學位的關鍵字要出現在任一句引用裡（例如原文沒寫「學士」就不能填 bachelor）。
+    other（不是學士、碩士、博士的課程，ADR-107）沒有固定的關鍵字，程式不擋，交給核對的 AI。"""
+    pattern = DEGREE_KEYWORDS.get(degree)
+    return pattern is None or any(quote and pattern.search(quote) for quote in quotes)
 
 
 MAX_CATEGORY_NAME = 20  # 中文類別名稱最多幾個字；更長的通常是把國家清單當成名稱

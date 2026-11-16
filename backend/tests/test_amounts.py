@@ -148,3 +148,19 @@ def test_money_from_other_awards_on_the_page_is_left_out() -> None:
     assert amounts.describe([other, own]) == "每月 1,400 EUR（生活津貼）"
     assert amounts.headline([other, own]) == "每月 1,400 EUR"
     assert amounts.describe([other]) is None
+
+
+def test_a_difference_between_two_numbers_in_the_quote_is_supported() -> None:
+    # C2 A（ADR-107）：原文同時寫原價與實付時，可以存兩者的差額（減了多少）
+    quote = "The tuition fee of 18,000 EUR is reduced to 9,000 EUR"
+    source = f"Scholarships. {quote}. Apply now."
+
+    def amount(value: float) -> schemas.AmountDraft:
+        return schemas.AmountDraft.model_validate({"value": value, "currency": "EUR", "period": "year",
+                                                   "kind": "tuition_coverage", "applies_to": None, "evidence": quote})
+
+    assert amounts.amount_status(amount(9000), source) == "supported"
+    assert amounts.amount_status(amount(18000 - 9000 + 1), source) == "number_not_in_quote"
+    # 9,001 不是引用裡的數字，也不是兩個數字的差；4,500 原文沒寫，但等於 18,000 − 13,500
+    reduced = "The tuition fee of 18,000 EUR is reduced to 13,500 EUR"
+    assert amounts.amount_status(amount(4500).model_copy(update={"evidence": reduced}), f"x {reduced} y") == "supported"

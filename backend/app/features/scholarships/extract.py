@@ -437,7 +437,8 @@ def build_extraction(
     status = verify.verify(llm, draft, raw, extra.get("conflicts", []))
     status["issues"] += [f"invalid_country_code:{code}" for code in invalid_codes]
     verified = verify.apply_verification(draft, status)
-    if verified.nationality_scope == "unclear" and from_catalogue(session, source):
+    # 目錄依據只適用於學程本身；同一頁的其他獎學金（focus）不借用（ADR-108）
+    if verified.nationality_scope == "unclear" and not focus and from_catalogue(session, source):
         # ADR-053：EACEA 學程自己的網站沒寫國籍，用目錄頁的說明當依據，驗證結果記成 catalogue
         verified = verified.model_copy(
             update={"nationality_scope": "all", "nationalities": [], "nationality_evidence": CATALOGUE_EVIDENCE}

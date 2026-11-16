@@ -20,6 +20,7 @@ from app.core import prompts
 from app.core.fetch.text import decode_snapshot, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
 from app.features.costs.llm import gemini
+from app.features.documents.checks import quote_in_source
 from app.features.documents.chunking import chunk_html, chunk_transcript, group_sections
 from app.features.documents.transcribe import transcribe
 from app.features.scholarships import (
@@ -433,6 +434,10 @@ def build_extraction(
         status["nationality"] = "catalogue"
     # 金額的核對只用程式（docs/day-09.md「Claude 自行決定」第 21 點），結果和其他欄位一起存在 verification
     status["amounts"] = [amounts.amount_status(a, raw) for a in verified.amounts]
+    if verified.not_scholarship:
+        # A2 C（ADR-107）：判斷不是獎學金要停用來源，引用一定要真的在原文裡
+        quote = verified.not_scholarship_evidence
+        status["not_scholarship"] = "supported" if quote and quote_in_source(quote, raw) else "quote_not_found"
     amount_items = [
         {**a.model_dump(mode="json"), "status": s} for a, s in zip(verified.amounts, status["amounts"], strict=True)
     ]
@@ -496,7 +501,10 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool
     status = extracted["verification"]
     deadline = extracted["deadline"]
     latest = max(snapshots, key=lambda snap: snap.fetched_at)
-    save(session, source, verified, extracted, latest.id)
+    row = save(session, source, verified, extracted, latest.id)
+    if status.get("not_scholarship") == "supported":
+        disable_not_scholarship(source, row, verified.not_scholarship_evidence or "")
+        return "判斷不是獎學金：停用來源"
     checks = " ".join(f"{f}={status[f]}" for f in ("nationality", "degrees"))
     flagged = len(status["categories"]) + len(status["issues"])
     return (
@@ -504,6 +512,17 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool
         f"窗口 {len(verified.windows)}、最早截止 {deadline}、國籍 {verified.nationality_scope}"
         f"｜{checks}｜其他待確認 {flagged}"
     )
+
+
+NOT_SCHOLARSHIP_NOTE = "判斷不是獎學金"
+
+
+def disable_not_scholarship(source: Source, row: Scholarship, quote: str) -> None:
+    """頁面沒有提供任何獎學金（A2 C，ADR-107）：停用來源、封存獎學金，原因與引用寫進 review_note，
+    每天的報告列出來；判斷錯的話，在設定頁重新打開。"""
+    source.enabled, source.disabled_at = False, datetime.now(UTC)
+    source.review_note = f"{NOT_SCHOLARSHIP_NOTE}：「{quote}」"
+    row.status = ScholarshipStatus.ARCHIVED
 
 
 def rebuild_cycles() -> None:

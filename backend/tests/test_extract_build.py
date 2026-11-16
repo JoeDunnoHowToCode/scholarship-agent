@@ -169,3 +169,38 @@ def test_force_reextracts_a_source_that_has_not_changed(tmp_path: Path) -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_country_groups_are_saved_as_country_codes(tmp_path: Path) -> None:
+    # D1 C（ADR-109）：AI 填群組代號，存檔時展開成國碼，評分與申請期用展開後的國碼
+    from app.features.scholarships.models import Cycle
+
+    page = tmp_path / "page.html"
+    page.write_text(PAGE.replace("Open to all nationalities.", "Open to citizens of African Union member states. "
+                                 "EU applicants apply by 1 March 2027."), encoding="utf-8")
+    window = {"label": None, "intake": None, "opens_year": None, "opens_month": None, "opens_day": None,
+              "closes_year": 2027, "closes_month": 3, "closes_day": 1, "closes_time": None, "timezone": None,
+              "nationality_scope": "listed", "nationalities": [], "nationality_groups": ["EU"], "funding": "any",
+              "evidence": "EU applicants apply by 1 March 2027"}
+    draft = DRAFT.model_copy(update={
+        "nationality_scope": "listed", "nationality_groups": ["AU"],
+        "nationality_evidence": "Open to citizens of African Union member states.",
+        "windows": [ScholarshipDraft.model_validate({**DRAFT.model_dump(), "windows": [window]}).windows[0]],
+    })
+    session = SessionLocal()
+    try:
+        source = Source(name="Test groups", url="https://test-groups-save.example/", kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        now = datetime.now(UTC)
+        session.add(Snapshot(source_id=source.id, url=source.url, fetched_at=now, seen_at=now,
+                             content_hash="f" * 64, file_path=str(page), http_status=200, etag=None, last_modified=None))
+        session.flush()
+        extract_source(session, FakeLLM(draft), source)  # type: ignore[arg-type]
+        row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).one()
+        assert row.nationality_scope == "listed" and len(row.nationalities) == 55 and "NG" in row.nationalities
+        cycle = session.scalars(select(Cycle).where(Cycle.scholarship_id == row.id)).one()
+        assert len(cycle.nationalities) == 27 and "FR" in cycle.nationalities
+    finally:
+        session.rollback()
+        session.close()

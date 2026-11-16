@@ -67,3 +67,19 @@ def test_the_daily_report_finds_sources_disabled_as_not_scholarships_since_the_r
     finally:
         session.rollback()
         session.close()
+
+
+def test_the_daily_refresh_does_not_recall_a_scholarship_without_any_cycle(tmp_path: Path) -> None:
+    # 每天的 refresh 只在有開放中或即將開放的申請期時喚回（cycles.refresh 的註解）；
+    # 一個申請期都沒有的已封存獎學金（例如判斷不是獎學金而封存的）要維持封存
+    from app.features.scholarships.cycles import refresh
+
+    session = SessionLocal()
+    try:
+        _, row = run(session, tmp_path, "The school does not offer scholarships or tuition waivers.")
+        assert row.cycles == [] and row.status == ScholarshipStatus.ARCHIVED
+        refresh(session, datetime.now(UTC))
+        assert row.status == ScholarshipStatus.ARCHIVED
+    finally:
+        session.rollback()
+        session.close()

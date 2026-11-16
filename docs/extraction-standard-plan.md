@@ -1,6 +1,6 @@
 # 抽取標準實作計畫（2026-11-16，ADR-107–110）
 
-狀態：**等使用者核准**。
+狀態：**使用者 11-16 核准（/goal：做完後交完整報告）**，實作中。
 
 - 標準：`docs/extraction-standard.md`
 - 題目與選項：`docs/definitions-decisions.md`
@@ -48,7 +48,7 @@
 - **存檔**：
   - 用（來源, `key`）找同一筆
   - 頁面上不再出現的，那一筆照封存規則處理（不刪）
-- **14 處假設一個來源一筆的程式**改成「這個來源的所有獎學金」，包括：
+- **假設一個來源一筆的程式**改成「這個來源的所有獎學金」（原本寫 14 處；11-16 實查 `source_id ==` 有 12 個檔案 28 處，不是每處都和獎學金有關，要逐一看），包括：
   - 每天的檢查
   - 候選的四條規則：任一筆通過就加入
   - 找新網址、搜尋索引、評估、PDF 補抓、設定頁
@@ -94,12 +94,36 @@
 在 `backend/` 執行。
 
 ### 段 1
-- [ ] 兩群人金額一樣就合併成一筆 -> verify: `uv run pytest tests/test_merge.py -k same_amount`
-- [ ] 值等於引用裡兩個數字的差也算有依據 -> verify: `uv run pytest tests/test_amounts.py -k difference`
-- [ ] 只有月日的申請期推算下一次、標 `year_inferred` -> verify: `uv run pytest tests/test_save_cycles_db.py -k year_inferred`
-- [ ] `year_inferred` 的申請期照常提醒，文字標推估 -> verify: `uv run pytest tests/test_notification_rules.py -k inferred`
-- [ ] 網頁顯示「年份推估」與「過去的資訊」 -> verify: `cd ../frontend && npm run build`，加上瀏覽器確認（不截個資、不按存檔）
-- [ ] 對本機資料套用（先備份） -> verify: `uv run python -m app.features.scholarships.extract --rules-only` 與 `cycles`
+- [x] 兩群人金額一樣就合併成一筆 -> verify: `uv run pytest tests/test_merge.py -k same_amount`
+  ```
+  1 passed, 19 deselected in 0.02s
+  ```
+- [x] 值等於引用裡兩個數字的差也算有依據 -> verify: `uv run pytest tests/test_amounts.py -k difference`
+  ```
+  1 passed, 9 deselected in 0.02s
+  ```
+- [x] 只有月日的申請期推算下一次、標 `year_inferred` -> verify: `uv run pytest tests/test_save_cycles_db.py -k year_inferred`
+  ```
+  1 passed, 1 deselected in 0.42s
+  ```
+- [x] `year_inferred` 的申請期照常提醒，文字標推估 -> verify: `uv run pytest tests/test_notification_rules.py -k inferred`
+  ```
+  1 passed, 9 deselected in 0.35s
+  ```
+- [x] 網頁顯示「年份推估」與「過去的資訊」 -> verify: `cd ../frontend && npm run build`，加上瀏覽器確認（不截個資、不按存檔）
+  ```
+  ✓ built in 268ms
+  #557：頁首摘要、申請期那一行、核對狀態都有「年份推估」
+  #63（offered=no）：「說明（過去的資訊）」「補助（過去的資訊）」；console 沒有錯誤
+  ```
+- [x] `--rules-only` 合併後的金額不能丟、資料沒變也要重建申請期（實作時發現的缺口，先寫重現測試）-> verify: `uv run pytest tests/test_rules_recheck_db.py`
+- [x] 對本機資料套用（先備份 `before-standard-rules-20261116-2303.dump`） -> verify: `uv run python -m app.features.scholarships.extract --rules-only` 與 `cycles`
+  ```
+  重新套用規則：看了 259 筆，24 筆有變
+  申請期：開放中 136、即將開放 41、已截止 65、預估 0
+  這次封存 3 筆、喚回 1 筆、新增預估申請期 49 筆；資料過舊 5 筆
+  申請期核對狀態：year_inferred 36 個；兩群人合併的金額 34 筆
+  ```
 
 ### 段 2
 - [ ] 新欄位與預設值（百分比、第一年、other、下一屆說明、不是獎學金、群組） -> verify: `uv run pytest tests/test_schemas.py`
@@ -142,3 +166,8 @@
 4. 群組的國碼清單放在程式裡（像 ADR-054 的 Erasmus+ 清單），不建資料表。
 5. 一頁多個獎學金的 `key` 用正規化的名稱；同一來源內名稱相似度 ≥ 0.9 就當成同一筆，避免 AI 寫法不同就變成新的一筆。
 6. 段 3 排最後：它的工作量最大，前兩段做完就能先量到效果。
+7. **停止條件**（11-16 補）：段 4 的評估若有任何欄位的「有根據」比 11-14（`docs/eval/2026-11-14.md`）低 5 個百分點以上，就停下來報告，不做全部重抽。
+8. 年份推算只用在 AI 沒填年份（`incomplete`）的日期；AI 自己填了、引用裡卻沒有的年份（`year_not_in_quote`）照舊不建申請期：那是 AI 違反 ADR-045，要讓它看得到。
+9. 年份推估的申請期在評分裡算「未核對」（`verified` 只認 `supported`），時間條件是待確認，不是通過；提醒照送。
+10. 兩群人合併只在兩筆都寫了適用對象時：沒寫的代表所有人，和某一群一樣時不合併。
+11. `--rules-only` 改成每筆都重建申請期（原本只重建有變的）：建申請期的規則改了也要套到舊資料；之後照舊執行 `cycles` 指令重新產生預估。

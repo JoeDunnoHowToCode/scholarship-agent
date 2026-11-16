@@ -154,11 +154,14 @@ def index_source(
     return counts
 
 
-def index_scholarship(session: Session, embedder: GeminiEmbedder, source: Source) -> bool:
-    """獎學金向量（ADR-032）：組成的文字或模型變了才重算；回傳有沒有重算。"""
-    row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
-    if row is None:
-        return False
+def index_scholarship(session: Session, embedder: GeminiEmbedder, source: Source) -> int:
+    """獎學金向量（ADR-032）：組成的文字或模型變了才重算；一頁有好幾筆時每一筆都算（ADR-108）。回傳重算了幾筆。"""
+    rows = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id).order_by(Scholarship.id))
+    return sum(embed_row(embedder, row) for row in rows.all())
+
+
+def embed_row(embedder: GeminiEmbedder, row: Scholarship) -> bool:
+    """一筆獎學金的向量；回傳有沒有重算。"""
     profile = text.scholarship_profile(
         {
             # 國家存的是國碼（ADR-054），組向量文字時換成國名，意思才看得懂
@@ -195,7 +198,8 @@ def main() -> None:
 
     query = (
         select(Source)
-        .join(Scholarship, Scholarship.source_id == Source.id)
+        # 有獎學金的來源，每個只排一次（一個來源可能有好幾筆，ADR-108）
+        .where(select(Scholarship.id).where(Scholarship.source_id == Source.id).exists())
         .order_by(Source.id)
     )
     if args.source:

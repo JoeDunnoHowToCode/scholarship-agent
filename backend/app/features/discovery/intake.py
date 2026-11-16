@@ -24,7 +24,7 @@ from app.features.notifications.generate import add_system_event
 from app.features.pipeline.report import discovery_digest_message
 from app.features.profiles.service import CURRENT_USER_ID
 from app.features.scholarships.dedup import normalize_name
-from app.features.scholarships.models import Scholarship
+from app.features.scholarships.models import MAIN_KEY, Scholarship
 from app.features.sources.models import Discovery, Source, SourceKind, SourceStatus
 
 WEEK = timedelta(days=7)
@@ -72,11 +72,14 @@ def pending_candidate_ids(session: Session, now: datetime) -> list[int]:
 
 def decide_candidate(session: Session, source: Source, now: datetime, ask: SameCheck | None = None) -> str:
     """候選抽取完之後：四條規則都過就加入（approved），否則排除（rejected）並記下原因。"""
-    row = _scholarship(session, source)
+    rows = _scholarships(session, source)
+    # 一頁有好幾筆時以獎學金為單位（ADR-108）：任一筆通過就用它；都不過就記主角（第一筆）的原因
+    passing = [row for row in rows if not judge(_facts(row), now)]
+    row = passing[0] if passing else (rows[0] if rows else None)
     reasons = ["沒有抽出獎學金"] if row is None else judge(_facts(row), now)
     source.decided_at = now
-    if row is not None:
-        source.name = row.name
+    if rows:
+        source.name = rows[0].name
     if reasons:
         source.status, source.enabled, source.review_note = SourceStatus.REJECTED, False, "；".join(reasons)
         return "rejected"
@@ -126,10 +129,10 @@ def _brief(row: Scholarship) -> Brief:
 
 def track_extraction(session: Session, source: Source, now: datetime) -> bool:
     """agent 加的來源每次重新抽取後：更新連續抽不到的次數，到上限就停用。回傳這次有沒有停用。"""
-    row = _scholarship(session, source)
-    if row is not None:
-        source.name = row.name  # 名稱跟著最新的抽取結果（通知和摘要用）
-    valid = row is not None and not judge(_facts(row), now)
+    rows = _scholarships(session, source)
+    if rows:
+        source.name = rows[0].name  # 名稱跟著最新的抽取結果（通知和摘要用）；主角排第一
+    valid = any(not judge(_facts(row), now) for row in rows)  # 任一筆有效就算有（ADR-108）
     source.empty_extractions, disable = next_empty(source.empty_extractions, valid)
     if disable:
         source.enabled, source.disabled_at = False, now
@@ -160,10 +163,14 @@ def digest_items(
     )
 
 
-def _scholarship(session: Session, source: Source) -> Scholarship | None:
-    return session.scalars(
-        select(Scholarship).where(Scholarship.source_id == source.id).options(selectinload(Scholarship.cycles))
-    ).first()
+def _scholarships(session: Session, source: Source) -> list[Scholarship]:
+    """這個來源的所有獎學金，主角（key=main）排第一，其他依建立順序（ADR-108）。"""
+    return list(session.scalars(
+        select(Scholarship)
+        .where(Scholarship.source_id == source.id)
+        .options(selectinload(Scholarship.cycles))
+        .order_by(Scholarship.key != MAIN_KEY, Scholarship.id)
+    ))
 
 
 def _facts(row: Scholarship) -> Facts:

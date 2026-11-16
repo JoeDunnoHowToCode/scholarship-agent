@@ -210,3 +210,18 @@ def test_opened_notification_only_for_cycles_announced_before_they_opened() -> N
     assert rules.should_notify_opened(None, closes, False, announced, now) is False
     assert rules.should_notify_opened(opens, closes, True, announced, now) is False
     assert rules.should_notify_opened(opens, closes, False, None, now) is False
+
+
+def test_a_cycle_with_an_inferred_year_is_reminded_and_says_so() -> None:
+    # ADR-110：程式推算年份的申請期照常提醒（estimated 是 False，generate 只跳過預估的），
+    # 提醒與通知裡的申請期文字標「年份推估」，不標「截止日未核對」
+    from datetime import UTC, datetime
+
+    from app.features.matching.score import describe_cycle
+    from app.features.scholarships.models import Cycle
+
+    inferred = Cycle(
+        opens_at=None, closes_at=datetime(2027, 3, 1, 22, 59, tzinfo=UTC), timezone="Europe/Paris",
+        timezone_assumed=False, status="open", estimated=False, verification="year_inferred", label=None, evidence=None,
+    )
+    assert describe_cycle(inferred, datetime(2027, 2, 20, tzinfo=UTC)) == "開放日原文沒寫 → 2027-03-01（開放中，年份推估）"

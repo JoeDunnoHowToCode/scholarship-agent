@@ -88,7 +88,9 @@ def describe_cycle(cycle: Cycle, now: datetime | None = None, label: bool = True
     notes = [STATUS_NAMES[status]]
     if cycle.estimated and cycle.evidence:
         notes.append(cycle.evidence)  # 例如「依 2022 年的日期推估」（ADR-058）
-    if not cycle.estimated and cycle.verification != "supported":
+    if cycle.verification == "year_inferred":
+        notes.append("年份推估")  # 原文只寫月日，年份是程式推算的（ADR-110）
+    elif not cycle.estimated and cycle.verification != "supported":
         notes.append("截止日未核對")
     return f"{opens} → {cycle.closes_at.astimezone(zone):%Y-%m-%d}（{'，'.join(notes)}）{(cycle.label or '') if label else ''}".strip()
 

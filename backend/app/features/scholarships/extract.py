@@ -520,6 +520,10 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool
         disable_not_scholarship(source, row, verified.not_scholarship_evidence or "")
         archive_gone(session, source.id, kept)
         return "判斷不是獎學金：停用來源"
+    if (source.review_note or "").startswith(NOT_SCHOLARSHIP_NOTE):
+        # 之前是程式判斷不是獎學金而停用的，這次判斷改了：自己打開（使用者在設定頁停用的不動）
+        source.enabled, source.disabled_at, source.review_note = True, None, None
+        row.status = ScholarshipStatus.ACTIVE  # 之後每天的 refresh 會依申請期再決定要不要封存
     # 同一頁的其他獎學金（ADR-108）：整份抽的網頁才做，每個各抽一次、存成自己的一筆
     others = list({award_key(o.name): o.name for o in verified.other_scholarships if award_key(o.name)}.items())
     if extracted.get("mode") == "whole":

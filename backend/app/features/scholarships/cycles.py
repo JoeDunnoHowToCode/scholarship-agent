@@ -39,6 +39,11 @@ def to_utc(year: int, month: int, day: int, time: str | None, timezone: str | No
     return local.astimezone(UTC), assumed
 
 
+def next_year(month: int, day: int, today: date) -> int:
+    """原文只寫月日時（ADR-110），取今天以後（含今天）最近的那一天的年份。"""
+    return today.year if (month, day) >= (today.month, today.day) else today.year + 1
+
+
 def cycle_status(opens_at: datetime | None, closes_at: datetime, now: datetime, *, estimated: bool) -> Status:
     """依日期算出申請期現在的狀態；系統推估的申請期一律是 estimated。"""
     if estimated:

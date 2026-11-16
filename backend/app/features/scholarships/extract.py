@@ -206,16 +206,19 @@ def save_cycles(
     session.execute(delete(Cycle).where(Cycle.scholarship_id == row.id))
     built: list[Cycle] = []
     for window, status in zip(windows, statuses, strict=True):
-        # 年月日不齊全、或年份是模型自己補的，不建申請期（docs/day-04.md「Claude 自行決定」第 4 點）
-        if status in ("incomplete", "year_not_in_quote"):
+        # 只有月日、沒有年份：程式推算下一次的年份，標 year_inferred（ADR-110）
+        inferred = status == "incomplete" and not window.closes_year and bool(window.closes_month and window.closes_day)
+        # 其他年月日不齊全、或年份是模型自己補的，不建申請期（docs/day-04.md「Claude 自行決定」第 4 點）
+        if status in ("incomplete", "year_not_in_quote") and not inferred:
             continue
         # ADR-105：補件、繳費、只有入學的日期不是申請期；原文寫明這次不提供就一個都不建
         if window.kind != "scholarship" or offered == "no":
             continue
-        assert window.closes_year and window.closes_month and window.closes_day
+        assert window.closes_month and window.closes_day
+        closes_year = window.closes_year or cycles.next_year(window.closes_month, window.closes_day, now.date())
         try:
             closes_at, assumed = cycles.to_utc(
-                window.closes_year, window.closes_month, window.closes_day,
+                closes_year, window.closes_month, window.closes_day,
                 window.closes_time, window.timezone,
             )
             opens_at = (
@@ -243,7 +246,7 @@ def save_cycles(
             status=cycles.cycle_status(opens_at, closes_at, now, estimated=False),
             estimated=False,
             evidence=window.evidence,
-            verification=status,  # 沒通過驗證的照樣保留，但標出來（ADR-008）
+            verification="year_inferred" if inferred else status,  # 沒通過驗證的照樣保留，但標出來（ADR-008）
         )
         session.add(cycle)
         built.append(cycle)

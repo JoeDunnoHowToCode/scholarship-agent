@@ -106,3 +106,22 @@ def test_other_scholarships_on_the_page_are_saved_and_archived_when_gone(tmp_pat
     finally:
         session.rollback()
         session.close()
+
+
+def test_a_source_with_several_scholarships_is_checked_once_a_day() -> None:
+    # 每天的檢查以來源為單位：同一來源有好幾筆獎學金也只排一次（頻率看主角那一筆）
+    from app.features.pipeline.jobs import due_source_ids, taipei_date
+    from app.features.sources.models import SourceStatus
+
+    session = SessionLocal()
+    try:
+        source = Source(name="Test due", url="https://test-due.example/", kind=SourceKind.UNIVERSITY,
+                        status=SourceStatus.APPROVED, enabled=True)
+        session.add(source)
+        session.flush()
+        session.add_all([scholarship(source.id, "main"), scholarship(source.id, "regionalgrant")])
+        session.flush()
+        assert due_source_ids(session, taipei_date()).count(source.id) == 1
+    finally:
+        session.rollback()
+        session.close()

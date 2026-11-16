@@ -107,3 +107,9 @@ def test_a_total_that_repeats_the_monthly_amount_is_dropped() -> None:
     assert rules.redundant_totals([amount(1400, "month", applies_to="Programme country students"), other_group])[1:] == [
         other_group
     ]
+
+
+def test_degree_other_is_left_to_the_ai_check() -> None:
+    # F1 B（ADR-107）：學位 other（進階研究所文憑、短期課程）沒有固定的關鍵字，程式不擋，交給核對的 AI；
+    # 評估時 #3、#5902、#5906 因為這裡沒有 other 而 KeyError
+    assert rules.degree_supported("other", ["Advanced Postgraduate Diploma in Music Performance"]) is True

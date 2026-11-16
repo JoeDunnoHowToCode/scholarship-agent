@@ -268,6 +268,11 @@ def merge_sections(outline: Outline, sections: list[SectionFacts]) -> MergeResul
         provider=outline.provider,
         offered=outline.offered,  # ADR-105：第一輪讀全文時判斷
         offered_evidence=outline.offered_evidence,
+        # ADR-107：下一屆何時公布、整頁是不是沒有獎學金，也是第一輪讀全文時判斷
+        next_cycle_note=outline.next_cycle_note,
+        next_cycle_evidence=outline.next_cycle_evidence,
+        not_scholarship=outline.not_scholarship,
+        not_scholarship_evidence=outline.not_scholarship_evidence,
         categories=categories,
         requirements=list(requirements.values()),
         **values,

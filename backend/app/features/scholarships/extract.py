@@ -41,6 +41,7 @@ from app.features.scholarships.models import (
     Scholarship,
     ScholarshipCategory,
     ScholarshipStatus,
+    main_of,
 )
 from app.features.scholarships.schemas import (
     AmountDraft,
@@ -265,7 +266,7 @@ def save(
     snapshot_id: int | None,
 ) -> Scholarship:
     """獎學金以 source_id 找同一筆更新；類別、文件清單、申請期整批重寫，變更紀錄一起寫（同一個交易）。"""
-    row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
+    row = session.scalars(main_of(source.id)).first()
     old = dict(row.extracted) if row is not None else None
     if row is None:
         row = Scholarship(source_id=source.id)
@@ -468,7 +469,7 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool
         "prompts": current_prompts(),
         "model": settings.llm_model,
     }
-    existing = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).first()
+    existing = session.scalars(main_of(source.id)).first()
     old_meta = existing.extracted.get("meta", {}) if existing else {}
     same_model = bool(existing) and not force and old_meta.get("model") == meta["model"]
     if existing and same_model and old_meta.get("snapshots") == hashes:

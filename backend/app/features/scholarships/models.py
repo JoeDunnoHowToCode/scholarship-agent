@@ -12,9 +12,11 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Identity,
+    Select,
     String,
     Text,
     UniqueConstraint,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -83,6 +85,14 @@ class Scholarship(Base):
     source_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("sources.id"))
     # 同一來源裡的哪一個獎學金（ADR-108）：頁面的主角固定是 main，同一頁的其他獎學金是正規化的名稱
     key: Mapped[str] = mapped_column(Text, server_default="main")
+
+
+MAIN_KEY = "main"
+
+
+def main_of(source_id: int) -> Select[tuple[Scholarship]]:
+    """這個來源的主角那一筆（ADR-108）：一頁有好幾個獎學金時，頁面本身介紹的那一個。"""
+    return select(Scholarship).where(Scholarship.source_id == source_id, Scholarship.key == MAIN_KEY)
 
 
 class ScholarshipCategory(Base):

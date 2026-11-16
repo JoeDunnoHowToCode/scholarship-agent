@@ -126,20 +126,67 @@
   ```
 
 ### 段 2
-- [ ] 新欄位與預設值（百分比、第一年、other、下一屆說明、不是獎學金、群組） -> verify: `uv run pytest tests/test_schemas.py`
-- [ ] 百分比的核對與描述 -> verify: `uv run pytest tests/test_amounts.py -k percent`
-- [ ] 群組展開成國碼；不認識的群組標待確認 -> verify: `uv run pytest tests/test_groups.py`
-- [ ] 不是獎學金就停用來源並出現在報告 -> verify: `uv run pytest tests/test_not_scholarship_db.py`
-- [ ] 詳細頁回傳下一屆公布說明 -> verify: `uv run pytest tests/test_detail_kinds_db.py`
-- [ ] 提示詞 extract-15、section-15、outline-10 -> verify: `uv run pytest tests/test_prompts.py`
-- [ ] 前端型別與顯示 -> verify: `cd ../frontend && npm run gen:api && npm run build`
+- [x] 新欄位與預設值（百分比、第一年、other、下一屆說明、不是獎學金、群組） -> verify: `uv run pytest tests/test_schemas.py`
+  ```
+  3 passed in 0.03s
+  ```
+- [x] 百分比的核對與描述 -> verify: `uv run pytest tests/test_amounts.py -k percent`
+  ```
+  1 passed, 10 deselected in 0.05s
+  ```
+- [x] 群組展開成國碼；不認識的群組標待確認 -> verify: `uv run pytest tests/test_groups.py`（存檔時展開另見 `tests/test_extract_build.py -k groups`）
+  ```
+  3 passed in 0.02s
+  ```
+- [x] 不是獎學金就停用來源並出現在報告 -> verify: `uv run pytest tests/test_not_scholarship_db.py`（報告文字另見 `tests/test_pipeline_messages.py -k not_scholarship`）
+  ```
+  4 passed in 0.98s
+  ```
+- [x] 詳細頁回傳下一屆公布說明 -> verify: `uv run pytest tests/test_detail_kinds_db.py`
+  ```
+  2 passed in 1.09s
+  ```
+- [x] 提示詞 extract-15、section-15、outline-10 -> verify: `uv run pytest tests/test_prompts.py`
+  ```
+  15 passed in 0.72s
+  ```
+- [x] 前端型別與顯示 -> verify: `cd ../frontend && npm run gen:api && npm run build`
+  ```
+  🚀 openapi.json → src/api/schema.d.ts
+  ✓ built in 235ms
+  ```
 
 ### 段 3
-- [ ] 遷移：`source_id` 不再唯一，（`source_id`, `key`）唯一，既有資料補 `key` -> verify: `uv run alembic upgrade head` 後查 `\d scholarships`
-- [ ] 列出頁面上的獎學金；多個時各抽一次 -> verify: `uv run pytest tests/test_listing.py`
-- [ ] 同一來源多筆的存檔、找同一筆、消失的封存 -> verify: `uv run pytest tests/test_multi_scholarship_db.py`
-- [ ] 候選規則以獎學金為單位 -> verify: `uv run pytest tests/test_candidates_db.py`
-- [ ] 其他假設一來源一筆的地方都改完 -> verify: `grep -rn "Scholarship.source_id ==" app`（每一處都看過，貼出結果）
+- [x] 遷移：`source_id` 不再唯一，（`source_id`, `key`）唯一，既有資料補 `key` -> verify: `uv run alembic upgrade head` 後查 `\d scholarships`（先備份 `before-multi-key-20261116-2317.dump`）
+  ```
+  Running upgrade cc936d925bfc -> 0ed701dc7733, scholarships key per source
+  key | text | not null | 'main'::text
+  "scholarships_source_id_key_key" UNIQUE CONSTRAINT, btree (source_id, key)
+  ```
+- [x] 列出頁面上的獎學金；多個時各抽一次（改成主抽取順便列出，見「Claude 自行決定」第 12 點，測試併入下一行） -> verify: `uv run pytest tests/test_multi_scholarship_db.py`
+- [x] 同一來源多筆的存檔、找同一筆、消失的封存 -> verify: `uv run pytest tests/test_multi_scholarship_db.py`
+  ```
+  5 passed in 1.07s
+  ```
+- [x] 候選規則以獎學金為單位 -> verify: `uv run pytest tests/test_candidates_db.py`
+  ```
+  10 passed in 1.41s
+  ```
+- [x] 其他假設一來源一筆的地方都改完 -> verify: `grep -rn "Scholarship.source_id ==" app`（每一處都看過）
+  ```
+  pipeline/jobs.py:142      due_source_ids：只 join 主角（測試：每天只排一次）
+  settings/api.py:114       計數，多筆照算，不用改
+  discovery/intake.py:173   _scholarships：全部，主角排第一（候選規則任一筆通過）
+  search/index.py:159       每一筆都建向量（測試）
+  search/index.py:202       EXISTS，來源只排一次
+  evaluation/run.py:180     只 join 主角（樣本以來源為單位）
+  scholarships/summary.py:80  每一筆都補說明（測試）
+  scholarships/models.py:95   main_of
+  scholarships/pdfs.py:105    加 key == main（PDF 補抓以來源為單位）
+  scholarships/extract.py:550、561  find_other、archive_gone
+  scholarships/extract.py:636 recheck_rules 指定來源：全部
+  另外：dedup 只拿主角比對網址（測試）；候選的重複比對排除同一來源（測試）
+  ```
 
 ### 段 4
 - [ ] 完整檢查 -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
@@ -171,3 +218,12 @@
 9. 年份推估的申請期在評分裡算「未核對」（`verified` 只認 `supported`），時間條件是待確認，不是通過；提醒照送。
 10. 兩群人合併只在兩筆都寫了適用對象時：沒寫的代表所有人，和某一群一樣時不合併。
 11. `--rules-only` 改成每筆都重建申請期（原本只重建有變的）：建申請期的規則改了也要套到舊資料；之後照舊執行 `cycles` 指令重新產生預估。
+12. **不另外呼叫「列出獎學金」**（計畫原本寫 `listing-1`）：主抽取多一個欄位 `other_scholarships`，有列出來的才各抽一次（提示詞 `focus-1` 放在抽取提示詞前面）。只有一個獎學金的頁面（大多數）不多花錢；`listing.py` 這個名稱也已經被列表用掉。
+13. **主角的 `key` 固定是 `main`**（計畫原本寫正規化的名稱）：既有資料遷移後全部是 main，主角永遠更新同一筆，不會因為 AI 寫的名稱不同變成新的一筆；相似度 ≥ 0.9 只用在其他獎學金。
+14. 一頁最多另外抽 5 個（`MAX_OTHERS`）；長文件（大綱＋分節）照舊只抽一個。
+15. 頁面上不再出現的其他獎學金：封存、刪掉它的申請期（申請期可以從抽取結果重建，不是資料遺失），抽取結果標 `gone`，`--rules-only` 跳過它；再出現時重新存檔會蓋掉標記。
+16. 「不是獎學金」除了停用來源，也封存那筆獎學金（預設的列表看不到）；引用一定要在原文裡才停用。
+17. 每天的 `refresh` 只在有申請期時喚回已封存的（原本一個申請期都沒有也會喚回，和註解寫的不一樣）：否則「不是獎學金」封存的隔天就回來。
+18. 去重：同一頁拆出來的多筆網址一樣，只有主角拿網址比對；候選的重複比對排除同一來源。
+19. 學位 `other` 只在顯示時叫「其他」（`DEGREE_LABELS`）；個人資料與篩選照舊只有學士、碩士、博士。
+20. 段 4 評估的費用上限從 NT$40 改成 NT$48：上次每個來源每輪約 NT$0.31，57 × 2 輪約 NT$35，新提示詞比較長，40 可能又讓第 2 輪跑一半。

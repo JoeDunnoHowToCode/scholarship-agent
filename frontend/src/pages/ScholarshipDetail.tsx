@@ -96,7 +96,8 @@ export default function ScholarshipDetail() {
       {d.summary.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>說明</CardTitle>
+            {/* E2 B（ADR-107）：原文寫明這次不提供時，說明與補助是過去的資訊 */}
+            <CardTitle>說明{d.offered === "no" && "（過去的資訊）"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             {d.summary.map((s, index) => (
@@ -158,7 +159,7 @@ export default function ScholarshipDetail() {
                   </ul>
                 </Section>
               )}
-              <Section title="補助">
+              <Section title={d.offered === "no" ? "補助（過去的資訊）" : "補助"}>
                 <Fact label="補助內容">{d.coverage ?? "—"}</Fact>
                 {d.amounts.length > 0 ? (
                   // 11-07：原本是表格，手機上要左右捲動；改成一筆一塊，和申請期一樣

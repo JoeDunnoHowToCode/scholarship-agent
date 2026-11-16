@@ -43,6 +43,7 @@ export const VERIFICATION_NAMES: Record<string, string> = {
   degree_not_in_quote: "學位不在引用裡",
   incomplete: "日期不齊全",
   closes_before_opens: "截止早於開放",
+  year_inferred: "年份推估", // 原文只寫月日，年份是程式推算的（ADR-110）
 };
 
 export const DOC_NAMES: Record<string, string> = {

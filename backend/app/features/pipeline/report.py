@@ -37,6 +37,7 @@ def report_message(
     ai_cost: tuple[float, float, float] | None = None,
     marked: list[tuple[str, str]] | None = None,
     recovered: list[str] | None = None,
+    not_scholarship: list[str] | None = None,
 ) -> Message:
     """每日檢查報告：哪一天、何時開始與收尾（台灣時間）、來源結果、這輪產生幾則通知。
 
@@ -66,6 +67,11 @@ def report_message(
         lines += [f"・{name}：{error_kind(error)}" for name, error in marked]
     if recovered:
         lines.append(f"抓得到了 {len(recovered)} 個，回到每天檢查：" + "、".join(recovered))
+    if not_scholarship:
+        # A2 C（ADR-107）：判斷不是獎學金就停用來源；判斷可能錯，所以每天列出來
+        lines.append(
+            f"判斷不是獎學金而停用 {len(not_scholarship)} 個（判斷錯請到設定頁重新打開）：" + "、".join(not_scholarship)
+        )
     for skipped_day, waited in skipped:
         reason = "沒有單獨檢查：在等前一輪收尾" if waited else "沒有檢查：那天電腦沒開或沒有網路"
         lines.append(f"{day(skipped_day)} {reason}")

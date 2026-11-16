@@ -195,6 +195,13 @@ class ProgramFacts(BaseModel):
     )
 
 
+class OtherScholarship(BaseModel):
+    """同一頁介紹的另一個獎學金（A1 C，ADR-108）：之後另外抽一次，存成自己的一筆。"""
+
+    name: str = Field(description="這個獎學金在原文的名稱")
+    evidence: str | None = Field(description="介紹它的原文句子，逐字引用")
+
+
 class ScholarshipDraft(ProgramFacts):
     """一個獎學金的完整抽取結果：一般網頁整份抽，或長文件合併後的結果。"""
 
@@ -219,6 +226,13 @@ class ScholarshipDraft(ProgramFacts):
     )
     not_scholarship_evidence: str | None = Field(
         default=None, description="寫著沒有提供獎學金的原文句子，逐字引用；not_scholarship 是 false 時留空"
+    )
+    other_scholarships: list[OtherScholarship] = Field(  # ADR-108
+        default=[],
+        description=(
+            "同一頁還介紹了哪些可以另外申請、有自己的金額或申請期的獎學金或補助（不是這筆資料的主角）；"
+            "只是提到名字、或是這個獎學金的一部分就不要列；沒有就留空清單"
+        ),
     )
 
 

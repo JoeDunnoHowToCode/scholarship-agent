@@ -164,3 +164,23 @@ def test_a_difference_between_two_numbers_in_the_quote_is_supported() -> None:
     # 9,001 不是引用裡的數字，也不是兩個數字的差；4,500 原文沒寫，但等於 18,000 − 13,500
     reduced = "The tuition fee of 18,000 EUR is reduced to 13,500 EUR"
     assert amounts.amount_status(amount(4500).model_copy(update={"evidence": reduced}), f"x {reduced} y") == "supported"
+
+
+def test_a_percent_is_checked_against_the_quote_and_described_as_a_reduction() -> None:
+    # C1 B（ADR-107）：學費減 50% 存成 percent=50、value 空白；核對引用裡有這個百分比
+    quote = "Selected students receive a tuition fee reduction of 50%"
+
+    def amount(percent: float) -> schemas.AmountDraft:
+        return schemas.AmountDraft.model_validate({"value": None, "percent": percent, "currency": "EUR",
+                                                   "period": "year", "kind": "tuition_coverage", "applies_to": None,
+                                                   "evidence": quote})
+
+    assert amounts.amount_status(amount(50), f"x {quote} y") == "supported"
+    assert amounts.amount_status(amount(40), f"x {quote} y") == "number_not_in_quote"
+    item = {**amount(50).model_dump(), "status": "supported"}
+    assert amounts.describe([item]) == "每年 減免 50%（學費補助）"
+    # 列表的大概金額只看有數值的；只有百分比時沒有大概金額
+    assert amounts.headline([item]) is None
+    money_item = {"value": 1400, "percent": None, "currency": "EUR", "period": "month", "kind": "living_allowance",
+                  "applies_to": None, "status": "supported"}
+    assert amounts.headline([item, money_item]) == "每月 1,400 EUR"

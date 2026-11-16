@@ -32,7 +32,7 @@ from app.features.scholarships.extract import (
     current_prompts,
     documents,
 )
-from app.features.scholarships.models import Scholarship
+from app.features.scholarships.models import MAIN_KEY, Scholarship
 from app.features.scholarships.schemas import AmountDraft, ScholarshipDraft
 from app.features.sources.models import Discovery, Source, SourceStatus
 from app.shared.db import SessionLocal
@@ -177,7 +177,7 @@ def sample_ids() -> list[int]:
     with SessionLocal() as session:
         rows = session.execute(
             select(Source.id, Source.discovery)
-            .join(Scholarship, Scholarship.source_id == Source.id)
+            .join(Scholarship, (Scholarship.source_id == Source.id) & (Scholarship.key == MAIN_KEY))  # ADR-108
             .where(
                 Source.enabled.is_(True), Source.status == SourceStatus.APPROVED, Source.manual_reason.is_(None),
                 Source.unreachable_since.is_(None), Scholarship.duplicate_of.is_(None),

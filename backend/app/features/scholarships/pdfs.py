@@ -22,7 +22,7 @@ from app.core.fetch.text import content_hash, decode_snapshot, pdf_to_text
 from app.core.llm.gemini import LLMError, MissingApiKeyError
 from app.features.costs.llm import gemini
 from app.features.scholarships.extract import documents
-from app.features.scholarships.models import Scholarship
+from app.features.scholarships.models import MAIN_KEY, Scholarship
 from app.features.sources.fetch import SNAPSHOT_DIR, report, save_raw
 from app.features.sources.links import Link
 from app.features.sources.models import Snapshot, Source
@@ -103,6 +103,7 @@ def main() -> None:
             rows = session.execute(
                 select(Scholarship, Source)
                 .join(Source, Scholarship.source_id == Source.id)
+                .where(Scholarship.key == MAIN_KEY)  # PDF 補抓以來源為單位，看頁面主角那一筆（ADR-108）
                 .where(Source.parent_id.is_not(None))
                 .order_by(Source.id)
             ).all()

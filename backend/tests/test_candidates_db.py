@@ -254,3 +254,22 @@ def test_a_candidate_is_approved_when_any_scholarship_on_the_page_passes() -> No
     finally:
         session.rollback()
         session.close()
+
+
+def test_a_candidate_is_not_a_duplicate_of_another_scholarship_on_its_own_page() -> None:
+    # ADR-108：同一來源拆出來的多筆不互相比對（提供者一樣，AI 比對又可能說是同一個）
+    session = SessionLocal()
+    try:
+        without_real_candidates(session)
+        source = candidate(session, "https://test-sibling.example/s")
+        scholarship(session, source, ["SE"], name="Test Sibling Scholarship")
+        session.add(Scholarship(
+            name="Test Sibling Grant", provider=None, source_id=source.id, key="testsiblinggrant", countries=["SE"],
+            degrees=["master"], nationality_scope="all", nationalities=[], extracted={},
+        ))
+        session.execute(update(Scholarship).where(Scholarship.source_id == source.id).values(provider="Test Sibling U"))
+        session.flush()
+        assert decide_candidate(session, source, NOW, ask=lambda new, old: True) == "approved"
+    finally:
+        session.rollback()
+        session.close()

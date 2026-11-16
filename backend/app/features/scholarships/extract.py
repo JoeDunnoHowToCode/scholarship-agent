@@ -8,9 +8,12 @@
 """
 
 import argparse
+import re
 import sys
+import unicodedata
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from difflib import SequenceMatcher
 from typing import Any
 
 from sqlalchemy import delete, exists, select
@@ -35,6 +38,7 @@ from app.features.scholarships import (
     verify,
 )
 from app.features.scholarships.models import (
+    MAIN_KEY,
     Change,
     Cycle,
     Requirement,
@@ -77,6 +81,10 @@ EXTRACT_PROMPT = prompts.load(PROMPT_VERSION)  # 文字在 backend/prompts/（AD
 OUTLINE_PROMPT = prompts.load(OUTLINE_VERSION)  # 文字在 backend/prompts/（ADR-088）
 
 SECTION_PROMPT = prompts.load(SECTION_VERSION)  # 文字在 backend/prompts/（ADR-088）
+# 一頁有好幾個獎學金時（ADR-108），其他的各抽一次：這段放在抽取提示詞前面，只抽指定的那一個
+FOCUS_VERSION = "focus-1"
+FOCUS_PROMPT = prompts.load(FOCUS_VERSION)
+MAX_OTHERS = 5  # 一頁最多另外抽幾個（控制費用；「Claude 自行決定」）
 
 
 def documents(session: Session, source: Source) -> list[Snapshot]:
@@ -137,9 +145,10 @@ def stored_quotes(extracted: dict[str, Any]) -> list[str]:
 
 
 def extract_web(
-    llm: GeminiLLM, snapshots: list[Snapshot]
+    llm: GeminiLLM, snapshots: list[Snapshot], focus: str | None = None
 ) -> tuple[ScholarshipDraft, str, dict[str, Any]]:
-    """網頁（加上補抓的 PDF）：回傳（初稿, 核對用的原文, 額外紀錄）。"""
+    """網頁（加上補抓的 PDF）：回傳（初稿, 核對用的原文, 額外紀錄）。
+    focus：同一頁的其他獎學金（ADR-108），只抽這一個；只用在整份抽的網頁。"""
     pages: dict[str, str] = {}  # 網址 → 給 AI 讀的文字
     raws: list[str] = []  # 核對用的原文：網頁的可見文字、PDF 的 pdfplumber 原文
     htmls: list[str] = []
@@ -160,7 +169,7 @@ def extract_web(
     text = "\n\n".join(f"=== 頁面：{url} ===\n{body}" for url, body in pages.items())
     extra: dict[str, Any] = {"unverified_numbers": unverified} if unverified else {}
     if len(text) <= LONG_TEXT_CHARS:
-        prompt = EXTRACT_PROMPT.format(text=text)
+        prompt = (FOCUS_PROMPT.format(name=focus) if focus else "") + EXTRACT_PROMPT.format(text=text)
         return llm.extract(prompt, ScholarshipDraft), "\n\n".join(raws), {"mode": "whole", **extra}
     chunks = [chunk for html in htmls for chunk in chunk_html(html)]
     chunks += [c for url, body in pages.items() if url.endswith(".pdf") for c in chunk_transcript(body)]
@@ -264,12 +273,13 @@ def save(
     draft: ScholarshipDraft,
     extracted: dict[str, Any],
     snapshot_id: int | None,
+    key: str = MAIN_KEY,
 ) -> Scholarship:
     """獎學金以 source_id 找同一筆更新；類別、文件清單、申請期整批重寫，變更紀錄一起寫（同一個交易）。"""
-    row = session.scalars(main_of(source.id)).first()
+    row = session.scalars(main_of(source.id)).first() if key == MAIN_KEY else find_other(session, source.id, key)
     old = dict(row.extracted) if row is not None else None
     if row is None:
-        row = Scholarship(source_id=source.id)
+        row = Scholarship(source_id=source.id, key=key)
         session.add(row)
     row.name = draft.name
     row.name_zh = draft.name_zh
@@ -378,7 +388,7 @@ def clean_country_codes(draft: ScholarshipDraft) -> tuple[ScholarshipDraft, list
 
 def current_prompts() -> list[str]:
     """抽取結果記下的提示詞版本（快取鍵的一部分，ADR-013）。"""
-    return [PROMPT_VERSION, OUTLINE_VERSION, SECTION_VERSION, verify.PROMPT_VERSION]
+    return [PROMPT_VERSION, OUTLINE_VERSION, SECTION_VERSION, FOCUS_VERSION, verify.PROMPT_VERSION]
 
 
 def from_catalogue(session: Session, source: Source) -> bool:
@@ -400,7 +410,8 @@ def earliest_deadline(windows: list[WindowDraft]) -> str | None:
 
 
 def build_extraction(
-    session: Session, llm: GeminiLLM, source: Source, snapshots: list[Snapshot], meta: dict[str, Any]
+    session: Session, llm: GeminiLLM, source: Source, snapshots: list[Snapshot], meta: dict[str, Any],
+    focus: str | None = None,
 ) -> tuple[ScholarshipDraft, dict[str, Any]]:
     """抽取、核對並組出要存的結果，但不寫資料庫（第 11 天段 2：評估要用同一套流程比較模型）。
 
@@ -410,7 +421,7 @@ def build_extraction(
     if source.fetch_method == FetchMethod.PDF:
         draft, raw, extra = extract_pdf(llm, snapshots[0])
     else:
-        draft, raw, extra = extract_web(llm, snapshots)
+        draft, raw, extra = extract_web(llm, snapshots, focus)
     if not draft.categories:
         # ADR-040：每個獎學金至少一筆類別；模型漏填時用整個獎學金的資料補一筆
         only = CategoryDraft(
@@ -453,6 +464,7 @@ def build_extraction(
         **extra,
         "meta": meta,
         "relevance": relevance_fingerprint(session, source.id, hashes),  # ADR-079
+        **({"focus": focus} if focus else {}),  # 同一頁的其他獎學金：抽的是哪一個（ADR-108）
     }
     return verified, extracted
 
@@ -503,9 +515,18 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool
     deadline = extracted["deadline"]
     latest = max(snapshots, key=lambda snap: snap.fetched_at)
     row = save(session, source, verified, extracted, latest.id)
+    kept = {row.id}
     if status.get("not_scholarship") == "supported":
         disable_not_scholarship(source, row, verified.not_scholarship_evidence or "")
+        archive_gone(session, source.id, kept)
         return "判斷不是獎學金：停用來源"
+    # 同一頁的其他獎學金（ADR-108）：整份抽的網頁才做，每個各抽一次、存成自己的一筆
+    others = list({award_key(o.name): o.name for o in verified.other_scholarships if award_key(o.name)}.items())
+    if extracted.get("mode") == "whole":
+        for key, name in others[:MAX_OTHERS]:
+            other_verified, other_extracted = build_extraction(session, llm, source, snapshots, meta, focus=name)
+            kept.add(save(session, source, other_verified, other_extracted, latest.id, key).id)
+    archive_gone(session, source.id, kept)
     checks = " ".join(f"{f}={status[f]}" for f in ("nationality", "degrees"))
     flagged = len(status["categories"]) + len(status["issues"])
     return (
@@ -513,6 +534,37 @@ def extract_source(session: Session, llm: GeminiLLM, source: Source, force: bool
         f"窗口 {len(verified.windows)}、最早截止 {deadline}、國籍 {verified.nationality_scope}"
         f"｜{checks}｜其他待確認 {flagged}"
     )
+
+
+def award_key(name: str) -> str:
+    """同一頁其他獎學金的 key（ADR-108）：名稱去掉標點與空白、不分大小寫，例如 Regional Grant → regionalgrant。"""
+    return re.sub(r"[\W_]+", "", unicodedata.normalize("NFKC", name).casefold())
+
+
+SAME_AWARD = 0.9  # 同一來源內 key 的相似度到這裡就當成同一筆（「Claude 自行決定」第 5 點）
+
+
+def find_other(session: Session, source_id: int, key: str) -> Scholarship | None:
+    """同一來源裡 key 一樣、或很像（AI 每次寫法不同，例如多一個 s）的那一筆；主角不算。"""
+    rows = session.scalars(
+        select(Scholarship).where(Scholarship.source_id == source_id, Scholarship.key != MAIN_KEY)
+    ).all()
+    best = max(rows, key=lambda row: SequenceMatcher(None, key, row.key).ratio(), default=None)
+    return best if best is not None and SequenceMatcher(None, key, best.key).ratio() >= SAME_AWARD else None
+
+
+def archive_gone(session: Session, source_id: int, kept: set[int]) -> None:
+    """頁面上不再出現的其他獎學金（ADR-108）：封存、拿掉申請期，不刪；抽取結果標 gone，
+    之後套用規則時不會重建它的申請期。再出現時重新存檔會蓋掉這個標記。"""
+    rows = session.scalars(
+        select(Scholarship).where(
+            Scholarship.source_id == source_id, Scholarship.key != MAIN_KEY, Scholarship.id.not_in(kept)
+        )
+    ).all()
+    for row in rows:
+        row.status = ScholarshipStatus.ARCHIVED
+        row.extracted = {**row.extracted, "gone": True}  # JSONB 整個重新指定
+        session.execute(delete(Cycle).where(Cycle.scholarship_id == row.id))
 
 
 NOT_SCHOLARSHIP_NOTE = "判斷不是獎學金"

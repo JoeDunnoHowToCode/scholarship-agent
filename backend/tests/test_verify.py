@@ -99,3 +99,12 @@ def test_eu_countries_excluded_as_a_group_are_not_flagged_one_by_one() -> None:
     })
     source = "The scholarship is only for non-EU/EEA students."
     assert verify.other_issues(scholarship, source) == ["nationality_not_in_source:JP"]  # 日本不在歐盟，照樣要在原文找得到
+
+
+def test_the_nationality_claim_names_the_country_groups() -> None:
+    # ADR-109：AI 填群組代號時國家清單是空的；核對的 AI 要看到群組，才能判斷引用支不支持
+    groups_draft = draft([], None).model_copy(update={
+        "nationality_scope": "listed", "nationalities": ["CH"], "nationality_groups": ["EU"],
+        "nationality_evidence": "EU and Swiss citizens",
+    })
+    assert verify.claims(groups_draft)["nationality"] == ("listed CH, EU", "EU and Swiss citizens")

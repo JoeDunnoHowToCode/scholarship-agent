@@ -1,6 +1,6 @@
 # 抽取標準實作計畫（2026-11-16，ADR-107–110）
 
-狀態：**使用者 11-16 核准（/goal：做完後交完整報告）**，實作中。
+狀態：**完成（11-17）**。完整報告：`docs/extraction-standard-report.md`。
 
 - 標準：`docs/extraction-standard.md`
 - 題目與選項：`docs/definitions-decisions.md`
@@ -189,12 +189,31 @@
   ```
 
 ### 段 4
-- [ ] 完整檢查 -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
-- [ ] 評估 57 個樣本 -> verify: `uv run python -m app.features.evaluation.run --models gemini-3.5-flash-lite --rounds 2 --max-cost 40`
-- [ ] 備份後全部重抽 -> verify: `uv run python -m app.features.scholarships.extract --force --max-cost 120`
-- [ ] 補抽說明 -> verify: `uv run python -m app.features.scholarships.extract --backfill-summary --max-cost 30`
-- [ ] 依標準重新檢查 158 筆＋新拆出的 -> verify: 報告寫進 `docs/eval/2026-11-xx-standard.md`
-- [ ] 學習卡、`docs/progress.md` -> verify: 檔案已更新
+- [x] 完整檢查 -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+  ```
+  387 passed, 1 warning
+  All checks passed!
+  Success: no issues found in 125 source files
+  ```
+- [x] 評估 57 個樣本（上限改成 NT$48，見第 20 點） -> verify: `uv run python -m app.features.evaluation.run --models gemini-3.5-flash-lite --rounds 2 --max-cost 48`
+  ```
+  樣本 57 個，花了約 NT$35.82；報告 docs/eval/2026-11-16.md
+  國籍 97%、學位 86%、截止日 64%、金額 91%；失敗 4（KeyError: 'other'，已修）；沒有觸發停止條件
+  ```
+- [x] 備份後全部重抽（`before-reextract-standard-20261116-2344.dump`；分 3 份，每份上限 NT$40） -> verify: `uv run python -m app.features.scholarships.extract --force --shard K/3 --max-cost 40`
+  ```
+  完成 74＋83＋99、失敗 0；第 0 份碰到上限，剩 4 個
+  ```
+- [x] 收緊「不是獎學金」與「其他獎學金」後補抽 122 個來源（extract-16，實作時發現的問題，報告第 6 節） -> verify: `extract --force --source …（122 個） --max-cost 30`
+  ```
+  完成 61＋61、失敗 0（NT$27.3＋26.1）；不是獎學金 16 → 7，再加核對 AI 後 → 1
+  ```
+- [x] 補抽說明 -> verify: `uv run python -m app.features.scholarships.extract --backfill-summary --max-cost 30`（結果見報告第 4 節）
+- [x] 依標準重新檢查 158 筆＋新拆出的 42 筆 -> verify: 報告寫進 `docs/eval/2026-11-17-standard.md`
+  ```
+  截止日 59% → 74%、國籍 76% → 81%、學位 97% → 94%、金額 69% → 57%、今年有沒有開 86%
+  ```
+- [x] 學習卡、`docs/progress.md` -> verify: 檔案已更新（`docs/learning/day-11.md` 第 6 張）
 
 ## 費用
 
@@ -227,3 +246,9 @@
 18. 去重：同一頁拆出來的多筆網址一樣，只有主角拿網址比對；候選的重複比對排除同一來源。
 19. 學位 `other` 只在顯示時叫「其他」（`DEGREE_LABELS`）；個人資料與篩選照舊只有學士、碩士、博士。
 20. 段 4 評估的費用上限從 NT$40 改成 NT$48：上次每個來源每輪約 NT$0.31，57 × 2 輪約 NT$35，新提示詞比較長，40 可能又讓第 2 輪跑一半。
+21. 「不是獎學金」也交給核對的 AI（和其他欄位同一次呼叫）：只靠「引用在原文裡」擋不住「這一屆沒有」與壞掉的網頁。
+22. 其他獎學金沒有自己的金額（`for_this`）也沒有申請獎學金的日期，就不存：頁面只是列出外部資助管道。
+23. 程式停用的來源（`review_note` 以「判斷不是獎學金」開頭）在判斷改回來時自動打開；使用者在設定頁停用的不動。
+24. `gone` 的獎學金不產生通知：封存擋不住 `generate`，每日檢查會替 235 筆發通知。
+25. 目錄頁的國籍依據（ADR-053）只給主角；同一頁拆出來的獎學金沒寫國籍就是不清楚。
+26. 依標準重新檢查只從 108 筆拆分資料裡抽 42 筆（固定亂數），把 Claude 用量壓在約 120 萬 tokens。

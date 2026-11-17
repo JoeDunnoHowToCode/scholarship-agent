@@ -127,3 +127,22 @@ def test_not_scholarship_is_judged_by_the_ai_check_too() -> None:
     status = verify.verify(Judge(), flagged, f"Intro. {quote}. More.", [])  # type: ignore[arg-type]
     assert status["not_scholarship"] == "not_supported"
     assert "not_scholarship" not in verify.verify(Judge(), draft([], None), quote, [])  # type: ignore[arg-type]
+
+
+def test_offered_yes_or_no_is_checked_and_becomes_unclear_when_not_supported() -> None:
+    # ADR-111：「今年有沒有開」也交給核對的 AI；引用撐不起就改成 unclear（標準 5.1：不確定就是 unclear）
+    from app.features.scholarships.verify import ClaimVerdict, Verdicts
+
+    quote = "Applications for the 2026 intake are closed"
+
+    class Judge:
+        def extract(self, prompt: str, schema: type[Any]) -> Any:
+            claims = [line[2:].split("：")[0] for line in prompt.splitlines() if line.startswith("- ")]
+            return Verdicts(verdicts=[ClaimVerdict(claim=c, supported=c != "offered", reason="") for c in claims])
+
+    said_yes = draft([], None).model_copy(update={"offered": "yes", "offered_evidence": quote})
+    status = verify.verify(Judge(), said_yes, f"News. {quote}. More.", [])  # type: ignore[arg-type]
+    assert status["offered"] == "not_supported"
+    assert verify.apply_verification(said_yes, status).offered == "unclear"
+    # unclear 本來就不核對
+    assert "offered" not in verify.verify(Judge(), draft([], None), quote, [])  # type: ignore[arg-type]

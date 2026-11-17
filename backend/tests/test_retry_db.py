@@ -114,3 +114,53 @@ def test_a_failed_retry_call_keeps_the_first_result(tmp_path: Path) -> None:
     finally:
         session.rollback()
         session.close()
+
+
+class LongDocumentLLM:
+    """長文件（大綱＋分節）的假 AI：核對時學位一律判不支持；記下分節抽取的次數。"""
+
+    model = "fake-model"
+
+    def __init__(self) -> None:
+        self.outlines = 0
+
+    def extract(self, prompt: str, schema: type[Any]) -> Any:
+        from app.features.scholarships.schemas import Outline, SectionFacts
+        from tests.test_schemas import SECTION
+
+        if schema is Outline:
+            self.outlines += 1
+            return Outline.model_validate({"name": "Test Long", "name_zh": None, "provider": None,
+                                           "category_names": []})
+        if isinstance(schema, type) and issubclass(schema, SectionFacts):
+            return schema.model_validate({**SECTION, "degrees": ["master"], "degrees_evidence": "Master",
+                                          "category_facts": [], "requirements": []})
+        claims = [line[2:].split("：")[0] for line in prompt.splitlines() if line.startswith("- ") and "：值 = " in line]
+        return Verdicts(verdicts=[ClaimVerdict(claim=c, supported=c != "degrees", reason="") for c in claims])
+
+
+def test_long_documents_are_not_retried(tmp_path: Path) -> None:
+    # 長文件（大綱＋分節）這一版不重抽（計畫「Claude 自行決定」第 4 點）；學位沒過也只讀一次大綱
+    from app.features.scholarships.extract import LONG_TEXT_CHARS
+
+    session = SessionLocal()
+    try:
+        path = tmp_path / "long.html"
+        body = "".join(f"<h2>Section {i}</h2><p>{'Master programme details. ' * 200}</p>" for i in range(30))
+        path.write_text(f"<html><body>{body}</body></html>", encoding="utf-8")
+        assert path.stat().st_size > LONG_TEXT_CHARS
+        source = Source(name="Test long", url="https://test-long.example/", kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        now = datetime.now(UTC)
+        session.add(Snapshot(source_id=source.id, url=source.url, fetched_at=now, seen_at=now,
+                             content_hash="4" * 64, file_path=str(path), http_status=200, etag=None,
+                             last_modified=None))
+        session.flush()
+        llm = LongDocumentLLM()
+        extract_source(session, llm, source)  # type: ignore[arg-type]
+        row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).one()
+        assert llm.outlines == 1 and "retry" not in row.extracted
+    finally:
+        session.rollback()
+        session.close()

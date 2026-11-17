@@ -75,12 +75,19 @@ def claims(draft: ScholarshipDraft) -> dict[str, tuple[Any, str | None]]:
     }
     for index, window in enumerate(draft.windows):
         found[f"deadline:{index}"] = (window_value(window), window.evidence)
+    if draft.offered in ("yes", "no"):
+        # ADR-111：今年有沒有開也要核對；沒寫（unclear）就不核對
+        found["offered"] = (OFFERED_CLAIMS[draft.offered], draft.offered_evidence)
     if draft.not_scholarship:
         # A2 C（ADR-107）：判斷不是獎學金會停用來源，所以也要核對；「這一屆沒有」不算（那是 offered=no）
         found["not_scholarship"] = (NOT_SCHOLARSHIP_CLAIM, draft.not_scholarship_evidence)
     return found
 
 
+OFFERED_CLAIMS = {
+    "yes": "這一屆或下一屆有提供這個獎學金",
+    "no": "這一屆或下一屆不提供這個獎學金（不開辦、停止招生、沒有獎學金或只收自費生）",
+}
 NOT_SCHOLARSHIP_CLAIM = "這個學校或學程完全不提供任何獎學金或補助（不是只有這一屆、這次招生沒有，也不是只講學費）"
 
 
@@ -176,13 +183,15 @@ def verify(
         "deadlines": [status[f"deadline:{i}"] for i in range(len(draft.windows))],
         "categories": category_issues(draft, source),
         "issues": other_issues(draft, source),
-        # 只有 AI 判斷不是獎學金時才有這一項
-        **({"not_scholarship": status["not_scholarship"]} if "not_scholarship" in status else {}),
+        # 只有 AI 填了 yes／no、或判斷不是獎學金時才有這兩項
+        **{field: status[field] for field in ("offered", "not_scholarship") if field in status},
     }
 
 
 def apply_verification(draft: ScholarshipDraft, verification: dict[str, Any]) -> ScholarshipDraft:
-    """國籍資格沒有通過驗證就改成 unclear；其他欄位保留值，由 verification 標示待確認。"""
+    """國籍資格、今年有沒有開（ADR-111）沒有通過驗證就改成 unclear；其他欄位保留值，由 verification 標示待確認。"""
     if verification["nationality"] not in ("supported", "empty"):
-        return draft.model_copy(update={"nationality_scope": "unclear", "nationalities": []})
+        draft = draft.model_copy(update={"nationality_scope": "unclear", "nationalities": []})
+    if verification.get("offered", "supported") != "supported":
+        draft = draft.model_copy(update={"offered": "unclear"})
     return draft

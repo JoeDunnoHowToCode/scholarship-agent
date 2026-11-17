@@ -464,8 +464,16 @@ def build_extraction(
         draft, raw, extra = extract_web(llm, snapshots, focus)
     draft, verified, status = check_draft(session, llm, source, draft, raw, extra, focus)
     if extra.get("mode") == "whole" and (lines := retry.problems(draft, status)):
-        # 核對沒過：把錯誤拋回 AI 重抽一次（ADR-111）
-        extract_web(llm, snapshots, focus, lines)
+        # 核對沒過：把錯誤拋回 AI 重抽一次（ADR-111）；沒過的欄位比第一次少才用重抽的
+        again, raw_again, extra_again = extract_web(llm, snapshots, focus, lines)
+        checked = check_draft(session, llm, source, again, raw_again, extra_again, focus)
+        before, after, failed = retry.failures(status), retry.failures(checked[2]), retry.fields(status)
+        if after < before:
+            (draft, verified, status), raw, extra = checked, raw_again, extra_again
+        extra = {**extra, "retry": {
+            "fields": failed, "before": before, "after": after,
+            "kept": "retry" if after < before else "first",
+        }}
     amount_items = [
         {**a.model_dump(mode="json"), "status": s} for a, s in zip(verified.amounts, status["amounts"], strict=True)
     ]

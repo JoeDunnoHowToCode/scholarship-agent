@@ -61,3 +61,8 @@ def problems(draft: ScholarshipDraft, status: dict[str, Any]) -> list[str]:
 def failures(status: dict[str, Any]) -> int:
     """值得重抽的欄位有幾個（國籍、學位、每個申請期、每筆金額、今年有沒有開）。"""
     return len(_failed(status))
+
+
+def fields(status: dict[str, Any]) -> list[str]:
+    """重抽了哪些欄位（記在 extracted.retry）：國籍、學位、今年有沒有開用欄位名，申請期與金額寫成 deadline:0、amount:1。"""
+    return [field if index is None else f"{field}:{index}" for field, index, _ in _failed(status)]

@@ -33,6 +33,7 @@ from app.features.scholarships import (
     groups,
     merge,
     relevance,
+    retry,
     rules,
     verify,
 )
@@ -83,6 +84,9 @@ SECTION_PROMPT = prompts.load(SECTION_VERSION)  # 文字在 backend/prompts/（A
 # 一頁有好幾個獎學金時（ADR-108），其他的各抽一次：這段放在抽取提示詞前面，只抽指定的那一個
 FOCUS_VERSION = "focus-1"
 FOCUS_PROMPT = prompts.load(FOCUS_VERSION)
+# 核對沒過就把錯誤拋回 AI 重抽一次（ADR-111）：這段放在抽取提示詞最前面
+RETRY_VERSION = "retry-1"
+RETRY_PROMPT = prompts.load(RETRY_VERSION)
 MAX_OTHERS = 5  # 一頁最多另外抽幾個（控制費用；「Claude 自行決定」）
 
 
@@ -144,7 +148,7 @@ def stored_quotes(extracted: dict[str, Any]) -> list[str]:
 
 
 def extract_web(
-    llm: GeminiLLM, snapshots: list[Snapshot], focus: str | None = None
+    llm: GeminiLLM, snapshots: list[Snapshot], focus: str | None = None, problems: list[str] | None = None
 ) -> tuple[ScholarshipDraft, str, dict[str, Any]]:
     """網頁（加上補抓的 PDF）：回傳（初稿, 核對用的原文, 額外紀錄）。
     focus：同一頁的其他獎學金（ADR-108），只抽這一個；只用在整份抽的網頁。"""
@@ -168,7 +172,11 @@ def extract_web(
     text = "\n\n".join(f"=== 頁面：{url} ===\n{body}" for url, body in pages.items())
     extra: dict[str, Any] = {"unverified_numbers": unverified} if unverified else {}
     if len(text) <= LONG_TEXT_CHARS:
-        prompt = (FOCUS_PROMPT.format(name=focus) if focus else "") + EXTRACT_PROMPT.format(text=text)
+        prompt = (
+            (RETRY_PROMPT.format(problems="\n".join(problems)) if problems else "")  # 重抽時（ADR-111）
+            + (FOCUS_PROMPT.format(name=focus) if focus else "")
+            + EXTRACT_PROMPT.format(text=text)
+        )
         return llm.extract(prompt, ScholarshipDraft), "\n\n".join(raws), {"mode": "whole", **extra}
     chunks = [chunk for html in htmls for chunk in chunk_html(html)]
     chunks += [c for url, body in pages.items() if url.endswith(".pdf") for c in chunk_transcript(body)]
@@ -387,7 +395,7 @@ def clean_country_codes(draft: ScholarshipDraft) -> tuple[ScholarshipDraft, list
 
 def current_prompts() -> list[str]:
     """抽取結果記下的提示詞版本（快取鍵的一部分，ADR-013）。"""
-    return [PROMPT_VERSION, OUTLINE_VERSION, SECTION_VERSION, FOCUS_VERSION, verify.PROMPT_VERSION]
+    return [PROMPT_VERSION, OUTLINE_VERSION, SECTION_VERSION, FOCUS_VERSION, RETRY_VERSION, verify.PROMPT_VERSION]
 
 
 def from_catalogue(session: Session, source: Source) -> bool:
@@ -408,19 +416,11 @@ def earliest_deadline(windows: list[WindowDraft]) -> str | None:
     return min(dates, default=None)
 
 
-def build_extraction(
-    session: Session, llm: GeminiLLM, source: Source, snapshots: list[Snapshot], meta: dict[str, Any],
-    focus: str | None = None,
-) -> tuple[ScholarshipDraft, dict[str, Any]]:
-    """抽取、核對並組出要存的結果，但不寫資料庫（第 11 天段 2：評估要用同一套流程比較模型）。
-
-    回傳（核對後的初稿, extracted）；extract_source 拿去存檔。
-    """
-    hashes = sorted(s.content_hash for s in snapshots)
-    if source.fetch_method == FetchMethod.PDF:
-        draft, raw, extra = extract_pdf(llm, snapshots[0])
-    else:
-        draft, raw, extra = extract_web(llm, snapshots, focus)
+def check_draft(
+    session: Session, llm: GeminiLLM, source: Source, draft: ScholarshipDraft, raw: str, extra: dict[str, Any],
+    focus: str | None,
+) -> tuple[ScholarshipDraft, ScholarshipDraft, dict[str, Any]]:
+    """程式規則與三關核對；回傳（整理過的初稿, 套用核對結果後的初稿, 核對狀態）。重抽時再跑一次（ADR-111）。"""
     if not draft.categories:
         # ADR-040：每個獎學金至少一筆類別；模型漏填時用整個獎學金的資料補一筆
         only = CategoryDraft(
@@ -446,6 +446,26 @@ def build_extraction(
         status["nationality"] = "catalogue"
     # 金額的核對只用程式（docs/day-09.md「Claude 自行決定」第 21 點），結果和其他欄位一起存在 verification
     status["amounts"] = [amounts.amount_status(a, raw) for a in verified.amounts]
+    return draft, verified, status
+
+
+def build_extraction(
+    session: Session, llm: GeminiLLM, source: Source, snapshots: list[Snapshot], meta: dict[str, Any],
+    focus: str | None = None,
+) -> tuple[ScholarshipDraft, dict[str, Any]]:
+    """抽取、核對並組出要存的結果，但不寫資料庫（第 11 天段 2：評估要用同一套流程比較模型）。
+
+    回傳（核對後的初稿, extracted）；extract_source 拿去存檔。
+    """
+    hashes = sorted(s.content_hash for s in snapshots)
+    if source.fetch_method == FetchMethod.PDF:
+        draft, raw, extra = extract_pdf(llm, snapshots[0])
+    else:
+        draft, raw, extra = extract_web(llm, snapshots, focus)
+    draft, verified, status = check_draft(session, llm, source, draft, raw, extra, focus)
+    if extra.get("mode") == "whole" and (lines := retry.problems(draft, status)):
+        # 核對沒過：把錯誤拋回 AI 重抽一次（ADR-111）
+        extract_web(llm, snapshots, focus, lines)
     amount_items = [
         {**a.model_dump(mode="json"), "status": s} for a, s in zip(verified.amounts, status["amounts"], strict=True)
     ]

@@ -90,3 +90,27 @@ def test_the_retry_is_kept_only_when_it_has_fewer_failed_checks(tmp_path: Path) 
     finally:
         session.rollback()
         session.close()
+
+
+class FailingRetryLLM(JudgingLLM):
+    """第二次抽取（重抽）時 AI 出錯。"""
+
+    def extract(self, prompt: str, schema: type[Any]) -> Any:
+        if schema is ScholarshipDraft and self.prompts:
+            from app.core.llm.gemini import LLMError
+
+            raise LLMError("quota")
+        return super().extract(prompt, schema)
+
+
+def test_a_failed_retry_call_keeps_the_first_result(tmp_path: Path) -> None:
+    # 重抽的呼叫失敗：留第一次的結果照常存檔，不讓整個來源失敗
+    session = SessionLocal()
+    try:
+        source = source_with_page(session, tmp_path)
+        extract_source(session, FailingRetryLLM([DRAFT], [{"degrees"}]), source)  # type: ignore[arg-type]
+        row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).one()
+        assert row.name == "Test Global Scholarship" and row.extracted["retry"]["kept"] == "first"
+    finally:
+        session.rollback()
+        session.close()

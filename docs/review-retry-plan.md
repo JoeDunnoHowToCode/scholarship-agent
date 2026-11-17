@@ -1,6 +1,6 @@
 # 核對沒過就拋回 AI 重抽：實作計畫（2026-11-18，ADR-111）
 
-狀態：**等使用者核准**。
+狀態：**完成（11-18）**。結果：`docs/eval/2026-11-18-retry.md`。
 
 - 決定：ADR-111（使用者 11-18 用 `/decision-brief` 從 A–D 選 B）
 - 起因：`docs/extraction-standard-report.md` 第 8.3 節。offered 還有 12 個錯，改提示詞擋不下來。
@@ -68,20 +68,50 @@
 在 `backend/` 執行。
 
 ### 段 1：offered 加進核對
-- [ ] offered 是 yes／no 時要核對；沒過改成 unclear -> verify: `uv run pytest tests/test_verify.py -k offered`
+- [x] offered 是 yes／no 時要核對；沒過改成 unclear -> verify: `uv run pytest tests/test_verify.py -k offered`
+  ```
+  1 passed, 7 deselected in 0.02s
+  ```
 
 ### 段 2：重抽
-- [ ] 錯誤訊息 -> verify: `uv run pytest tests/test_retry.py`
-- [ ] 全部通過不重抽、有錯才重抽且帶錯誤訊息 -> verify: `uv run pytest tests/test_retry_db.py -k "no_retry or retries"`
-- [ ] 比較好才採用、記錄前後 -> verify: `uv run pytest tests/test_retry_db.py -k better`
-- [ ] 重抽失敗留第一次、長文件不重抽 -> verify: `uv run pytest tests/test_retry_db.py -k "fails or long"`
-- [ ] 提示詞 retry-1 有版本號 -> verify: `uv run pytest tests/test_prompts.py`
-- [ ] 完整檢查 -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+- [x] 錯誤訊息 -> verify: `uv run pytest tests/test_retry.py`
+  ```
+  2 passed in 0.53s
+  ```
+- [x] 全部通過不重抽、有錯才重抽且帶錯誤訊息 -> verify: `uv run pytest tests/test_retry_db.py -k "no_retry or retries"`
+  ```
+  2 passed, 3 deselected in 0.47s
+  ```
+- [x] 比較好才採用、記錄前後 -> verify: `uv run pytest tests/test_retry_db.py -k fewer`（測試名稱和計畫原本寫的不同）
+  ```
+  1 passed, 4 deselected in 0.48s
+  ```
+- [x] 重抽失敗留第一次、長文件不重抽 -> verify: `uv run pytest tests/test_retry_db.py -k "failed_retry or long"`（長文件那個第一次就通過，見 commit 7dc27e9；拿掉判斷後確認會失敗）
+  ```
+  2 passed, 3 deselected in 0.50s
+  ```
+- [x] 提示詞 retry-1 有版本號 -> verify: `uv run pytest tests/test_prompts.py`
+  ```
+  15 passed in 0.40s
+  ```
+- [x] 完整檢查 -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+  ```
+  395 passed / All checks passed! / no issues found in 126 source files
+  ```
 
 ### 段 3：量效果
-- [ ] 備份後重抽 11-17 有錯的 52 個來源（上限 NT$30） -> verify: `extract --force --source …（52 個） --max-cost 30`，貼上完成／失敗與重抽了幾個
-- [ ] 2 個判斷者（effort medium）用同一份指示檢查同樣 51 筆，和 extract-17 那輪比較 -> verify: 數字寫進 `docs/eval/2026-11-18-retry.md`
-- [ ] 學習卡、`docs/progress.md` -> verify: 檔案已更新
+- [x] 備份後重抽 11-17 有錯的 52 個來源（上限 NT$30） -> verify: `extract --force --source …（52 個） --max-cost 30`，貼上完成／失敗與重抽了幾個
+  ```
+  完成 49＋3、失敗 0（第一次碰到上限停在 49 個，補跑 3 個）；80 筆裡 36 筆觸發重抽，15 筆採用重抽的
+  ```
+- [x] 2 個判斷者（effort medium）用同一份指示檢查同樣 51 筆，和 extract-17 那輪比較 -> verify: 數字寫進 `docs/eval/2026-11-18-retry.md`
+  ```
+  錯誤 50 → 48、offered 判錯 13 → 11
+  ```
+- [x] 學習卡、`docs/progress.md` -> verify: 檔案已更新
+  ```
+  `docs/learning/day-11.md` 第 7 張、`docs/progress.md`
+  ```
 
 ## 費用
 

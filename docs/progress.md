@@ -39,4 +39,6 @@
 
 - 抽取標準 v1（2026-11-16 至 11-17，計畫 `docs/extraction-standard-plan.md`，報告 `docs/extraction-standard-report.md`，ADR-107–110，已推上 main）：你定了 17 題的標準；程式規則（兩群同額合併、差額、推算年份＋年份推估提醒）；schema 加百分比、第一年、學位 other、下一屆說明、不是獎學金、國家群組（官方清單）；一頁拆成多筆（遷移 `key`，主角固定 main）；評估國籍有根據 86% → 97%；全部重抽＋補抽 122 個來源；依標準重新檢查同樣 158 筆：截止日 59% → 74%、國籍 76% → 81%、金額 69% → 57%（標準變嚴，AI 沒照新規則做）；再修一輪 extract-17（51 筆錯誤 89 → 50）；Gemini 約 NT$268
 
-下一步：標準 v2 的 9 題（`docs/definitions-decisions-v2.md`）與審核重抽流程待你決定；第 11 天段 4（README 的評估一節）。
+- 審核 → 拋回錯誤 → 重抽（2026-11-18，ADR-111，你用 `/decision-brief` 選 B，計畫 `docs/review-retry-plan.md`，已推上 main）：offered 也核對、沒過的欄位拋回 AI 重抽一次、比較好才採用；同樣 51 筆錯誤 50 → 48、offered 13 → 11（剩下的多半是核對的 AI 也看不出來，`docs/eval/2026-11-18-retry.md`）；Gemini NT$37.8
+
+下一步：offered 要再降，要換更獨立的檢查者（決策簡報的 C 或 D）；標準 v2 的 9 題（`docs/definitions-decisions-v2.md`）待你決定；第 11 天段 4（README 的評估一節）。

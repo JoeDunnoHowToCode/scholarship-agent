@@ -4,9 +4,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.features.scholarships.extract import extract_source
+from app.features.scholarships.models import Scholarship
 from app.features.scholarships.schemas import ScholarshipDraft
 from app.features.scholarships.verify import ClaimVerdict, Verdicts
 from app.features.sources.models import Snapshot, Source, SourceKind
@@ -64,6 +66,27 @@ def test_a_failed_check_retries_once_with_the_error_message(tmp_path: Path) -> N
         assert len(llm.prompts) == 2
         assert "- 學位：上次填" in llm.prompts[1] and "核對的 AI 判斷引用撐不起這個值" in llm.prompts[1]
         assert "上次填" not in llm.prompts[0]
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_the_retry_is_kept_only_when_it_has_fewer_failed_checks(tmp_path: Path) -> None:
+    # 重抽的 AI 可能改出另一個錯：沒過的欄位比第一次少才用重抽的，extracted.retry 記下前後
+    session = SessionLocal()
+    try:
+        source = source_with_page(session, tmp_path)
+        retried = DRAFT.model_copy(update={"name": "Retried Scholarship"})
+        llm = JudgingLLM([DRAFT, retried], [{"degrees"}, set()])
+        extract_source(session, llm, source)  # type: ignore[arg-type]
+        row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).one()
+        assert row.name == "Retried Scholarship"
+        assert row.extracted["retry"] == {"fields": ["degrees"], "before": 1, "after": 0, "kept": "retry"}
+        # 重抽也沒變好：留第一次的
+        llm = JudgingLLM([DRAFT, retried], [{"degrees"}, {"degrees"}])
+        extract_source(session, llm, source, force=True)  # type: ignore[arg-type]
+        assert row.name == "Test Global Scholarship"
+        assert row.extracted["retry"] == {"fields": ["degrees"], "before": 1, "after": 1, "kept": "first"}
     finally:
         session.rollback()
         session.close()

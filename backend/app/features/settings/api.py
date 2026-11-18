@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.features.pipeline import breaker
 from app.features.profiles.service import CURRENT_USER_ID
-from app.features.scholarships.models import Scholarship
+from app.features.scholarships.models import MAIN_KEY, Scholarship
 from app.features.settings.service import CAP_LIMIT_NTD, effective, save
-from app.features.sources.models import Discovery, Source
+from app.features.sources.models import Discovery, Source, SourceStatus
 from app.shared.db import get_session
 
 DbSession = Annotated[Session, Depends(get_session)]
@@ -52,6 +52,16 @@ class AgentSourceOut(BaseModel):
 
 class SourceToggle(BaseModel):
     enabled: bool
+
+
+class ReviewOut(BaseModel):
+    """AI 判斷「這頁不是獎學金」、但引用沒核對過的來源（ADR-115），等你決定停用或保留。"""
+
+    source_id: int
+    name: str
+    url: str
+    evidence: str | None  # AI 引用的原文句子
+    check: str | None  # 引用的核對結果，例如 not_supported（引用撐不起判斷）、quote_not_found（原文裡找不到）
 
 
 @router.get("/settings")
@@ -113,6 +123,28 @@ def toggle_source(source_id: int, body: SourceToggle, session: DbSession) -> Age
     session.commit()
     n = session.scalar(select(func.count()).select_from(Scholarship).where(Scholarship.source_id == source_id))
     return _out(source, int(n or 0))
+
+
+@router.get("/settings/review")
+def list_review(session: DbSession) -> list[ReviewOut]:
+    """判斷不是獎學金、但引用沒核對過的來源（ADR-115）：核對過的已經自動停用（ADR-107 A2），不列。"""
+    extracted = Scholarship.extracted
+    rows = session.execute(
+        select(Source, extracted["not_scholarship_evidence"].astext, extracted["verification"]["not_scholarship"].astext)
+        .join(Scholarship, Scholarship.source_id == Source.id)
+        .where(
+            Scholarship.key == MAIN_KEY,  # 「不是獎學金」是整頁的判斷，看主角那筆
+            extracted["not_scholarship"].astext == "true",
+            func.coalesce(extracted["verification"]["not_scholarship"].astext, "") != "supported",
+            Source.status == SourceStatus.APPROVED,
+            Source.enabled.is_(True),
+        )
+        .order_by(Source.id)
+    ).tuples()
+    return [
+        ReviewOut(source_id=source.id, name=source.name, url=source.url, evidence=evidence, check=check)
+        for source, evidence, check in rows
+    ]
 
 
 def _out(source: Source, scholarships: int) -> AgentSourceOut:

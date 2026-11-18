@@ -27,6 +27,15 @@ def clock(moment: datetime, local_date: date) -> str:
     return taipei.strftime("%H:%M") if taipei.date() == local_date else taipei.strftime("%m-%d %H:%M")
 
 
+# 被擋的原因（Source.manual_reason）換成白話（ADR-116）
+BLOCK_REASONS = {
+    "429": "網站說我們抓太頻繁",
+    "403": "網站拒絕存取",
+    "robots.txt 禁止": "網站的 robots.txt 不讓程式抓",
+    "captcha": "網站要真人驗證",
+}
+
+
 def report_message(
     local_date: date,
     started_at: datetime,
@@ -38,6 +47,7 @@ def report_message(
     marked: list[tuple[str, str]] | None = None,
     recovered: list[str] | None = None,
     not_scholarship: list[str] | None = None,
+    blocked: list[tuple[str, str, date | None]] | None = None,
 ) -> Message:
     """每日檢查報告：哪一天、何時開始與收尾（台灣時間）、來源結果、這輪產生幾則通知。
 
@@ -67,6 +77,13 @@ def report_message(
         lines += [f"・{name}：{error_kind(error)}" for name, error in marked]
     if recovered:
         lines.append(f"抓得到了 {len(recovered)} 個，回到每天檢查：" + "、".join(recovered))
+    if blocked:
+        # ADR-116：429、403 會自己再試，寫出哪天；robots.txt、captcha 不會，要你處理
+        lines.append(f"今天被擋 {len(blocked)} 個：")
+        for name, reason, retry in blocked:
+            why = f"{BLOCK_REASONS.get(reason, '網站擋了我們')}（{reason}）"
+            then = f"{day(retry)} 自動再試" if retry else "要你處理，不會自動再試"
+            lines.append(f"・{name}：{why}，{then}")
     if not_scholarship:
         # A2 C（ADR-107）：判斷不是獎學金就停用來源；判斷可能錯，所以每天列出來
         lines.append(

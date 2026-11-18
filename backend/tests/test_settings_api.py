@@ -116,3 +116,32 @@ def test_agent_sources_are_listed_and_can_be_switched_off_and_on(db: Session) ->
     assert (on["enabled"], on["review_note"]) == (True, None)
     assert (replaced.disabled_at, replaced.empty_extractions) == (None, 0)
     assert client.patch("/api/discovery/sources/999999999", json={"enabled": True}).status_code == 404
+
+
+def judged_not_scholarship(db: Session, name: str, check: str) -> Source:
+    """一個來源＋主角那筆：AI 判斷「這頁不是獎學金」，引用的核對結果是 check。"""
+    from app.features.scholarships.models import Scholarship
+
+    source = Source(name=name, url=f"https://test-review-{check}-{len(name)}.example/", kind=SourceKind.UNIVERSITY)
+    db.add(source)
+    db.flush()
+    db.add(Scholarship(name=name, source_id=source.id, extracted={
+        "not_scholarship": True, "not_scholarship_evidence": "Study programmes",
+        "verification": {"not_scholarship": check},
+    }))
+    db.flush()
+    return source
+
+
+def test_unverified_not_scholarship_judgments_wait_for_you(db: Session) -> None:
+    # ADR-115（總檢查 C4 選 B）：AI 說「這頁不是獎學金」，但引用沒核對過，所以沒有自動停用、一直卡在列表上；
+    # 列在設定頁，由你決定。核對過的已經自動停用，不必列
+    unverified = judged_not_scholarship(db, "Test Royal Academy study programmes", "not_supported")
+    verified = judged_not_scholarship(db, "Test verified", "supported")
+    response = client.get("/api/settings/review")
+    assert response.status_code == 200
+    listed = {row["source_id"]: row for row in response.json()}
+    assert unverified.id in listed and verified.id not in listed
+    assert (listed[unverified.id]["name"], listed[unverified.id]["evidence"]) == (
+        "Test Royal Academy study programmes", "Study programmes",
+    )

@@ -1,6 +1,6 @@
 # 總檢查的修正：實作計畫（2026-11-18）
 
-狀態：**你 11-19 核准；段 1–4 完成（11-19），下一段是段 5**。
+狀態：**你 11-19 核准；段 1–5 完成（11-19），下一段是段 6**。
 
 - 問題：`docs/audit-2026-11-18.md`
 - 決定：ADR-112–119（你 11-18 的選擇）
@@ -326,11 +326,18 @@
   ```
 
 ### 段 5：待你確認
-- [ ] 列出判斷不是獎學金但沒核對過的 -> verify: `uv run pytest tests/test_settings_api.py -k review_list`
-- [ ] 停用 -> verify: `uv run pytest tests/test_settings_api.py -k review_disable`
-- [ ] 保留後不再列出 -> verify: `uv run pytest tests/test_settings_api.py -k review_keep`
-- [ ] 網頁 -> verify: `npm run gen:api && npm run build`，打開設定頁看到清單（不按停用或保留）
-- [ ] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+- [x] 列出判斷不是獎學金但沒核對過的；停用；保留後不再列出 -> verify: `uv run pytest tests/test_settings_api.py -k "wait_for_you or disable_a_source or keep"`（測試名稱和計畫原本寫的不同；red 856073e／2cf1dbc／d57de74、green 63b00de／657d68e／508b0b4）
+  ```
+  3 passed, 9 deselected in 0.67s
+  ```
+- [x] 網頁 -> verify: `npm run gen:api && npm run build`，打開設定頁看到清單（不按停用或保留；e753494）。8000 埠被別的程式占用，改用預覽伺服器的 8001（新的 API 加上剛建置的網頁）。console 沒有錯誤，三個 API 都回 200；清單列出 4 個來源：NANOMED、IMSOGLO、Mbuild、Master of Fine Arts（另外 3 個在已排除的來源上，A6 會封存）
+- [x] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app && cd ../frontend && npm run build`
+  ```
+  426 passed, 1 warning in 5.66s
+  All checks passed!
+  Success: no issues found in 126 source files
+  ✓ built in 246ms
+  ```
 
 ### 段 6：官網連結
 - [ ] 挑的子頁照順序存下來 -> verify: `uv run pytest tests/test_links.py -k picked_order`

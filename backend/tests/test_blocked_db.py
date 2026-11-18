@@ -52,3 +52,31 @@ def test_a_blocked_source_is_checked_again_on_its_retry_date_and_not_before() ->
     finally:
         session.rollback()
         session.close()
+
+
+class Fine:
+    """假的抓取器：網站恢復了，每一頁都回 304（沒變），不必寫快照檔。"""
+
+    def get(self, url: str, *, etag: str | None = None, last_modified: str | None = None) -> FetchResult:
+        return FetchResult(url, 304, b"", "text/html", etag, last_modified)
+
+
+def test_a_successful_retry_clears_the_block() -> None:
+    from app.features.sources.models import Snapshot
+
+    session = SessionLocal()
+    try:
+        today = datetime.now(TAIPEI).date()
+        source = Source(name="Test recovered", url="https://test-recovered.example/", kind=SourceKind.UNIVERSITY,
+                        manual_reason="429", retry_on=today)
+        session.add(source)
+        session.flush()
+        session.add(Snapshot(source_id=source.id, url=source.url, fetched_at=datetime.now(TAIPEI),
+                             seen_at=datetime.now(TAIPEI), content_hash="8" * 64, file_path=f"{source.id}/test.html",
+                             http_status=200, etag=None, last_modified=None))
+        session.flush()
+        fetch_source(session, Fine(), source)  # type: ignore[arg-type]
+        assert (source.manual_reason, source.retry_on) == (None, None)  # 回到每天檢查
+    finally:
+        session.rollback()
+        session.close()

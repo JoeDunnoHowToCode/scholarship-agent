@@ -80,3 +80,26 @@ def test_a_successful_retry_clears_the_block() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_the_report_lists_only_sources_blocked_in_this_run() -> None:
+    from app.features.sources.fetch import blocked_since
+
+    session = SessionLocal()
+    try:
+        started = datetime.now(TAIPEI) - timedelta(hours=2)
+        today = datetime.now(TAIPEI).date()
+        now_blocked = Source(name="Test blocked today", url="https://test-blocked-today.example/",
+                             kind=SourceKind.UNIVERSITY, manual_reason="429", retry_on=today + timedelta(days=7),
+                             last_checked_at=started + timedelta(hours=1))
+        old_block = Source(name="Test blocked last month", url="https://test-blocked-old.example/",
+                           kind=SourceKind.UNIVERSITY, manual_reason="captcha", retry_on=None,
+                           last_checked_at=started - timedelta(days=30))
+        session.add_all([now_blocked, old_block])
+        session.flush()
+        listed = blocked_since(session, started)
+        assert ("Test blocked today", "429", today + timedelta(days=7)) in listed
+        assert all(name != "Test blocked last month" for name, _, _ in listed)
+    finally:
+        session.rollback()
+        session.close()

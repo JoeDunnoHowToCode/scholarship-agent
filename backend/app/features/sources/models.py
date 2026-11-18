@@ -85,8 +85,10 @@ class Source(Base):
     status: Mapped[SourceStatus] = mapped_column(
         _text_enum(SourceStatus), server_default=SourceStatus.APPROVED.value
     )
-    # 需人工的原因；空白代表自動抓取，有內容就跳過、等使用者處理（ADR-028）
+    # 被擋的原因；空白代表自動抓取，有內容就跳過、等使用者處理（ADR-028）
     manual_reason: Mapped[str | None] = mapped_column(Text)
+    # 被擋後哪天（台灣日期）自動再試（ADR-116）：429、403 才有；空白代表不自動再試
+    retry_on: Mapped[date | None] = mapped_column(Date)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # 天天抓不到（ADR-080）：失敗了幾天（同一天只算一次）、最後失敗的日期、從哪天起標記成抓不到（之後每 7 天試一次）
     fail_days: Mapped[int] = mapped_column(server_default=text("0"))

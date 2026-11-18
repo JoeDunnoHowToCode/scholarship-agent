@@ -6,11 +6,13 @@
 """
 
 import argparse
+import math
 import sys
 import zlib
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from email.message import Message
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -51,9 +53,30 @@ def retry_on(reason: str, retry_after: str | None, today: date) -> date | None:
     """被擋之後哪天自動再試（ADR-116）；None 代表不再試、等你處理。
 
     429（太頻繁）一週後、403（拒絕存取）一個月後；robots.txt 禁止與 captcha 照舊等人工（ADR-028）。
+    429 時伺服器有說多久後再來（Retry-After），就照它，但至少隔一天、最多七天。
     """
     days = RETRY_DAYS.get(reason)
-    return today + timedelta(days=days) if days is not None else None
+    if days is None:
+        return None
+    if reason == "429":
+        asked = days_to_wait(retry_after, today)
+        if asked is not None:
+            days = max(1, min(days, asked))
+    return today + timedelta(days=days)
+
+
+def days_to_wait(retry_after: str | None, today: date) -> int | None:
+    """Retry-After 標頭換成天數（無條件進位）：可能是秒數（"3600"）或日期；看不懂就回傳 None。"""
+    if not retry_after:
+        return None
+    text = retry_after.strip()
+    if text.isdigit():
+        return math.ceil(int(text) / 86400)  # 一天有 86,400 秒
+    try:
+        when = parsedate_to_datetime(text)
+    except (TypeError, ValueError):
+        return None
+    return (when.date() - today).days
 
 
 def report(label: str, detail: str, target: str) -> None:

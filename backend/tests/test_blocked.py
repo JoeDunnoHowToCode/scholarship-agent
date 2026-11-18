@@ -2,8 +2,11 @@
 
 from datetime import date
 
+import httpx
 import pytest
 
+from app.core.fetch.base import BlockedError
+from app.core.fetch.http import HttpFetcher
 from app.features.sources import fetch
 
 TODAY = date(2026, 11, 19)
@@ -35,3 +38,16 @@ def test_retry_date_depends_on_why_the_site_blocked_us(reason: str, expected: da
 def test_a_429_follows_the_servers_retry_after_within_one_to_seven_days(retry_after: str, expected: date) -> None:
     # EACEA 11-18 在每 5 秒一頁時回 429；伺服器有說多久後再來，就照它
     assert fetch.retry_on("429", retry_after, TODAY) == expected
+
+
+def test_the_http_fetcher_passes_on_retry_after_when_a_site_says_429() -> None:
+    def site(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)  # 沒有 robots.txt：全部可以抓
+        return httpx.Response(429, headers={"Retry-After": "172800"}, text="Too Many Requests")
+
+    fetcher = HttpFetcher(0)
+    fetcher._client = httpx.Client(transport=httpx.MockTransport(site))  # 不連網路，用假的網站
+    with pytest.raises(BlockedError) as raised:
+        fetcher.get("https://test-busy.example/")
+    assert (raised.value.reason, raised.value.retry_after) == ("429", "172800")

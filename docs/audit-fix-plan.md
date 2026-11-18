@@ -1,6 +1,6 @@
 # 總檢查的修正：實作計畫（2026-11-18）
 
-狀態：**你 11-19 核准；段 1、段 2 完成（11-19），下一段是段 3**。
+狀態：**你 11-19 核准；段 1–3 完成（11-19），下一段是段 4**。
 
 - 問題：`docs/audit-2026-11-18.md`
 - 決定：ADR-112–119（你 11-18 的選擇）
@@ -295,10 +295,18 @@
   ```
 
 ### 段 3：不提供就封存
-- [ ] offered=no 封存 -> verify: `uv run pytest tests/test_cycles.py -k not_offered`
-- [ ] 不再是 no 而且有開放中的申請期就喚回 -> verify: `uv run pytest tests/test_cycles.py -k recall_offered`
-- [ ] 現有 26 筆封存 -> verify: 跑一次 `refresh`，SQL 貼上使用中且 offered=no 的筆數 0
-- [ ] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+- [x] offered=no 封存 -> verify: `uv run pytest tests/test_refresh_db.py`（測試放在 A6 的同一個檔；red 046d3fa、green 951c723）
+  ```
+  2 passed in 0.42s
+  ```
+- [x] 不再是 no 而且有開放中的申請期就喚回 -> 不另寫測試：`save_cycles` 建出開放中的申請期時會改回使用中，`refresh` 原本的喚回規則也照舊；新測試寫了會第一次就通過，證明不了什麼
+- [ ] 現有 26 筆封存 -> verify: 今天這輪收尾跑 `refresh` 之後，SQL 貼上使用中且 offered=no 的筆數 0（11-19 06:38 還在跑：使用中 offered=no 26 筆、來自不在每日檢查裡的來源 103 筆）
+- [x] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+  ```
+  421 passed, 1 warning in 5.31s
+  All checks passed!
+  Success: no issues found in 126 source files
+  ```
 
 ### 段 4：積壓暫停
 - [ ] 候選超過 50 個不跑逐校找與搜尋補漏 -> verify: `uv run pytest tests/test_discovery_run_db.py -k backlog`

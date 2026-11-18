@@ -17,6 +17,7 @@ from app.core.fetch.http import HttpFetcher
 from app.core.llm.base import ToolCallingLLM
 from app.features.costs.llm import gemini
 from app.features.costs.usage import NTD_PER_USD, TAIPEI
+from app.features.discovery.candidates import WEEKLY_DECISIONS
 from app.features.discovery.intake import add_candidates
 from app.features.discovery.models import AgentRun, University
 from app.features.discovery.new_url import decide_new_url
@@ -30,7 +31,7 @@ from app.features.pipeline.errors import classify
 from app.features.pipeline.report import new_url_digest_message, site_gone
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships.models import main_of
-from app.features.sources.models import Discovery, Source, SourceKind
+from app.features.sources.models import Discovery, Source, SourceKind, SourceStatus
 from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
@@ -217,6 +218,20 @@ def real_deps(http: httpx.Client, fetcher: HttpFetcher, max_cost_usd: float) -> 
         read=lambda url: fetch_page(fetcher, url),
         max_cost_usd=max_cost_usd,
     )
+
+
+def discovery_paused(session: Session) -> int | None:
+    """候選積壓太多就暫停找新來源（ADR-117）：回傳在等的候選數；沒超過上限回傳 None。
+
+    在等的候選＝還沒決定、啟用中、沒被擋的（和每天排進檢查的條件一樣）。上限是每週能決定的數量。
+    """
+    waiting = session.scalar(
+        select(func.count()).select_from(Source).where(
+            Source.status == SourceStatus.CANDIDATE, Source.enabled.is_(True), Source.manual_reason.is_(None)
+        )
+    )
+    count = int(waiting or 0)
+    return count if count > WEEKLY_DECISIONS else None
 
 
 def schools_left_today(session: Session, now: datetime, per_day: int = PER_DAY) -> list[int]:

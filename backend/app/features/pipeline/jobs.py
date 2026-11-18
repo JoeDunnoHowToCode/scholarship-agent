@@ -32,6 +32,7 @@ from app.features.discovery.run import (
     MAX_COST_NTD,
     describe,
     discover,
+    discovery_paused,
     new_url_targets,
     notify_new_urls,
     real_deps,
@@ -410,10 +411,16 @@ def discover_today() -> str:
         if breaker.is_open(session):
             return "斷路器打開中：今天不跑發掘"
         targets, schools = new_url_targets(session, now), schools_left_today(session, now)
+        # 候選積壓超過上限（ADR-117）：逐校找與搜尋補漏先不跑；找新網址照跑（它修的是已加入的來源）
+        backlog = discovery_paused(session)
+        if backlog is not None:
+            schools = []
     with httpx.Client() as http:
         fetcher = HttpFetcher(settings.fetch_min_interval_seconds)
         try:
-            summary = discover(real_deps(http, fetcher, MAX_COST_NTD / NTD_PER_USD), now, schools, True, targets)
+            summary = discover(
+                real_deps(http, fetcher, MAX_COST_NTD / NTD_PER_USD), now, schools, backlog is None, targets
+            )
         finally:
             fetcher.close()
     with SessionLocal() as session:

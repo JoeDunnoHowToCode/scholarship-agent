@@ -14,7 +14,7 @@ import httpx
 from redis import Redis
 from rq import Queue, Retry, get_current_job
 from rq.job import Dependency
-from sqlalchemy import exists, select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -143,7 +143,8 @@ def due_source_ids(session: Session, today: date) -> list[int]:
         .where(
             Source.enabled.is_(True),
             Source.status == SourceStatus.APPROVED,
-            Source.manual_reason.is_(None),
+            # 需人工的不檢查；被擋但有再試日期的（ADR-116）留下來，下面到期才排
+            or_(Source.manual_reason.is_(None), Source.retry_on.is_not(None)),
         )
         .options(selectinload(Scholarship.cycles))
         .order_by(Source.id)
@@ -151,6 +152,11 @@ def due_source_ids(session: Session, today: date) -> list[int]:
     # 發掘 agent 的候選（ADR-078）：每天排進檢查，抽完後決定加入或排除；受每週上限
     due: list[int] = pending_candidate_ids(session, datetime.now(UTC))
     for source, row in rows:
+        if source.manual_reason is not None:
+            # 被擋的來源（ADR-116）：到了再試日期才排，不看獎學金的檢查頻率
+            if source.retry_on is not None and today >= source.retry_on:
+                due.append(source.id)
+            continue
         stale, recheck = False, None
         if row is not None:
             real = [c.closes_at for c in row.cycles if not c.estimated]

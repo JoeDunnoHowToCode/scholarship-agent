@@ -9,7 +9,7 @@ import argparse
 import sys
 import zlib
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from email.message import Message
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -42,6 +42,18 @@ RETIRE_AFTER = timedelta(days=30)  # 這麼久都抓不到的網址不再去抓�
 
 # 挑連結的函式：(學程名稱, 首頁網址, 候選連結) → 挑中的網址
 LinkPicker = Callable[[str, str, list[Link]], list[str]]
+
+
+RETRY_DAYS = {"429": 7, "403": 30}  # 被擋後幾天再試（ADR-116）；其他原因（robots.txt、captcha）等人工
+
+
+def retry_on(reason: str, retry_after: str | None, today: date) -> date | None:
+    """被擋之後哪天自動再試（ADR-116）；None 代表不再試、等你處理。
+
+    429（太頻繁）一週後、403（拒絕存取）一個月後；robots.txt 禁止與 captcha 照舊等人工（ADR-028）。
+    """
+    days = RETRY_DAYS.get(reason)
+    return today + timedelta(days=days) if days is not None else None
 
 
 def report(label: str, detail: str, target: str) -> None:

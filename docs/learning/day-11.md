@@ -300,3 +300,47 @@
 1. 為什麼核對的 AI 和抽取的 AI 是同一個模型時，重抽的效果有限？
 2. 「沒過的欄位數變少」為什麼不等於「資料變對」？
 3. 如果要讓 offered 的錯再下降，C 和 D 各自是靠什麼看出錯的？
+
+## 8. 總檢查與段 1：先證明是 bug，再修（ADR-112–119 的段 1）
+
+**問題**：總檢查找到幾個「資料看起來亂」的源頭，例如：
+- #309 的來源因為「國籍規定排除台灣」被排除，獎學金卻還在你的列表上。
+- Europhotonics Consortium Scholarship（#2771）是使用中，卻被標成一筆封存舊資料的「重複」，列表上兩筆都看不到。
+- fipdes.eu 有兩個來源（`http://www.` 和 `https://www.`），每天抓兩次、抽兩次。
+- WOCC 原文寫「Candidatez du 16/11 au 21/03」沒有年份，AI 自己填了 2027，程式核對發現年份不在原文裡，就整筆日期丟掉。
+- 已封存的 266 筆每輪都重新評分。
+
+**設計**
+- 被排除、停用、還在候選的來源：每天的 `refresh` 把它的獎學金封存，不喚回、不預估下一屆。
+  - 放棄的做法：排除時封存，再讓列表過濾來源狀態。寫測試時發現，隔天的 `refresh` 看到還有開放中的申請期，會把它喚回。所以改成只由 `refresh` 一個地方決定。
+- 去重的代表：使用中的優先，其次才比 id。
+- 目錄的學程網址：先正規化（不分 http／https、www、結尾的 /）再比對。現有 6 組重複各停用一個。
+- AI 補的年份：只有在引用裡完全沒有年份時，才丟掉 AI 的年份、改由程式推算。引用寫了別的年份，就是真的不一致，照舊不建。
+- 已封存的不評分，但要留著上次的分數。
+  - 放棄的做法：直接從評分的查詢排除。這樣它們的分數會被當成「已經不存在的類別」刪掉。
+- 取消的一項：原本要減少變更紀錄的雜訊。查證後發現詳細頁和通知只用 4 個有原文核對的欄位，雜訊你根本看不到，所以不改程式。
+
+**概念**
+- **Prove-It（先證明再修）**：修 bug 前先寫一個會失敗的測試，證明 bug 真的存在。例如 A6 的測試先建立一個被排除的來源，跑 `refresh`，看到獎學金還是「使用中」，這才開始修。
+- **單一負責的地方**：同一個狀態只讓一段程式決定，才不會互相覆蓋。例如「使用中／封存」現在只由每天的 `refresh` 決定，排除那一刻不另外改。
+- **正規化（normalize）**：比對前先把寫法統一。例如 `http://www.fipdes.eu/` 和 `https://fipdes.eu` 都變成 `https://fipdes.eu`。
+- **併查集的代表（union-find leader）**：一組重複的資料只留一筆給你看。例如 Europhotonics 那組，代表原本選 id 最小的那筆，現在先選使用中的。
+- **savepoint（交易裡的小交易）**：會自己 commit 的程式，也能在測試裡跑完整個復原。例如評分每筆都 commit，測試用 savepoint 包住，真的評分資料一筆都沒動到。
+- **先查證再修**：總檢查說「詳細頁的變更紀錄大多是雜訊」，讀程式之後發現這句是錯的，所以這一項不修。
+
+**程式碼導讀**
+- `backend/app/features/scholarships/cycles.py`：`refresh` 裡的 `outside`（不在每日檢查裡的來源）
+- `backend/app/features/scholarships/dedup.py`：`Candidate.active`，以及 `find_duplicates` 的 `rank`
+- `backend/app/features/sources/catalogue.py`：`same_site`
+- `backend/app/features/scholarships/extract.py`：`save_cycles` 的 `ai_year`、`YEAR_IN_TEXT`
+- `backend/app/features/matching/score.py`：`score_all` 開頭的封存判斷
+- 測試：`tests/test_refresh_db.py`、`tests/test_dedup.py`、`tests/test_catalogue_move_db.py`、`tests/test_save_cycles_db.py`、`tests/test_score_archived_db.py`
+
+**你可以怎麼講**：「我先對整個資料庫做總檢查，找出資料看起來亂的源頭，再一個一個用測試證明是 bug 才修。例如被排除的來源，獎學金還留在列表上。寫測試時發現，在排除當下封存，隔天就會被每日更新喚回，所以改成只由每日更新決定狀態。修完 5 個 bug，每個都有一個先失敗、後通過的測試。」
+
+講的時候分清楚：看完總檢查後核准這份修正計畫、決定修的順序，是你的決定。A6 改成只由 `refresh` 決定、取消變更紀錄那一項、每一段怎麼寫，是 AI 的實作與查證。
+
+**自我檢查**
+1. 為什麼「排除時封存」不夠，一定要讓每天的 `refresh` 也知道來源的狀態？
+2. 去重如果還是選 id 最小的當代表，什麼情況下使用中的獎學金會從列表上消失？
+3. 評分時直接把封存的獎學金從查詢拿掉，會發生什麼事？

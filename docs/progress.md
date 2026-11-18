@@ -41,4 +41,7 @@
 
 - 審核 → 拋回錯誤 → 重抽（2026-11-18，ADR-111，你用 `/decision-brief` 選 B，計畫 `docs/review-retry-plan.md`，已推上 main）：offered 也核對、沒過的欄位拋回 AI 重抽一次、比較好才採用；同樣 51 筆錯誤 50 → 48、offered 13 → 11（剩下的多半是核對的 AI 也看不出來，`docs/eval/2026-11-18-retry.md`）；Gemini NT$37.8
 
-下一步：offered 要再降，要換更獨立的檢查者（決策簡報的 C 或 D）；標準 v2 的 9 題（`docs/definitions-decisions-v2.md`）待你決定；第 11 天段 4（README 的評估一節）。
+- 資料與流程總檢查（2026-11-18，`docs/audit-2026-11-18.md`）：21 個問題；你選了 A1、B1、C3、C4、D1、D3、D4（ADR-112–118），C1 你要先找出原因（ADR-119），追查出沒有申請期的 7 種原因；修正計畫 `docs/audit-fix-plan.md`（10 段）你 11-19 核准
+- 總檢查段 1（2026-11-19，已推上 main）：被排除或停用的來源，獎學金由每天的 refresh 封存（A6）；去重代表先選使用中的（A4）；目錄網址正規化後比對，停用 6 個重複來源（A3）；AI 補的年份不在引用裡改用程式推算（C1 第 4 種）；封存的不再評分（D5）；變更紀錄那一項查證後取消。學習卡 `docs/learning/day-11.md` 第 8 張
+
+下一步：總檢查段 2（被擋的來源自動再試）；ADR-118 每日檢查要搬到哪台機器待你決定；offered 要再降，要換更獨立的檢查者（決策簡報的 C 或 D）；標準 v2 的 9 題（`docs/definitions-decisions-v2.md`）待你決定；第 11 天段 4（README 的評估一節）。

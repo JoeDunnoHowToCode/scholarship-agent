@@ -145,3 +145,11 @@ def test_unverified_not_scholarship_judgments_wait_for_you(db: Session) -> None:
     assert (listed[unverified.id]["name"], listed[unverified.id]["evidence"]) == (
         "Test Royal Academy study programmes", "Study programmes",
     )
+
+
+def test_you_can_disable_a_source_judged_not_a_scholarship(db: Session) -> None:
+    source = judged_not_scholarship(db, "Test disable me", "quote_not_found")
+    response = client.post(f"/api/settings/review/{source.id}", json={"action": "disable"})
+    assert response.status_code == 200
+    assert (source.enabled, source.review_note) == (False, "你在設定頁停用：這頁不是獎學金")
+    assert source.id not in {row["source_id"] for row in client.get("/api/settings/review").json()}

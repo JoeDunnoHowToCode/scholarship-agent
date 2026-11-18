@@ -153,3 +153,12 @@ def test_you_can_disable_a_source_judged_not_a_scholarship(db: Session) -> None:
     assert response.status_code == 200
     assert (source.enabled, source.review_note) == (False, "你在設定頁停用：這頁不是獎學金")
     assert source.id not in {row["source_id"] for row in client.get("/api/settings/review").json()}
+
+
+def test_a_source_you_keep_stays_in_the_daily_check_and_leaves_the_list(db: Session) -> None:
+    # 你判斷 AI 錯了（這頁有獎學金）：照常檢查；之後重抽同樣的判斷也不再列出來
+    source = judged_not_scholarship(db, "Test keep me", "not_supported")
+    response = client.post(f"/api/settings/review/{source.id}", json={"action": "keep"})
+    assert response.status_code == 200
+    assert source.enabled is True
+    assert source.id not in {row["source_id"] for row in response.json()}

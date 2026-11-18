@@ -54,3 +54,13 @@ def test_scholarships_from_the_same_page_are_not_duplicates_by_url() -> None:
     assert found == {}
     # 不同來源、網址一樣的照舊算重複
     assert dedup.find_duplicates([dedup.Candidate(1, None, "A", same_page), dedup.Candidate(3, None, "B", same_page)]) == {3: 1}
+
+
+def test_an_active_scholarship_represents_its_group_over_an_archived_one() -> None:
+    # 總檢查 A4：同一個獎學金的舊列 #2436 已封存、新列 #2771 使用中；以前由 id 小的當代表，
+    # 使用中的那筆被標成重複，列表不列重複的、也不列封存的，兩筆都看不到
+    found = dedup.find_duplicates([
+        dedup.Candidate(2436, "Europhotonics", "Europhotonics Consortium Scholarship", None, active=False),
+        dedup.Candidate(2771, "Europhotonics", "Europhotonics Consortium Scholarship", None, active=True),
+    ])
+    assert found == {2436: 2771}

@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup, Tag
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.features.scholarships.dedup import normalize_url
 from app.features.sources.fetch import SNAPSHOT_DIR, latest_snapshot
 from app.features.sources.models import Discovery, Snapshot, Source, SourceKind
 from app.features.sources.seed import SEEDS
@@ -69,13 +70,23 @@ def _homepage_in_description(card: Tag) -> str | None:
     return None
 
 
+def same_site(session: Session, url: str) -> Source | None:
+    """網址正規化後相同的來源（總檢查 A3）：只差 http／https、www、結尾的 / 都算同一個。
+    目錄有時把同一個學程列兩次，網址只差這些（例如 http://www.fipdes.eu/ 和 https://www.fipdes.eu/）。"""
+    target = normalize_url(url)
+    host = urlsplit(target).hostname or ""
+    # 先用主機名稱縮小範圍，再在 Python 裡比正規化後的網址
+    candidates = session.scalars(select(Source).where(Source.url.ilike(f"%{host}%")).order_by(Source.id))
+    return next((source for source in candidates if normalize_url(source.url) == target), None)
+
+
 def upsert_programme(session: Session, catalogue_id: int, entry: CatalogueEntry, listed: set[str]) -> str:
     """寫入目錄裡的一個學程，回傳 added（新增）、kept（已有）、moved（學程換了網址，更新原本那一筆）。
 
     listed 是這次目錄裡所有學程的網址。學程換網址時，目錄只會列新網址；
     以前用網址分辨學程，會新增一筆、舊的那筆一直抓不到（11-08 的 SERP），現在以目錄為準直接改網址（11-09 使用者選 D）。
     """
-    existing = session.scalars(select(Source).where(Source.url == entry.url)).first()
+    existing = same_site(session, entry.url)
     if existing is not None:
         existing.name, existing.parent_id = entry.name, catalogue_id  # 不動抓取狀態（例如需人工的原因）
         return "kept"

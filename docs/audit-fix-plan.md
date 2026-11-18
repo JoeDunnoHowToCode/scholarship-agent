@@ -1,6 +1,6 @@
 # 總檢查的修正：實作計畫（2026-11-18）
 
-狀態：**你 11-19 核准；段 1–3 完成（11-19），下一段是段 4**。
+狀態：**你 11-19 核准；段 1–4 完成（11-19），下一段是段 5**。
 
 - 問題：`docs/audit-2026-11-18.md`
 - 決定：ADR-112–119（你 11-18 的選擇）
@@ -309,10 +309,21 @@
   ```
 
 ### 段 4：積壓暫停
-- [ ] 候選超過 50 個不跑逐校找與搜尋補漏 -> verify: `uv run pytest tests/test_discovery_run_db.py -k backlog`
-- [ ] 找新網址照跑 -> verify: `uv run pytest tests/test_discovery_run_db.py -k new_url_runs`
-- [ ] 每日報告寫出暫停 -> verify: `uv run pytest tests/test_pipeline_messages.py -k backlog`
-- [ ] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+- [x] 候選超過 50 個就暫停（`discovery_paused`） -> verify: `uv run pytest tests/test_discovery_run_db.py -k pauses`（red e31d92b、green f1b040f）
+  ```
+  1 passed, 7 deselected in 0.41s
+  ```
+- [x] 找新網址照跑 -> 沒有測試：`discover_today` 暫停時只把學校清空、搜尋設成不跑，找新網址的清單照原樣傳進去（f1b040f 的 diff）。`discover_today` 是背景工作，目前沒有它的測試
+- [x] 每日報告寫出暫停 -> verify: `uv run pytest tests/test_pipeline_messages.py -k backlog`（red 95396fb、green d81e35b）
+  ```
+  1 passed, 13 deselected in 0.02s
+  ```
+- [x] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+  ```
+  423 passed, 1 warning in 5.87s
+  All checks passed!
+  Success: no issues found in 126 source files
+  ```
 
 ### 段 5：待你確認
 - [ ] 列出判斷不是獎學金但沒核對過的 -> verify: `uv run pytest tests/test_settings_api.py -k review_list`

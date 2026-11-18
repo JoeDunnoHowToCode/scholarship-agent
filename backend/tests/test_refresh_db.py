@@ -42,3 +42,22 @@ def test_refresh_archives_scholarships_of_a_rejected_source() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_refresh_archives_a_scholarship_that_the_page_says_is_not_offered() -> None:
+    # 總檢查 C3（ADR-114）：TISE Master 原文寫明這一屆沒有獎學金（offered = no），程式不建申請期；
+    # 以前「一個申請期都沒有就不封存」，所以 27 筆今年申請不到的一直留在列表上
+    session = SessionLocal()
+    try:
+        source = Source(name="Test not offered", url="https://test-refresh-not-offered.example/",
+                        kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        row = Scholarship(name="Test not offered", source_id=source.id, extracted={"offered": "no"})
+        session.add(row)
+        session.flush()
+        refresh(session, NOW)
+        assert row.status == ScholarshipStatus.ARCHIVED
+    finally:
+        session.rollback()
+        session.close()

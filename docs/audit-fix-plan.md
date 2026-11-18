@@ -1,6 +1,6 @@
 # 總檢查的修正：實作計畫（2026-11-18）
 
-狀態：**你 11-19 核准，進行中（段 1）**。
+狀態：**你 11-19 核准；段 1、段 2 完成（11-19），下一段是段 3**。
 
 - 問題：`docs/audit-2026-11-18.md`
 - 決定：ADR-112–119（你 11-18 的選擇）
@@ -55,7 +55,7 @@
 再試成功 → 清掉標記，回到每天檢查
 ```
 
-- 資料表：`sources` 加 `blocked_at`（被擋的日期）；`manual_reason` 只留給 robots.txt 與 captcha。現有 34 個標記，429 與 403 的遷移成「從 11-18 起算再試」
+- 資料表：`sources` 加 `retry_on`（哪天再試，台灣日期；空白代表等你處理），原因照舊放 `manual_reason`（11-19 實作時改：一個欄位就夠，排程只需要知道哪天再試）。現有 34 個標記，429 與 403 的遷移成「從 11-18 起算再試」
 - EACEA 目錄這類翻頁來源，頁與頁之間改成等 15 秒（現在 5 秒；11-18 在 5 秒時被 429）
 - 每日報告分開列「暫時被擋（幾天後再試）」與「需人工」
 
@@ -262,14 +262,37 @@
   ```
 
 ### 段 2：被擋再試
-- [ ] 429 七天後再試、有 Retry-After 照它 -> verify: `uv run pytest tests/test_pipeline_due.py -k blocked_429`
-- [ ] 403 三十天後再試 -> verify: `uv run pytest tests/test_pipeline_due.py -k blocked_403`
-- [ ] robots.txt、captcha 照舊需人工 -> verify: `uv run pytest tests/test_pipeline_due.py -k manual`
-- [ ] 再試成功就清掉標記 -> verify: `uv run pytest tests/test_fetch_gone.py -k unblocked`
-- [ ] 翻頁來源每頁間隔 15 秒 -> verify: `uv run pytest tests/test_ratelimit.py -k pagination`
-- [ ] 遷移：現有 429、403 的標記改成再試 -> verify: `uv run alembic upgrade head`，SQL 貼上各原因的數量
-- [ ] 每日報告分開列 -> verify: `uv run pytest tests/test_pipeline_messages.py -k blocked`
-- [ ] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+測試檔和計畫原本寫的不同：規則與抓取器放在新的 `tests/test_blocked.py`（不碰資料庫），記錄、排程、恢復、報告查詢放在新的 `tests/test_blocked_db.py`。設計細節的改變：不另外加 `blocked_at`，改成一個欄位 `sources.retry_on`（哪天再試），被擋的原因照舊放 `manual_reason`。
+
+- [x] 429 七天後再試、有 Retry-After 照它（至少 1 天、最多 7 天）；403 三十天；robots.txt、captcha 不再試 -> verify: `uv run pytest tests/test_blocked.py`（red 3c33ca5／f1fab63／fb82017、green 9c3fd2b／3fc874d／d73b521）
+  ```
+  15 passed in 0.35s
+  ```
+  （這個檔也含下面的「還沒到期就不抓」與「翻頁間隔」）
+- [x] 被擋時記下再試日期；到期才排進每日檢查；再試沒被擋就清掉標記；報告只列這一輪被擋的 -> verify: `uv run pytest tests/test_blocked_db.py`（red cc14840／d7e3816／754c0ae／d596292、green 2792e52／e034147／43a7173／0bb4cd9）
+  ```
+  4 passed in 0.82s
+  ```
+- [x] `process_source` 不再跳過到期的來源（`still_blocked`） -> verify: 同上 `tests/test_blocked.py`（red e0bc09a、green d0bedae）
+- [x] 翻頁來源每頁間隔 15 秒 -> verify: 同上 `tests/test_blocked.py`（red 314a35b、green 230eeaa）
+- [x] 遷移：現有 429、403 的標記改成再試 -> verify: `uv run alembic upgrade head`，SQL 貼上各原因的數量（54b7628；自動產生的部分只有加欄位，讀過再套用）
+  ```
+    manual_reason  |  retry_on  | count
+   403             | 2026-12-18 |    22
+   429             | 2026-11-25 |     5
+   robots.txt 禁止 |            |     4
+   captcha         |            |     3
+  ```
+- [x] 每日報告分開列 -> verify: `uv run pytest tests/test_pipeline_messages.py -k separates`（red 299fd3d、green 09d348b）
+  ```
+  1 passed, 12 deselected in 0.01s
+  ```
+- [x] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+  ```
+  420 passed, 1 warning in 5.52s
+  All checks passed!
+  Success: no issues found in 126 source files
+  ```
 
 ### 段 3：不提供就封存
 - [ ] offered=no 封存 -> verify: `uv run pytest tests/test_cycles.py -k not_offered`
@@ -350,3 +373,5 @@
 6. 拆出來那筆比對時去掉的通用字：scholarship(s)、top up、grant(s)、award(s)
 7. 段 8 先試的 10 個來源（每一種原因至少一個）
 8. 列表上「時間待確認」的分組保留，原因寫在卡片上（不另外加分組）
+9. 被擋的來源只加一個欄位 `retry_on`（哪天再試），原因照舊放 `manual_reason`；計畫原本寫 `blocked_at`（11-19 段 2）
+10. A6 改成只由每天的 `refresh` 封存，排除當下不另外封存（11-19 段 1，理由見第 2 節段 1 的邊界情況）

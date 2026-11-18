@@ -344,3 +344,43 @@
 1. 為什麼「排除時封存」不夠，一定要讓每天的 `refresh` 也知道來源的狀態？
 2. 去重如果還是選 id 最小的當代表，什麼情況下使用中的獎學金會從列表上消失？
 3. 評分時直接把封存的獎學金從查詢拿掉，會發生什麼事？
+
+## 9. 被擋的來源自動再試：分清楚「暫時」和「永久」（ADR-116，總檢查段 2）
+
+**問題**：11-18 早上，EACEA 目錄抓到第二頁時回了 429（請求太頻繁）。程式把它標成「需人工」，從此每天跳過，目錄新增的學程都進不來。另外還有 29 個來源也是被擋一次就再也不抓，而且沒有任何方法恢復。
+
+**設計**
+- 你選了 C：429 七天後再試，403 三十天後再試；robots.txt 禁止和 captcha 照舊等你處理。
+- 實作：
+  - `sources` 加一個欄位 `retry_on`：哪天再試。
+  - 伺服器有回 `Retry-After`（請多久後再來）就照它，但至少隔一天、最多七天。
+  - 再試沒被擋就清掉標記，回到每天檢查。
+  - 翻頁來源（EACEA 目錄）每頁隔 15 秒（原本 5 秒）。
+  - 每日報告列出「哪天自動再試」或「要你處理」。
+- 放棄的做法：
+  - 原本計畫寫「另外存被擋的日期」，實作時改成直接存「哪天再試」。排程只需要後者，少一個欄位，也少一次換算。
+  - 被擋就馬上換一種方式抓（例如換 User-Agent）：違反 ADR-028「被擋就停、不換手法」。
+
+**概念**
+- **HTTP 429 與 Retry-After**：429 代表「你太快了」。伺服器可以附一個標頭說多久後再來，可能寫秒數（`172800`），也可能寫日期。例如測試裡 `172800` 秒算成 2 天後再試。
+- **暫時錯誤和永久錯誤要分開**：同樣是「被擋」，429 等一下就好，captcha 等再久都一樣。如果用同一套處理，不是太早放棄，就是一直去打擾。
+- **退避（backoff）**：被拒絕後隔一段時間再試，而且有上限和下限。這裡的下限是 1 天、上限是 7 天，所以就算伺服器說等 30 天，我們最多等 7 天就再試。
+- **假的網站（MockTransport）**：測試抓取器時不連真的網路，換一個假的 httpx 傳輸層。例如測試裡的假網站對每一頁都回 429 加 `Retry-After: 172800`。
+
+**程式碼導讀**
+- `backend/app/features/sources/fetch.py`：`retry_on`、`days_to_wait`、`still_blocked`、`fetch_interval`、`blocked_since`，以及 `fetch_source` 被擋時與完成時的兩段
+- `backend/app/core/fetch/base.py`：`BlockedError.retry_after`
+- `backend/app/core/fetch/http.py`：把 `Retry-After` 標頭帶出去
+- `backend/app/features/pipeline/jobs.py`：`due_source_ids` 被擋的分支、`process_source` 開頭的 `still_blocked`
+- `backend/app/features/pipeline/report.py`：`BLOCK_REASONS` 與「今天被擋」那幾行
+- `backend/migrations/versions/6d3f0981afdd_sources_retry_on.py`：加欄位，並把現有的標記改成再試日期
+- 測試：`tests/test_blocked.py`、`tests/test_blocked_db.py`、`tests/test_pipeline_messages.py`
+
+**你可以怎麼講**：「爬蟲被網站擋的時候，我把原因分成暫時和永久兩種。429 是太頻繁，照伺服器的 Retry-After 退避，最多一週後再試；403 一個月試一次；robots.txt 和 captcha 是網站明確不讓機器人抓，就不再試、交給人處理。再試成功會自動回到每天檢查，每日報告也會寫哪天再試。」
+
+講的時候分清楚：429 七天、403 三十天、robots.txt 和 captcha 不再試，是你選的 C。Retry-After 的上下限、翻頁間隔 15 秒、只用一個欄位存再試日期，是 AI 的決定，寫在計畫的「Claude 自行決定」。
+
+**自我檢查**
+1. 為什麼 robots.txt 禁止的網站不應該自動再試，429 卻可以？
+2. 伺服器回 `Retry-After: 60`（60 秒），我們為什麼還是隔一天才試？
+3. 如果只在排程（`due_source_ids`）放行到期的來源，卻沒改 `process_source` 開頭的檢查，會發生什麼事？

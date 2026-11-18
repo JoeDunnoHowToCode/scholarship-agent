@@ -62,7 +62,8 @@ class HttpFetcher:
         body = response.text if "html" in content_type else ""
         reason = detect_block(response.status_code, body)
         if reason:
-            raise BlockedError(reason)  # 界線三：被擋就停，不換手法
+            # 界線三：被擋就停，不換手法；伺服器說了多久後再來，就一起帶出去（ADR-116）
+            raise BlockedError(reason, response.headers.get("retry-after"))
         response.raise_for_status()  # 其他 4xx、5xx 交給呼叫端當成錯誤處理
         return FetchResult(
             url=str(response.url),

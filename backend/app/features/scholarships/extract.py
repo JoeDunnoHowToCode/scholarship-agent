@@ -59,7 +59,7 @@ from app.features.scholarships.schemas import (
 from app.features.scholarships.summary import ensure_summary, needs_summary
 from app.features.sources.catalogue import CATALOGUE_URL
 from app.features.sources.fetch import SNAPSHOT_DIR, in_shard, latest_snapshot
-from app.features.sources.models import FetchMethod, Snapshot, Source
+from app.features.sources.models import Discovery, FetchMethod, Snapshot, Source
 from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
@@ -312,7 +312,8 @@ def save(
     row.language_requirements = draft.language_requirements
     row.other_eligibility = draft.other_eligibility
     row.requires_admission = draft.requires_admission
-    row.official_url = source.url
+    # 目錄來的學程網址是首頁：連到 AI 挑的第一個子頁（ADR-113）；agent 找到的網址本身就是獎學金頁
+    row.official_url = source.picked_urls[0] if source.discovery == Discovery.CATALOGUE and source.picked_urls else source.url
     row.last_verified_at = datetime.now(UTC)
     row.extracted = extracted  # JSONB 整個重新指定
     session.flush()  # 先拿到 id，類別與文件才能指向它

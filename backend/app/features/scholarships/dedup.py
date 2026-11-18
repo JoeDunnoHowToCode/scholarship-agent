@@ -9,7 +9,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from sqlalchemy import select
 
-from app.features.scholarships.models import MAIN_KEY, Scholarship
+from app.features.scholarships.models import MAIN_KEY, Scholarship, ScholarshipStatus
 from app.features.search.similar import similar_pairs
 from app.shared.db import SessionLocal
 
@@ -48,6 +48,7 @@ class Candidate:
     name: str
     official_url: str | None
     main: bool = True  # 是不是頁面的主角（ADR-108）；同一頁的其他獎學金網址和主角一樣，不拿網址比對
+    active: bool = True  # 使用中（不是封存）；同一組裡優先當代表（總檢查 A4）
 
 
 def find_duplicates(items: list[Candidate]) -> dict[int, int]:
@@ -55,10 +56,15 @@ def find_duplicates(items: list[Candidate]) -> dict[int, int]:
 
     兩筆算重複：官方網址相同，或「提供者＋名稱」都相同。
     只比名稱不夠：很多不同學程都叫 "Erasmus Mundus Scholarships"。
-    重複會傳遞（A 像 B、B 像 C，三筆就是同一組），每組由最小的 id 代表。
+    重複會傳遞（A 像 B、B 像 C，三筆就是同一組），每組由使用中的優先、再由最小的 id 代表。
     """
     # 併查集（union-find）：每筆記住自己的「上一層」，一路往上找到的就是組長
     parent = {item.id: item.id for item in items}
+    active = {item.id: item.active for item in items}
+
+    def rank(item_id: int) -> tuple[bool, int]:
+        # 排越前面越適合當組長：使用中的（not True = False）排在封存的前面，再比 id
+        return not active[item_id], item_id
 
     def leader(item_id: int) -> int:
         while parent[item_id] != item_id:
@@ -76,9 +82,9 @@ def find_duplicates(items: list[Candidate]) -> dict[int, int]:
             if key not in first_with_key:
                 first_with_key[key] = item.id
                 continue
-            # 合併兩組：id 較大的組長改掛到較小的組長底下
-            a, b = leader(first_with_key[key]), leader(item.id)
-            parent[max(a, b)] = min(a, b)
+            # 合併兩組：排在後面的組長改掛到排在前面的組長底下（使用中的優先，再比 id）
+            winner, loser = sorted((leader(first_with_key[key]), leader(item.id)), key=rank)
+            parent[loser] = winner
     return {item.id: leader(item.id) for item in items if leader(item.id) != item.id}
 
 
@@ -90,7 +96,10 @@ def main() -> None:
     with SessionLocal() as session, session.begin():
         rows = session.scalars(select(Scholarship).where(Scholarship.source_id.is_not(None))).all()
         found = find_duplicates(
-            [Candidate(r.id, r.provider, r.name, r.official_url, r.key == MAIN_KEY) for r in rows]
+            [
+                Candidate(r.id, r.provider, r.name, r.official_url, r.key == MAIN_KEY, r.status == ScholarshipStatus.ACTIVE)
+                for r in rows
+            ]
         )
         for row in rows:
             row.duplicate_of = found.get(row.id)

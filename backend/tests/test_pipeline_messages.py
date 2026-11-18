@@ -186,3 +186,17 @@ def test_report_lists_sources_disabled_as_not_scholarships() -> None:
         not_scholarship=["Test School A", "Test School B"],
     )
     assert "判斷不是獎學金而停用 2 個（判斷錯請到設定頁重新打開）：Test School A、Test School B" in lines
+
+
+def test_report_says_when_the_agent_is_paused_by_the_candidate_backlog() -> None:
+    # ADR-117：積壓超過 50 個，逐校找與搜尋補漏暫停；報告要說，你才知道為什麼沒有新來源
+    _, lines = report.report_message(
+        local_date=date(2026, 11, 19),
+        started_at=datetime(2026, 11, 18, 22, 14, tzinfo=UTC),
+        finished_at=datetime(2026, 11, 19, 2, 0, tzinfo=UTC),
+        sources={"unchanged": 100},
+        new_events=0,
+        skipped=[],
+        backlog=69,
+    )
+    assert "候選來源積壓 69 個（每週最多決定 50 個）：逐校找與搜尋補漏先暫停" in lines

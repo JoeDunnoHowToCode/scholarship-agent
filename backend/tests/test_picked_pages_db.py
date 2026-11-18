@@ -41,3 +41,34 @@ def test_the_pages_the_ai_picks_are_kept_in_order(tmp_path: Path, monkeypatch: p
     finally:
         session.rollback()
         session.close()
+
+
+def test_a_catalogue_scholarship_links_to_the_first_picked_page(tmp_path: Path) -> None:
+    # 總檢查 B1：目錄來的 214 筆有 184 筆只連到學程首頁。agent 找到的網址本身就是獎學金頁，照舊
+    from datetime import UTC, datetime
+
+    from app.features.scholarships.extract import extract_source
+    from app.features.scholarships.models import main_of
+    from app.features.sources.models import Discovery, Snapshot
+    from tests.test_extract_build import DRAFT, FakeLLM
+
+    page = tmp_path / "page.html"
+    page.write_text("<html><body><p>Erasmus Mundus scholarships</p></body></html>", encoding="utf-8")
+    session = SessionLocal()
+    try:
+        links = {}
+        for discovery, url in ((Discovery.CATALOGUE, HOME), (Discovery.SEARCH, "https://test-picks.example/funding")):
+            source = Source(name=f"Test {discovery.value}", url=url, kind=SourceKind.UNIVERSITY, discovery=discovery,
+                            picked_urls=PICKS)
+            session.add(source)
+            session.flush()
+            now = datetime.now(UTC)
+            session.add(Snapshot(source_id=source.id, url=url, fetched_at=now, seen_at=now, content_hash="7" * 64,
+                                 file_path=str(page), http_status=200, etag=None, last_modified=None))
+            session.flush()
+            extract_source(session, FakeLLM(DRAFT), source)  # type: ignore[arg-type]
+            links[discovery] = session.scalars(main_of(source.id)).one().official_url
+        assert links == {Discovery.CATALOGUE: PICKS[0], Discovery.SEARCH: "https://test-picks.example/funding"}
+    finally:
+        session.rollback()
+        session.close()

@@ -138,6 +138,7 @@ def list_review(session: DbSession) -> list[ReviewOut]:
             func.coalesce(extracted["verification"]["not_scholarship"].astext, "") != "supported",
             Source.status == SourceStatus.APPROVED,
             Source.enabled.is_(True),
+            func.coalesce(Source.review_note, "") != KEPT_NOTE,  # 你按過保留的不再列
         )
         .order_by(Source.id)
     ).tuples()
@@ -148,10 +149,12 @@ def list_review(session: DbSession) -> list[ReviewOut]:
 
 
 class ReviewAction(BaseModel):
-    action: Literal["disable"]  # disable：你確認這頁不是獎學金，停用來源
+    # disable：你確認這頁不是獎學金，停用來源；keep：你判斷 AI 錯了，照常檢查
+    action: Literal["disable", "keep"]
 
 
 DISABLED_NOTE = "你在設定頁停用：這頁不是獎學金"
+KEPT_NOTE = "你在設定頁保留：這頁有獎學金"
 
 
 @router.post("/settings/review/{source_id}")
@@ -161,7 +164,10 @@ def decide_review(source_id: int, body: ReviewAction, session: DbSession) -> lis
     source = session.get(Source, source_id)
     if source is None:
         raise HTTPException(status_code=404, detail="沒有這個來源")
-    source.enabled, source.disabled_at, source.review_note = False, datetime.now(UTC), DISABLED_NOTE
+    if body.action == "keep":
+        source.review_note = KEPT_NOTE  # 之後重抽同樣的判斷也不再列出來
+    else:
+        source.enabled, source.disabled_at, source.review_note = False, datetime.now(UTC), DISABLED_NOTE
     session.commit()
     return list_review(session)
 

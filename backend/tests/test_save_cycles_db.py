@@ -58,3 +58,30 @@ def test_a_date_without_a_year_becomes_the_next_such_day_marked_year_inferred() 
     finally:
         session.rollback()
         session.close()
+
+
+def test_a_year_the_ai_added_to_a_quote_without_a_year_is_replaced_by_the_inferred_year() -> None:
+    # 總檢查 C1 第 4 種：WOCC 原文「Candidatez du 16/11 au 21/03」沒寫年份，AI 卻填了 2027；
+    # 核對發現年份不在引用裡（year_not_in_quote），以前整筆丟掉、沒有申請期。改成丟掉 AI 的年份，由程式推算（ADR-110）
+    from datetime import UTC, datetime
+
+    session = SessionLocal()
+    try:
+        row = Scholarship(name="Test AI year", countries=["FR"], degrees=["master"], nationality_scope="all",
+                          nationalities=[], extracted={})
+        session.add(row)
+        session.flush()
+        ai_year = window(21, "scholarship").model_copy(
+            update={"closes_year": 2031, "evidence": "Candidatez du 16/11 au 21/03"}
+        )
+        # 引用裡寫的是另一個年份：這是真的不一致，照舊不建（不能拿推算蓋掉原文寫的年份）
+        other_year = window(9, "scholarship").model_copy(update={"closes_year": 2031, "evidence": "9 March 2026"})
+        save_cycles(session, row, [ai_year, other_year], ["year_not_in_quote", "year_not_in_quote"])
+        today = datetime.now(UTC).date()
+        expected_year = today.year if (3, 21) >= (today.month, today.day) else today.year + 1
+        built = session.scalars(select(Cycle).where(Cycle.scholarship_id == row.id)).all()
+        assert [(c.closes_at.year, c.closes_at.month, c.closes_at.day) for c in built] == [(expected_year, 3, 21)]
+        assert built[0].verification == "year_inferred"
+    finally:
+        session.rollback()
+        session.close()

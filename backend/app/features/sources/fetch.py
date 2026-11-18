@@ -210,6 +210,10 @@ def fetch_source(
             queue.extend(link for link in links if link not in seen)
 
     # 走到這裡代表這次完整跑完（中途被擋或出錯會提早 return，不比較也不更新）
+    if source.retry_on is not None:
+        # 被擋後再試成功（ADR-116）：清掉標記，回到每天檢查
+        report("unblocked", source.manual_reason or "", source.url)
+        source.manual_reason, source.retry_on = None, None
     if source.follow_pagination:
         warning = missing_pages_warning(source.last_page_count, checked)
         if warning:

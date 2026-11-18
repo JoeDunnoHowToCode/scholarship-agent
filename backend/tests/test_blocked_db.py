@@ -31,3 +31,24 @@ def test_a_429_marks_the_source_with_a_retry_date() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_a_blocked_source_is_checked_again_on_its_retry_date_and_not_before() -> None:
+    from app.features.pipeline.jobs import due_source_ids
+
+    session = SessionLocal()
+    try:
+        today = datetime.now(TAIPEI).date()
+        due = Source(name="Test retry today", url="https://test-retry-today.example/", kind=SourceKind.UNIVERSITY,
+                     manual_reason="429", retry_on=today)
+        later = Source(name="Test retry later", url="https://test-retry-later.example/", kind=SourceKind.UNIVERSITY,
+                       manual_reason="403", retry_on=today + timedelta(days=3))
+        manual = Source(name="Test captcha", url="https://test-captcha.example/", kind=SourceKind.UNIVERSITY,
+                        manual_reason="captcha", retry_on=None)
+        session.add_all([due, later, manual])
+        session.flush()
+        ids = due_source_ids(session, today)
+        assert (due.id in ids, later.id in ids, manual.id in ids) == (True, False, False)
+    finally:
+        session.rollback()
+        session.close()

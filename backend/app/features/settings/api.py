@@ -1,7 +1,7 @@
 """設定頁的 API（第 10 天段 6）：通知門檻、每月上限、斷路器、agent 加的來源。"""
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -145,6 +145,25 @@ def list_review(session: DbSession) -> list[ReviewOut]:
         ReviewOut(source_id=source.id, name=source.name, url=source.url, evidence=evidence, check=check)
         for source, evidence, check in rows
     ]
+
+
+class ReviewAction(BaseModel):
+    action: Literal["disable"]  # disable：你確認這頁不是獎學金，停用來源
+
+
+DISABLED_NOTE = "你在設定頁停用：這頁不是獎學金"
+
+
+@router.post("/settings/review/{source_id}")
+def decide_review(source_id: int, body: ReviewAction, session: DbSession) -> list[ReviewOut]:
+    """你對一個「判斷不是獎學金」的來源做決定（ADR-115）；回傳更新後的清單。
+    停用後，它的獎學金在當天收尾的 refresh 封存（總檢查 A6）。"""
+    source = session.get(Source, source_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="沒有這個來源")
+    source.enabled, source.disabled_at, source.review_note = False, datetime.now(UTC), DISABLED_NOTE
+    session.commit()
+    return list_review(session)
 
 
 def _out(source: Source, scholarships: int) -> AgentSourceOut:

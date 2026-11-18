@@ -111,6 +111,22 @@ def test_report_lists_newly_unreachable_and_recovered_sources() -> None:
     assert "抓得到了 1 個，回到每天檢查：CyberMACS" in lines
 
 
+def test_report_separates_sources_that_retry_by_themselves_from_ones_that_need_you() -> None:
+    # ADR-116：429、403 會自己再試，報告寫哪天；robots.txt、captcha 不會，要你處理
+    _, lines = report.report_message(
+        local_date=date(2026, 11, 19),
+        started_at=datetime(2026, 11, 18, 22, 14, tzinfo=UTC),
+        finished_at=datetime(2026, 11, 19, 2, 0, tzinfo=UTC),
+        sources={"extracted": 2, "unchanged": 100, "blocked": 2},
+        new_events=0,
+        skipped=[],
+        blocked=[("Erasmus Mundus Catalogue", "429", date(2026, 11, 26)), ("Test site", "captcha", None)],
+    )
+    assert "今天被擋 2 個：" in lines
+    assert "・Erasmus Mundus Catalogue：網站說我們抓太頻繁（429），11-26 自動再試" in lines
+    assert "・Test site：網站要真人驗證（captcha），要你處理，不會自動再試" in lines
+
+
 def test_error_kinds_in_plain_words() -> None:
     assert report.error_kind("gaierror: [Errno 8] nodename nor servname provided, or not known") == "網域不存在"
     assert report.error_kind("httpx.ConnectError: [Errno 8] nodename nor servname provided") == "網域不存在"

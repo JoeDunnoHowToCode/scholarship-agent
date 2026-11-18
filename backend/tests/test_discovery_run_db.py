@@ -219,3 +219,26 @@ def test_new_urls_are_only_searched_for_gone_sites_outside_the_catalogue() -> No
     finally:
         session.rollback()
         session.close()
+
+
+def test_the_agent_pauses_finding_new_sources_while_more_than_50_candidates_wait() -> None:
+    # ADR-117（總檢查 D3 選 C）：每週最多決定 50 個候選，agent 一天就能提交 43 個；11-18 有 69 個在等。
+    # 積壓超過 50 個，逐校找與搜尋補漏先不跑，等積壓降下來
+    from app.features.discovery.run import discovery_paused
+
+    session = SessionLocal()
+    try:
+        # 真的資料庫裡有候選：在交易裡先關掉，只算這個測試建的，測完復原
+        session.execute(update(Source).where(Source.status == SourceStatus.CANDIDATE).values(enabled=False))
+        for index in range(50):
+            session.add(Source(name=f"Test backlog {index}", url=f"https://test-backlog-{index}.example/",
+                               kind=SourceKind.UNIVERSITY, discovery=Discovery.SEARCH, status=SourceStatus.CANDIDATE))
+        session.flush()
+        assert discovery_paused(session) is None  # 剛好 50 個：照常找
+        session.add(Source(name="Test backlog 50", url="https://test-backlog-50.example/",
+                           kind=SourceKind.UNIVERSITY, discovery=Discovery.SEARCH, status=SourceStatus.CANDIDATE))
+        session.flush()
+        assert discovery_paused(session) == 51  # 超過 50 個：暫停，回傳積壓幾個給報告用
+    finally:
+        session.rollback()
+        session.close()

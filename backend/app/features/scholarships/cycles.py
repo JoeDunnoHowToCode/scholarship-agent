@@ -147,6 +147,12 @@ def refresh(session: Session, now: datetime) -> Counter[str]:
                 row.status = ScholarshipStatus.ARCHIVED
                 counts["archived_source"] += 1
             continue
+        if row.extracted.get("offered") == "no":
+            # 原文寫明這一屆不提供（ADR-114）：封存；重抽後不再是 no、又有開放中的申請期，下面的規則照常喚回
+            if row.status == ScholarshipStatus.ACTIVE:
+                row.status = ScholarshipStatus.ARCHIVED
+                counts["archived_not_offered"] += 1
+            continue
         statuses: list[Status] = [cast(Status, c.status) for c in row.cycles]
         if should_archive(statuses):
             if row.status == ScholarshipStatus.ACTIVE:

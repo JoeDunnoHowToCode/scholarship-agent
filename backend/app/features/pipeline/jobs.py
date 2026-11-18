@@ -74,6 +74,7 @@ from app.features.search.index import index_scholarship, index_source
 from app.features.search.models import Chunk
 from app.features.sources.catalogue import CATALOGUE_URL, import_programmes
 from app.features.sources.fetch import (
+    blocked_since,
     fetch_interval,
     fetch_source,
     make_picker,
@@ -393,6 +394,7 @@ def finish_daily_run(run_id: int) -> str:
             title, lines = report_message(
                 run.local_date, run.started_at, finished, sources, new_events, skipped_days(session, run), ai_cost,
                 marked, recovered, disabled_as_not_scholarship(session, run.started_at),
+                blocked_since(session, run.started_at),  # ADR-116：哪天自動再試、哪些要你處理
             )
             add_system_event(session, CURRENT_USER_ID, f"run:{run.id}", title, lines, finished)
     notify_soon()

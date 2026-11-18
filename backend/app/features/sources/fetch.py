@@ -81,6 +81,16 @@ def still_blocked(source: Source, today: date) -> bool:
     return source.retry_on is None or today < source.retry_on
 
 
+def blocked_since(session: Session, since: datetime) -> list[tuple[str, str, date | None]]:
+    """since 以後檢查時被擋的來源（每日報告用）：（名稱, 原因, 哪天自動再試；None 是要你處理）。"""
+    rows = session.execute(
+        select(Source.name, Source.manual_reason, Source.retry_on)
+        .where(Source.manual_reason.is_not(None), Source.last_checked_at >= since)
+        .order_by(Source.id)
+    ).all()
+    return [(name, reason or "", retry) for name, reason, retry in rows]
+
+
 def days_to_wait(retry_after: str | None, today: date) -> int | None:
     """Retry-After 標頭換成天數（無條件進位）：可能是秒數（"3600"）或日期；看不懂就回傳 None。"""
     if not retry_after:

@@ -51,3 +51,19 @@ def test_the_http_fetcher_passes_on_retry_after_when_a_site_says_429() -> None:
     with pytest.raises(BlockedError) as raised:
         fetcher.get("https://test-busy.example/")
     assert (raised.value.reason, raised.value.retry_after) == ("429", "172800")
+
+
+@pytest.mark.parametrize(
+    ("reason", "retry", "expected"),
+    [
+        (None, None, False),  # 沒被擋
+        ("429", date(2026, 11, 19), False),  # 今天到期：照常檢查
+        ("403", date(2026, 11, 20), True),  # 還沒到期：先不抓
+        ("captcha", None, True),  # 不會自動再試：等你處理
+    ],
+)
+def test_a_blocked_source_waits_until_its_retry_date(reason: str | None, retry: date | None, expected: bool) -> None:
+    from app.features.sources.models import Source
+
+    source = Source(name="Test", url="https://test.example/", manual_reason=reason, retry_on=retry)
+    assert fetch.still_blocked(source, TODAY) is expected

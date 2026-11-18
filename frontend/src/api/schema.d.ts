@@ -210,6 +210,47 @@ export interface paths {
         patch: operations["toggle_source_api_discovery_sources__source_id__patch"];
         trace?: never;
     };
+    "/api/settings/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Review
+         * @description 判斷不是獎學金、但引用沒核對過的來源（ADR-115）：核對過的已經自動停用（ADR-107 A2），不列。
+         */
+        get: operations["list_review_api_settings_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/review/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Review
+         * @description 你對一個「判斷不是獎學金」的來源做決定（ADR-115）；回傳更新後的清單。
+         *     停用後，它的獎學金在當天收尾的 refresh 封存（總檢查 A6）。
+         */
+        post: operations["decide_review_api_settings_review__source_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/costs": {
         parameters: {
             query?: never;
@@ -725,6 +766,30 @@ export interface components {
             category: string | null;
             /** Evidence */
             evidence: string | null;
+        };
+        /** ReviewAction */
+        ReviewAction: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "disable" | "keep";
+        };
+        /**
+         * ReviewOut
+         * @description AI 判斷「這頁不是獎學金」、但引用沒核對過的來源（ADR-115），等你決定停用或保留。
+         */
+        ReviewOut: {
+            /** Source Id */
+            source_id: number;
+            /** Name */
+            name: string;
+            /** Url */
+            url: string;
+            /** Evidence */
+            evidence: string | null;
+            /** Check */
+            check: string | null;
         };
         /** ScholarshipDetail */
         ScholarshipDetail: {
@@ -1288,6 +1353,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentSourceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_review_api_settings_review_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewOut"][];
+                };
+            };
+        };
+    };
+    decide_review_api_settings_review__source_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewOut"][];
                 };
             };
             /** @description Validation Error */

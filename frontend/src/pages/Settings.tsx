@@ -36,6 +36,7 @@ export default function SettingsPage() {
       {/* 用目前的值當 key：存檔後表單用新的值重新開始 */}
       <SettingsForm key={`${settings.data.notify_threshold}-${settings.data.monthly_cap_ntd}`} initial={settings.data} />
       <BreakerCard breaker={settings.data.breaker} />
+      <NotScholarshipReview />
       <AgentSources />
     </div>
   );
@@ -119,6 +120,74 @@ function BreakerCard({ breaker }: { breaker: Settings["breaker"] }) {
           </div>
         </CardContent>
       )}
+    </Card>
+  );
+}
+
+// AI 引用的核對結果，換成你看得懂的一句話（ADR-119：標示要說清楚代表什麼）
+const REVIEW_CHECKS: Record<string, string> = {
+  not_supported: "AI 引用的句子撐不起「這頁沒有獎學金」的判斷",
+  quote_not_found: "AI 引用的句子在官網原文裡找不到",
+  no_evidence: "AI 沒有附上原文",
+};
+
+// 待你確認（ADR-115）：AI 判斷「這頁不是獎學金」，但引用沒核對過，所以沒有自動停用
+function NotScholarshipReview() {
+  const queryClient = useQueryClient();
+  const review = useQuery({
+    queryKey: ["settings-review"],
+    queryFn: async () => unwrap(await api.GET("/api/settings/review")),
+  });
+  const decide = useMutation({
+    mutationFn: async ({ id, action }: { id: number; action: "disable" | "keep" }) =>
+      unwrap(await api.POST("/api/settings/review/{source_id}", { params: { path: { source_id: id } }, body: { action } })),
+    onSuccess: async (list) => {
+      queryClient.setQueryData(["settings-review"], list);
+      await queryClient.invalidateQueries({ queryKey: ["agent-sources"] });
+    },
+  });
+  if (review.data?.length === 0) return null; // 沒有要確認的就不佔位置
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>待你確認：這些網頁可能不是獎學金頁</CardTitle>
+        <CardDescription>
+          AI 判斷這些網頁沒有提供獎學金，但它引用的原文核對沒過，所以還沒停用。請打開網頁看一下：真的沒有獎學金就按「停用」；有的話按「保留」，之後就不會再問。
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {review.isPending && <Skeleton className="h-24 w-full" />}
+        {review.isError && <p className="text-sm text-destructive">{review.error.message}</p>}
+        {decide.isError && <p className="text-sm text-destructive">{decide.error.message}</p>}
+        {review.data?.map((r) => (
+          <div key={r.source_id} className="space-y-2 border-b pb-3 text-sm last:border-b-0">
+            <p className="font-medium">{r.name}</p>
+            <a href={r.url} target="_blank" rel="noreferrer" className="wrap-anywhere text-xs text-primary hover:underline">
+              {r.url}
+            </a>
+            {r.evidence && <p className="text-muted-foreground">AI 引用：「{r.evidence}」</p>}
+            <p className="text-xs text-muted-foreground">{REVIEW_CHECKS[r.check ?? ""] ?? "AI 的判斷沒有核對過"}</p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={decide.isPending}
+                onClick={() => decide.mutate({ id: r.source_id, action: "disable" })}
+              >
+                停用
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={decide.isPending}
+                onClick={() => decide.mutate({ id: r.source_id, action: "keep" })}
+              >
+                保留，這頁有獎學金
+              </Button>
+            </div>
+          </div>
+        ))}
+      </CardContent>
     </Card>
   );
 }

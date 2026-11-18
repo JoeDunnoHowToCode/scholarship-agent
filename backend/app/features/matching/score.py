@@ -194,6 +194,10 @@ def score_all(session: Session, llm: StructuredLLM, model_id: str, profile: Prof
     kept: set[tuple[int, str]] = set()
     no_field = not profile.current_major and not profile.target_fields
     for row in rows:
+        if row.status == ScholarshipStatus.ARCHIVED:
+            # 總檢查 D5：封存的不再評分，留著上次的分數給「已封存」的列表；也不能當成過期的評分刪掉
+            kept.update(key for key in existing if key[0] == row.id)
+            continue
         possible = possible_cycles(list(row.cycles), profile.nationality)
         for category in row.extracted.get("categories", []):
             key = (row.id, str(category["name"]))

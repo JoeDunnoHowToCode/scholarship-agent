@@ -1,6 +1,6 @@
 # 總檢查的修正：實作計畫（2026-11-18）
 
-狀態：**你 11-19 核准；段 1–5 完成（11-19），下一段是段 6**。
+狀態：**你 11-19 核准；段 1–5 完成，段 6 的程式完成、資料步驟等今天的每日檢查跑完（11-19）；下一段是段 7**。
 
 - 問題：`docs/audit-2026-11-18.md`
 - 決定：ADR-112–119（你 11-18 的選擇）
@@ -340,12 +340,21 @@
   ```
 
 ### 段 6：官網連結
-- [ ] 挑的子頁照順序存下來 -> verify: `uv run pytest tests/test_links.py -k picked_order`
-- [ ] 目錄來的用第一個子頁、其他用來源網址 -> verify: `uv run pytest tests/test_extract_build.py -k official_url`
-- [ ] 遷移 `sources.picked_urls` -> verify: `uv run alembic upgrade head`
-- [ ] 目錄來的來源重新挑一次 -> verify: `fetch --repick`，SQL 貼上有 picked_urls 的來源數與首頁連結的數量（原本 184）
-- [ ] 網頁寫出連到哪一頁 -> verify: `npm run build`，打開 MULTICOM 的詳細頁截圖
-- [ ] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app && cd ../frontend && npm run build`
+- [x] 挑的子頁照順序存下來；目錄來的用第一個子頁、其他用來源網址 -> verify: `uv run pytest tests/test_picked_pages_db.py`（新測試檔，快照寫到暫存資料夾；red e4f2857／2392aa8、green 34c9c1f／73b84f9）
+  ```
+  2 passed in 0.58s
+  ```
+- [x] 遷移 `sources.picked_urls` -> verify: `uv run alembic upgrade head`（d3c9937；自動產生的只有加欄位，預設空清單；400 個來源都是空的）
+- [ ] 目錄來的來源重新挑一次 -> verify: `fetch --repick`，SQL 貼上有 picked_urls 的來源數與首頁連結的數量（原本 184）。**等今天這輪每日檢查跑完再做**（11-19 06:48 還在跑；重挑會抓 200 多個網站的子頁，和每日檢查一起跑等於同一個網站被抓兩次）
+- [ ] 現有獎學金的連結補成第一個子頁 -> verify: SQL 補值，貼上前後的首頁連結數。**新加的一步**：`save()` 只在重抽時更新連結，重挑後如果子頁內容沒變就不會重抽，所以要直接補值
+- [x] 網頁寫出連到哪一頁 -> verify: `npm run build`，打開 MULTICOM 的詳細頁（0afbee4）。按鈕下面顯示 `multicom-em.eu`（還沒重挑，所以是首頁）；console 沒有錯誤。沒有截圖：詳細頁上有評分，改用文字確認
+- [x] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app && cd ../frontend && npm run build`
+  ```
+  428 passed, 1 warning in 5.30s
+  All checks passed!
+  Success: no issues found in 126 source files
+  ✓ built in 233ms
+  ```
 
 ### 段 7：抽取改版
 - [ ] schema 加申請方式與沒有日期的原因 -> verify: `uv run pytest tests/test_schemas.py -k how_to_apply`

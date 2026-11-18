@@ -16,6 +16,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.features.discovery.models import AgentRun
@@ -73,6 +74,8 @@ class Source(Base):
         _text_enum(FetchMethod), server_default=FetchMethod.HTML.value
     )
     follow_pagination: Mapped[bool] = mapped_column(server_default=text("false"))
+    # AI 從首頁挑的子頁，照挑的順序（ADR-031）；第一個當獎學金的官網連結（ADR-113）
+    picked_urls: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
     # 第 0 頁就是首頁：打開時 ?page=0 換成首頁網址，避免同一頁抓兩次（目前只有 EACEA）
     page_zero_is_first: Mapped[bool] = mapped_column(server_default=text("false"))
     # 上次完整抓取時成功檢查到的頁數；只記翻頁來源，用來發現翻頁失效（漏抓警示）

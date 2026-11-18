@@ -224,7 +224,9 @@ def fetch_source(
         # 首頁是新的或變了（或指定 --repick）：請 AI 挑申請頁，加進這次要抓的佇列
         # 目錄這類翻頁來源不挑；學程網站與 Chevening 這類單頁來源都挑
         if (changed or repick) and picker and not source.follow_pagination and url == source.url and html:
-            for picked in picker(source.name, result.url, candidate_links(html, result.url)):
+            picks = picker(source.name, result.url, candidate_links(html, result.url))
+            source.picked_urls = list(picks)  # 照挑的順序存下來，第一個當官網連結（ADR-113）
+            for picked in picks:
                 report("picked", "AI 挑連結", picked)
                 if picked not in seen:
                     queue.append(picked)

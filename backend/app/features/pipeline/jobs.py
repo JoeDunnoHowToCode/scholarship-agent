@@ -396,6 +396,7 @@ def finish_daily_run(run_id: int) -> str:
                 run.local_date, run.started_at, finished, sources, new_events, skipped_days(session, run), ai_cost,
                 marked, recovered, disabled_as_not_scholarship(session, run.started_at),
                 blocked_since(session, run.started_at),  # ADR-116：哪天自動再試、哪些要你處理
+                discovery_paused(session),  # ADR-117：候選積壓就暫停找新來源
             )
             add_system_event(session, CURRENT_USER_ID, f"run:{run.id}", title, lines, finished)
     notify_soon()

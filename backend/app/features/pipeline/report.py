@@ -7,6 +7,8 @@ from collections import Counter
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+from app.features.discovery.candidates import WEEKLY_DECISIONS
+
 TAIPEI = ZoneInfo("Asia/Taipei")
 
 # 系統通知的標題，以及內容的每一行
@@ -48,6 +50,7 @@ def report_message(
     recovered: list[str] | None = None,
     not_scholarship: list[str] | None = None,
     blocked: list[tuple[str, str, date | None]] | None = None,
+    backlog: int | None = None,
 ) -> Message:
     """每日檢查報告：哪一天、何時開始與收尾（台灣時間）、來源結果、這輪產生幾則通知。
 
@@ -84,6 +87,9 @@ def report_message(
             why = f"{BLOCK_REASONS.get(reason, '網站擋了我們')}（{reason}）"
             then = f"{day(retry)} 自動再試" if retry else "要你處理，不會自動再試"
             lines.append(f"・{name}：{why}，{then}")
+    if backlog is not None:
+        # ADR-117：候選積壓超過每週能決定的數量，agent 先不找新來源
+        lines.append(f"候選來源積壓 {backlog} 個（每週最多決定 {WEEKLY_DECISIONS} 個）：逐校找與搜尋補漏先暫停")
     if not_scholarship:
         # A2 C（ADR-107）：判斷不是獎學金就停用來源；判斷可能錯，所以每天列出來
         lines.append(

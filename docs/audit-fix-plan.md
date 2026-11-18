@@ -33,7 +33,7 @@
 
 | 問題 | 現在 | 改成 | 位置 |
 | --- | --- | --- | --- |
-| A6 被排除的來源還在列表 | 排除只改來源；列表不看來源狀態 | 排除、停用來源時一起封存它的獎學金；列表、評分只看已加入且啟用的來源 | `discovery/intake.py`、`scholarships/api.py`、`matching/score.py` |
+| A6 被排除的來源還在列表 | 排除只改來源；列表不看來源狀態 | 每天的 `refresh` 把「來源不是已加入且啟用」的獎學金封存，不喚回、不預估下一屆（11-19 改設計，見下面） | `scholarships/cycles.py` 的 `refresh` |
 | A4 使用中的被標成封存那筆的重複 | 每組由最小的 id 當代表 | 先選使用中的，再選最小的 id | `scholarships/dedup.py` 的 `find_duplicates` |
 | A3 同一個網站兩個來源 | 用網址字串比對 | 新增目錄學程前先正規化網址（`dedup.normalize_url`）再比對 | `sources/catalogue.py` 的 `upsert_programme` |
 | C1 第 4 種 AI 補的年份被丟掉 | 年份不在引用裡就整筆不建 | 年份不在引用裡、但月日都在：丟掉 AI 的年份，改用程式推算（ADR-110），標「年份是推算的」 | `scholarships/extract.py` 的 `save_cycles` |
@@ -42,6 +42,7 @@
 
 邊界情況：
 - A6：被排除的來源之後又被加入（例如你在設定頁打開），獎學金要喚回。用現有的 `refresh` 喚回規則。
+- A6 改設計（11-19，寫測試時發現）：原本打算「排除時封存＋列表過濾來源狀態」。但只在排除時封存擋不住：隔天的 `refresh` 看到還有開放中的申請期，會把它喚回。改成全部交給 `refresh`：它每天跑，也涵蓋在設定頁停用、還沒決定的候選。列表本來就不列封存的，評分由 D5 處理，所以列表與評分不必另外過濾。代價：被排除到當天收尾之間（幾小時）還看得到。
 - A3：現有的 6 組重複來源，程式修好後各停用一個（留還有使用中獎學金的那個）。**停用是改資料，核准這份計畫就算同意**；停用可以在設定頁恢復。
 
 ### 段 2：被擋的來源自動再試（ADR-116）
@@ -215,16 +216,50 @@
 所有指令在 `backend/` 執行；完整檢查是 `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`。
 
 ### 段 1：bug
-- [ ] 排除來源時封存它的獎學金 -> verify: `uv run pytest tests/test_candidates_db.py -k archive`
-- [ ] 列表與評分只看已加入且啟用的來源 -> verify: `uv run pytest tests/test_list_archived_db.py -k source_status`
+- [x] refresh 封存「來源不是已加入且啟用」的獎學金 -> verify: `uv run pytest tests/test_refresh_db.py`（red 7e6ca2c、green efbaa01）
+  ```
+  .                                                                        [100%]
+  1 passed in 0.34s
+  ```
 - [ ] 現有 65 筆：重新整理後不在列表上 -> verify: SQL 數「列表上來自沒加入來源的筆數」，貼上 0
-- [ ] 去重代表先選使用中的 -> verify: `uv run pytest tests/test_dedup.py -k active`
-- [ ] 目錄網址正規化後比對 -> verify: `uv run pytest tests/test_catalogue_move_db.py -k normalize`
-- [ ] 6 組重複來源各停用一個 -> verify: SQL 列出 6 組，貼上各組的啟用狀態
-- [ ] AI 補的年份不在引用裡改用程式推算 -> verify: `uv run pytest tests/test_save_cycles_db.py -k year_not_in_quote`
-- [ ] 已封存的不重新評分 -> verify: `uv run pytest tests/test_scoring.py -k archived`
-- [ ] 原文沒變的欄位不記變更 -> verify: `uv run pytest tests/test_changes.py -k unchanged_source`
-- [ ] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+- [x] 去重代表先選使用中的 -> verify: `uv run pytest tests/test_dedup.py -k active`（red 180b438、green 18f3b41）
+  ```
+  ......                                                                   [100%]
+  6 passed in 0.16s
+  ```
+  （跑的是 `tests/test_dedup.py tests/test_duplicates.py` 全部，含新測試）
+- [x] 目錄網址正規化後比對 -> verify: `uv run pytest tests/test_catalogue_move_db.py tests/test_catalogue.py`（測試名稱是 `same_site`，不是計畫原本寫的 `normalize`；red a1dfa23、green e667803）
+  ```
+  .........                                                                [100%]
+  9 passed in 0.42s
+  ```
+- [x] 6 組重複來源各停用一個 -> verify: SQL 列出 6 組，貼上各組的啟用狀態（11-19 06:25 台北時間；每組留下有使用中獎學金的那個）
+  ```
+   10344 | https://www.fipdes.eu/                         | f | 和來源 #83 是同一個網站
+   10343 | https://www.infectious-diseases-one-health.eu/ | f | 和來源 #75 是同一個網站
+    4156 | https://master-cne.eu/                         | f | 和來源 #144 是同一個網站
+     136 | https://master-strains.eu/                     | f | 和來源 #10345 是同一個網站
+    4158 | https://merconsortium.eu/                      | f | 和來源 #78 是同一個網站
+   10482 | https://www.quanteem.eu/                       | f | 和來源 #204 是同一個網站
+  （83、75、144、10345、78、204 都是 t）
+  ```
+- [x] AI 補的年份不在引用裡改用程式推算 -> verify: `uv run pytest tests/test_save_cycles_db.py tests/test_extract_build.py tests/test_rules_recheck_db.py`（測試名稱是 `a_year_the_ai_added`；red e5aebb2、green ac5f5cc；現有的 WOCC 那筆等段 8 重抽才套用，現在重建全部申請期會和正在跑的每日檢查搶資料）
+  ```
+  ..............                                                           [100%]
+  14 passed in 0.53s
+  ```
+- [x] 已封存的不重新評分 -> verify: `uv run pytest tests/test_score_archived_db.py tests/test_matching_score.py tests/test_scoring.py tests/test_matching_checks.py`（新測試檔 `test_score_archived_db.py`：評分每筆都 commit，用 savepoint 包住才不會動到真的評分；red 5c06ee0、green d310664）
+  ```
+  ................                                                         [100%]
+  16 passed in 1.85s
+  ```
+- [x] ~~原文沒變的欄位不記變更~~ **取消（11-19）**：查證後發現詳細頁的「變更紀錄」（`NOTIFIED_FIELDS`）和通知都只用截止日、國籍範圍、國家、學位這 4 個欄位，它們本來就有 ADR-064 的原文核對；雜訊（2,895 筆）全在其他欄位，只存在資料表裡，你看不到。要不要清掉這些列，併到段 10 問你。總檢查 D5 的說法已更正
+- [x] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+  ```
+  400 passed, 1 warning in 5.30s
+  All checks passed!
+  Success: no issues found in 126 source files
+  ```
 
 ### 段 2：被擋再試
 - [ ] 429 七天後再試、有 Retry-After 照它 -> verify: `uv run pytest tests/test_pipeline_due.py -k blocked_429`

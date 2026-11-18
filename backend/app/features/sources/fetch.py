@@ -66,6 +66,13 @@ def retry_on(reason: str, retry_after: str | None, today: date) -> date | None:
     return today + timedelta(days=days)
 
 
+def still_blocked(source: Source, today: date) -> bool:
+    """這個來源今天還不能抓：被擋了，而且沒有再試日期（等你處理）或還沒到期（ADR-116）。"""
+    if source.manual_reason is None:
+        return False
+    return source.retry_on is None or today < source.retry_on
+
+
 def days_to_wait(retry_after: str | None, today: date) -> int | None:
     """Retry-After 標頭換成天數（無條件進位）：可能是秒數（"3600"）或日期；看不懂就回傳 None。"""
     if not retry_after:

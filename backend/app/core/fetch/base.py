@@ -15,11 +15,15 @@ class FetchResult:
 
 
 class BlockedError(Exception):
-    """網站不讓我們抓（ADR-028）：原因寫在 reason，例如「403」「robots.txt 禁止」。"""
+    """網站不讓我們抓（ADR-028）：原因寫在 reason，例如「403」「robots.txt 禁止」。
 
-    def __init__(self, reason: str) -> None:
+    retry_after 是伺服器回的 Retry-After 標頭（請多久後再來），沒有就是 None（ADR-116）。
+    """
+
+    def __init__(self, reason: str, retry_after: str | None = None) -> None:
         super().__init__(reason)
         self.reason = reason
+        self.retry_after = retry_after
 
 
 class TemporaryFetchError(Exception):

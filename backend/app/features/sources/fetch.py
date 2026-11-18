@@ -31,6 +31,7 @@ from app.core.fetch.http import HttpFetcher
 from app.core.fetch.text import content_hash, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
 from app.features.costs.llm import gemini
+from app.features.costs.usage import TAIPEI
 from app.features.sources.links import Link, candidate_links
 from app.features.sources.models import FetchMethod, Snapshot, Source, SourceStatus
 from app.features.sources.pagination import missing_pages_warning, pagination_urls
@@ -142,7 +143,9 @@ def fetch_source(
                 last_modified=latest.last_modified if latest else None,
             )
         except BlockedError as error:
-            source.manual_reason = error.reason  # 界線三：標記需人工，之後跳過
+            source.manual_reason = error.reason  # 界線三：被擋就停（ADR-028）
+            # 429、403 記下哪天自動再試；robots.txt、captcha 是 None，等你處理（ADR-116）
+            source.retry_on = retry_on(error.reason, error.retry_after, datetime.now(TAIPEI).date())
             report("blocked", error.reason, url)
             return
         except httpx.HTTPStatusError as error:

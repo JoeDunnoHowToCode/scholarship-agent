@@ -25,17 +25,25 @@ def test_generate_runs_on_the_real_database() -> None:
         session.close()
 
 
+FAKE_USER = 990002  # 不是真的使用者（第一版的使用者固定是 1）
+
+
 def test_a_scholarship_gone_from_its_page_gets_no_notifications() -> None:
     # ADR-108：頁面上不再出現的其他獎學金（extracted.gone）已封存，不能再送「新獎學金」之類的通知
+    # 11-19 使用者選 A：用自己的假使用者與假個人資料（ADR-087），不靠資料庫裡剛好有你的個人資料；
+    # 以前 CI 的空資料庫沒有個人資料，generate 一開始就結束，這個測試在 CI 一直失敗
     from sqlalchemy import select
 
     from app.features.matching.models import Match
     from app.features.notifications.models import Event
+    from app.features.profiles.models import Profile
     from app.features.scholarships.models import Scholarship
     from app.features.sources.models import Source, SourceKind
 
     session = SessionLocal()
     try:
+        session.add(Profile(user_id=FAKE_USER, nationality="FR", target_degree="master", version=1,
+                            updated_at=datetime.now(UTC)))
         source = Source(name="Test gone notify", url="https://test-gone-notify.example/", kind=SourceKind.UNIVERSITY)
         session.add(source)
         session.flush()
@@ -47,11 +55,11 @@ def test_a_scholarship_gone_from_its_page_gets_no_notifications() -> None:
         }
         session.add_all(rows.values())
         session.flush()
-        session.add_all([Match(user_id=CURRENT_USER_ID, scholarship_id=row.id, category_name="x", total=100,
+        session.add_all([Match(user_id=FAKE_USER, scholarship_id=row.id, category_name="x", total=100,
                                cap=None, checks={}, sub_scores={}, profile_version=1, computed_at=datetime.now(UTC))
                          for row in rows.values()])
         session.flush()
-        generate(session, CURRENT_USER_ID, datetime.now(UTC))
+        generate(session, FAKE_USER, datetime.now(UTC))
         notified = set(session.scalars(select(Event.scholarship_id).where(
             Event.scholarship_id.in_([row.id for row in rows.values()]))))
         assert notified == {rows[False].id}

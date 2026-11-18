@@ -88,6 +88,7 @@ FOCUS_PROMPT = prompts.load(FOCUS_VERSION)
 RETRY_VERSION = "retry-1"
 RETRY_PROMPT = prompts.load(RETRY_VERSION)
 MAX_OTHERS = 5  # 一頁最多另外抽幾個（控制費用；「Claude 自行決定」）
+YEAR_IN_TEXT = re.compile(r"\b(19|20)\d{2}\b")  # 引用裡有沒有寫西元年份（例如 2027）
 
 
 def documents(session: Session, source: Source) -> list[Snapshot]:
@@ -225,8 +226,13 @@ def save_cycles(
     session.execute(delete(Cycle).where(Cycle.scholarship_id == row.id))
     built: list[Cycle] = []
     for window, status in zip(windows, statuses, strict=True):
+        # 原文沒寫年份、AI 卻自己填了（核對發現年份不在引用裡）：丟掉 AI 的年份，一樣由程式推算（總檢查 C1 第 4 種）；
+        # 引用裡寫了別的年份就是真的不一致，照舊不建
+        ai_year = status == "year_not_in_quote" and not YEAR_IN_TEXT.search(window.evidence or "")
         # 只有月日、沒有年份：程式推算下一次的年份，標 year_inferred（ADR-110）
-        inferred = status == "incomplete" and not window.closes_year and bool(window.closes_month and window.closes_day)
+        inferred = ((status == "incomplete" and not window.closes_year) or ai_year) and bool(
+            window.closes_month and window.closes_day
+        )
         # 其他年月日不齊全、或年份是模型自己補的，不建申請期（docs/day-04.md「Claude 自行決定」第 4 點）
         if status in ("incomplete", "year_not_in_quote") and not inferred:
             continue
@@ -234,7 +240,9 @@ def save_cycles(
         if window.kind != "scholarship" or offered == "no":
             continue
         assert window.closes_month and window.closes_day
-        closes_year = window.closes_year or cycles.next_year(window.closes_month, window.closes_day, now.date())
+        closes_year = (None if ai_year else window.closes_year) or cycles.next_year(
+            window.closes_month, window.closes_day, now.date()
+        )
         try:
             closes_at, assumed = cycles.to_utc(
                 closes_year, window.closes_month, window.closes_day,

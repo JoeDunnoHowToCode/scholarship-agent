@@ -49,3 +49,22 @@ def test_a_new_programme_is_added_and_a_listed_twin_is_not_moved() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_the_same_site_written_with_https_or_www_is_not_added_again() -> None:
+    # 總檢查 A3：目錄同時列了 http://www.fipdes.eu/ 和 https://www.fipdes.eu/（名稱略有不同），
+    # 以前用網址字串比對，新增了第二個來源，同一個網站每天抓兩次、抽兩次
+    session = SessionLocal()
+    try:
+        catalogue = session.scalars(select(Source).where(Source.url == CATALOGUE_URL)).one()
+        first = Source(name="Test Food Innovation Master", url="http://www.test-same-site.example/",
+                       kind=SourceKind.UNIVERSITY, parent_id=catalogue.id, discovery=Discovery.CATALOGUE)
+        session.add(first)
+        session.flush()
+        again = CatalogueEntry(name="Test Joint Master in Food Innovation", url="https://test-same-site.example")
+        assert upsert_programme(session, catalogue.id, again, {first.url, again.url}) == "kept"
+        same_site = session.scalars(select(Source).where(Source.url.ilike("%test-same-site.example%"))).all()
+        assert same_site == [first]
+    finally:
+        session.rollback()
+        session.close()

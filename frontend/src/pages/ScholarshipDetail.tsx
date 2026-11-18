@@ -24,6 +24,7 @@ import {
   VERIFICATION_NAMES,
   issueName,
   nameOf,
+  shortUrl,
   taipeiTime,
 } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -81,14 +82,18 @@ export default function ScholarshipDetail() {
           )}
         </div>
         {d.official_url && (
-          <a
-            href={d.official_url}
-            target="_blank"
-            rel="noreferrer"
-            className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}
-          >
-            前往官方網站 ↗
-          </a>
+          <div className="space-y-1 sm:text-right">
+            <a
+              href={d.official_url}
+              target="_blank"
+              rel="noreferrer"
+              className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-auto")}
+            >
+              前往官方網站 ↗
+            </a>
+            {/* ADR-113：連到的是哪一頁（學程首頁或申請頁），點之前就看得出來 */}
+            <p className="wrap-anywhere text-xs text-muted-foreground">{shortUrl(d.official_url)}</p>
+          </div>
         )}
       </div>
       <Summary detail={d} />

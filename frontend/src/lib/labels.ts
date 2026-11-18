@@ -167,3 +167,13 @@ export const FEATURE_NAMES: Record<string, string> = {
   "agent-smoke": "測試",
 };
 export const SOURCE_STATUS_NAMES: Record<string, string> = { candidate: "候選", approved: "已加入", rejected: "已排除" };
+
+// 網址的簡短寫法：網站＋路徑，不要 https:// 與 www.，例如 multicom-em.eu/how-to-apply（ADR-113）
+export function shortUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return (parsed.hostname.replace(/^www\./, "") + parsed.pathname).replace(/\/$/, "");
+  } catch {
+    return url; // 不是合法網址就照原樣
+  }
+}

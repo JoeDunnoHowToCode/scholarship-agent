@@ -73,7 +73,12 @@ from app.features.scholarships.summary import summarize_source
 from app.features.search.index import index_scholarship, index_source
 from app.features.search.models import Chunk
 from app.features.sources.catalogue import CATALOGUE_URL, import_programmes
-from app.features.sources.fetch import fetch_source, make_picker, still_blocked
+from app.features.sources.fetch import (
+    fetch_interval,
+    fetch_source,
+    make_picker,
+    still_blocked,
+)
 from app.features.sources.models import Snapshot, Source, SourceStatus
 from app.shared.db import SessionLocal
 from app.shared.settings import settings
@@ -187,7 +192,7 @@ def process_source(source_id: int) -> dict[str, str]:
             return {"result": "skipped", "detail": "來源不存在或需人工"}
         ai_paused = breaker.is_open(session)
         picker, picker_llm = (None, None) if ai_paused else make_picker()
-        fetcher = HttpFetcher(settings.fetch_min_interval_seconds)
+        fetcher = HttpFetcher(fetch_interval(source))  # 翻頁來源每頁隔久一點（ADR-116）
         llm: GeminiLLM | None = None
         try:
             fetch_source(session, fetcher, source, picker)

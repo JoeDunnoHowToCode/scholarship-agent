@@ -48,6 +48,14 @@ LinkPicker = Callable[[str, str, list[Link]], list[str]]
 
 
 RETRY_DAYS = {"429": 7, "403": 30}  # 被擋後幾天再試（ADR-116）；其他原因（robots.txt、captcha）等人工
+PAGINATION_INTERVAL_SECONDS = 15  # 翻頁來源每頁間隔（EACEA 11-18 在每 5 秒一頁時回 429）
+
+
+def fetch_interval(source: Source) -> float:
+    """同一個網站兩次請求至少隔幾秒：翻頁來源一次要抓十幾頁，間隔拉長；其他照設定。"""
+    if source.follow_pagination:
+        return max(settings.fetch_min_interval_seconds, PAGINATION_INTERVAL_SECONDS)
+    return settings.fetch_min_interval_seconds
 
 
 def retry_on(reason: str, retry_after: str | None, today: date) -> date | None:

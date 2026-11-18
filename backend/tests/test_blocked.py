@@ -67,3 +67,13 @@ def test_a_blocked_source_waits_until_its_retry_date(reason: str | None, retry: 
 
     source = Source(name="Test", url="https://test.example/", manual_reason=reason, retry_on=retry)
     assert fetch.still_blocked(source, TODAY) is expected
+
+
+def test_paginated_sources_wait_longer_between_pages() -> None:
+    # EACEA 目錄 11-18 在每 5 秒一頁時回 429；翻頁來源改成每頁間隔 15 秒，其他照設定
+    from app.features.sources.models import Source
+    from app.shared.settings import settings
+
+    catalogue = Source(name="Test catalogue", url="https://test.example/list", follow_pagination=True)
+    programme = Source(name="Test programme", url="https://test.example/", follow_pagination=False)
+    assert (fetch.fetch_interval(catalogue), fetch.fetch_interval(programme)) == (15, settings.fetch_min_interval_seconds)

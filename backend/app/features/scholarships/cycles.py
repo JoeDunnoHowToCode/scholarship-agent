@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.features.scholarships.models import Cycle, Scholarship, ScholarshipStatus
+from app.features.sources.models import Source, SourceStatus
 from app.shared.db import SessionLocal
 
 # 申請期的四種狀態：推估的、還沒開放、開放中、已截止
@@ -130,10 +131,22 @@ def refresh(session: Session, now: datetime) -> Counter[str]:
     """更新所有申請期的狀態、封存或喚回獎學金、替封存的獎學金產生預估的下一屆（不呼叫 AI）。"""
     counts: Counter[str] = Counter()
     rows = session.scalars(select(Scholarship).options(selectinload(Scholarship.cycles))).all()
+    # 總檢查 A6：來源不在每日檢查裡（被排除、停用、還沒決定的候選），它的獎學金不再更新，不該留在列表上
+    outside = set(session.scalars(
+        select(Scholarship.id)
+        .join(Source, Source.id == Scholarship.source_id)
+        .where(~((Source.status == SourceStatus.APPROVED) & Source.enabled))
+    ))
     for row in rows:
         for cycle in row.cycles:
             cycle.status = cycle_status(cycle.opens_at, cycle.closes_at, now, estimated=cycle.estimated)
             counts[cycle.status] += 1
+        if row.id in outside:
+            # 不看申請期：一律封存、不喚回、不預估下一屆；來源重新加入後，下一次 refresh 照申請期喚回
+            if row.status == ScholarshipStatus.ACTIVE:
+                row.status = ScholarshipStatus.ARCHIVED
+                counts["archived_source"] += 1
+            continue
         statuses: list[Status] = [cast(Status, c.status) for c in row.cycles]
         if should_archive(statuses):
             if row.status == ScholarshipStatus.ACTIVE:

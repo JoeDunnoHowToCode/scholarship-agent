@@ -24,3 +24,16 @@ def test_an_unknown_group_leaves_the_nationality_unclear() -> None:
     assert groups.expand("listed", ["FR"], ["Tier 1 countries"]) == ("unclear", ["FR"])
     # 沒有群組：原樣
     assert groups.expand("excluded", ["CN"], []) == ("excluded", ["CN"])
+
+
+def test_erasmus_world_regions_expand_to_their_countries() -> None:
+    # 總檢查 A1／C2（ADR-112）：MULTICOM 的地區名額寫「Sub-Saharan Africa」「Latin America」「Asia」，
+    # 程式不認得就改成待確認。清單照 Erasmus+ Programme Guide 的 eligible countries（2026-11-20 查證）
+    scope, africa = groups.expand("listed", [], ["SUB_SAHARAN_AFRICA"])
+    assert scope == "listed" and len(africa) == 49 and {"NG", "ZA", "CD", "SS"} <= set(africa)
+    _, asia = groups.expand("listed", [], ["ASIA"])
+    assert len(asia) == 25 and {"IN", "VN", "TW", "JP", "KR", "HK"} <= set(asia)  # 含高所得國家與地區
+    _, south = groups.expand("listed", [], ["NEIGHBOURHOOD_SOUTH"])
+    assert set(south) == {"DZ", "EG", "IL", "JO", "LB", "LY", "MA", "PS", "SY", "TN"}
+    _, latin = groups.expand("listed", [], ["LATIN_AMERICA"])
+    assert len(latin) == 17 and "TW" not in latin

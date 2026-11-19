@@ -592,13 +592,34 @@ def has_own_details(draft: ScholarshipDraft) -> bool:
 SAME_AWARD = 0.9  # 同一來源內 key 的相似度到這裡就當成同一筆（「Claude 自行決定」第 5 點）
 
 
+# 名稱裡的通用字（總檢查 A2）：AI 有時寫「Asia top up scholarships」、有時寫「Asia scholarships」，比對前去掉
+GENERIC_WORDS = ("scholarships", "scholarship", "topup", "grants", "grant", "awards", "award")
+
+
+def award_core(key: str) -> str:
+    """key 去掉通用字之後剩下的部分；全部都是通用字時保留原本的 key。"""
+    core = key
+    for word in GENERIC_WORDS:
+        core = core.replace(word, "")
+    return core or key
+
+
+def similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, award_core(a), award_core(b)).ratio()
+
+
+def same_award(a: str, b: str) -> bool:
+    """兩個 key 是不是同一個獎學金：去掉通用字後相似度到門檻。"""
+    return similarity(a, b) >= SAME_AWARD
+
+
 def find_other(session: Session, source_id: int, key: str) -> Scholarship | None:
-    """同一來源裡 key 一樣、或很像（AI 每次寫法不同，例如多一個 s）的那一筆；主角不算。"""
+    """同一來源裡 key 一樣、或很像（AI 每次寫法不同，例如多一個 s、多寫 top up）的那一筆；主角不算。"""
     rows = session.scalars(
         select(Scholarship).where(Scholarship.source_id == source_id, Scholarship.key != MAIN_KEY)
     ).all()
-    best = max(rows, key=lambda row: SequenceMatcher(None, key, row.key).ratio(), default=None)
-    return best if best is not None and SequenceMatcher(None, key, best.key).ratio() >= SAME_AWARD else None
+    best = max(rows, key=lambda row: similarity(key, row.key), default=None)
+    return best if best is not None and same_award(key, best.key) else None
 
 
 def archive_gone(session: Session, source_id: int, kept: set[int]) -> None:

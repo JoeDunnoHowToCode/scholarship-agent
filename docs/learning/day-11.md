@@ -536,3 +536,51 @@
 1. 為什麼這個測試在本機通過、在 CI 失敗？
 2. 選 B（CI 放一筆假的個人資料）的話，哪種情況下測試又會壞？
 3. 同一個檔案裡另一個「在 CI 是綠的」測試，為什麼其實沒測到東西？
+
+## 15. 抽取改版：不繞過，記下原因（ADR-112、119，總檢查段 7）
+
+**問題**：
+- MULTICOM 的地區名額被拆成 6 張卡片，而且地區的國籍判斷不了。
+- 99 筆沒有申請期，原因混在一起：AI 漏抽、日期在沒抓的子頁、本來就不用申請、還沒公布等等。
+- 「要先錄取：要」看不出你要做什麼。
+
+**設計**
+- 地區名額（你選 A1 的 A）：
+  - 提示詞 extract-18 要求寫成類別，每個類別附自己的地區代號。
+  - 評分時，類別用自己的地區判斷：不在地區裡算不符合；在地區的高所得子群組（台灣在亞洲裡）算待確認。
+- 沒有申請期（你的方向：找原因、標出原因，ADR-119）：
+  - AI 多填兩項：「申請方式」（附引用、要核對）和「沒有日期時原文怎麼說」。
+  - 程式依 10 條順序決定原因，存在 `no_date_reason`。
+  - 能修的修：
+    - 隨入學一起審的，入學截止日就是獎學金的截止日。
+    - 原文有截止字樣加日期、卻一個都沒抽到，丟回 AI 重抽。
+    - 沒找到日期的來源，首頁沒變也每 30 天重挑子頁。
+- 放棄的做法：
+  - 給 AI 現有的名稱清單：改用程式比對前去掉通用字就夠，不必改提示詞的變數。
+  - 把類別的國籍存進資料表：評分本來就從抽取結果讀類別，不用遷移。
+
+**概念**
+- **查官方資料，不靠印象**：我原本以為台灣在 Erasmus+ 另外一區，查了官方頁面才知道它在「亞洲」的高所得子群組。清單附出處與查證日期，之後官方改了才知道要更新。
+- **程式決定，AI 給線索**：AI 填「原文怎麼說」並附引用，最後的原因由程式依固定順序判斷，結果可以重現、可以測試。
+- **偵測漏抽**：核對只能檢查抽出來的值；「該抽卻沒抽」要靠另外的偵測。例如這次用「截止字樣旁邊有日期」來判斷。
+- **改提示詞要升版**：extract-18 是新檔案，extract-17 留著方便比較；只有之後重抽的來源才會用新版（ADR-104）。
+
+**程式碼導讀**
+- `backend/app/features/scholarships/groups.py`：Erasmus+ 地區清單、`HIGH_INCOME`、`regional_check`
+- `backend/app/features/matching/score.py`：`hard_checks` 裡類別自己的地區
+- `backend/app/features/scholarships/cycles.py`：`no_date_reason`、`refresh` 存下原因
+- `backend/app/features/scholarships/extract.py`：`award_core`、`same_award`、`save_cycles` 的 `how_to_apply`、`check_draft` 的漏抽偵測
+- `backend/app/features/scholarships/rules.py`：`missed_deadline`
+- `backend/app/features/scholarships/retry.py`：`missed_date` 那一行錯誤訊息
+- `backend/app/features/sources/fetch.py`：`needs_repick`
+- `backend/prompts/extract/18.md`
+- 測試：`tests/test_groups.py`、`tests/test_matching_score.py`、`tests/test_no_date.py`、`tests/test_no_date_db.py`、`tests/test_save_cycles_db.py`、`tests/test_rules.py`、`tests/test_retry.py`、`tests/test_picked_pages_db.py`、`tests/test_multi_scholarship_db.py`、`tests/test_verify.py`
+
+**你可以怎麼講**：「資料缺日期時，我不填假日期，而是找出原因。AI 只負責從原文找線索並附引用，程式依固定規則判斷原因，網頁照實寫出來。能修的原因也一起修：漏抽的丟回 AI 重抽、子頁沒抓的定期重挑。地區名額改成同一個獎學金底下的類別，國籍判斷用歐盟官方的地區清單。」
+
+講的時候分清楚：地區名額存成類別（A1 的 A）、找原因而不繞過（C1），是你的決定。10 條原因的順序、高所得算待確認、30 天重挑、漏抽偵測的做法，是 AI 的實作與決定，寫在計畫的「Claude 自行決定」。
+
+**自我檢查**
+1. 為什麼「沒有申請期的原因」由程式決定，而不是直接讓 AI 給一個原因？
+2. 台灣申請 MULTICOM 的「Asia」名額，為什麼評分是待確認，而不是符合？
+3. 核對（ADR-111）為什麼抓不到漏抽？這次用什麼方法補上？

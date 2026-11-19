@@ -1,6 +1,6 @@
 # 總檢查的修正：實作計畫（2026-11-18）
 
-狀態：**你 11-19 核准；段 1–5 完成，段 6 的程式完成、資料步驟等今天的每日檢查跑完（11-19）；下一段是段 7**。
+狀態：**你 11-19 核准；段 1–5、段 7 完成，段 6 的程式完成（11-20）；段 6 的資料步驟與段 8 等每日檢查收尾後再做**。
 
 - 問題：`docs/audit-2026-11-18.md`
 - 決定：ADR-112–119（你 11-18 的選擇）
@@ -357,18 +357,64 @@
   ```
 
 ### 段 7：抽取改版
-- [ ] schema 加申請方式與沒有日期的原因 -> verify: `uv run pytest tests/test_schemas.py -k how_to_apply`
-- [ ] 申請方式的引用核對 -> verify: `uv run pytest tests/test_verify.py -k how_to_apply`
-- [ ] 沒有申請期的原因，10 種的順序 -> verify: `uv run pytest tests/test_no_date.py`
-- [ ] 和入學一起審、頁面有入學截止日 → 建申請期 -> verify: `uv run pytest tests/test_save_cycles_db.py -k with_admission`
-- [ ] 遷移：加 `how_to_apply`、`no_date_reason`，拿掉 `requires_admission` -> verify: 讀過自動產生的遷移，`uv run alembic upgrade head`
-- [ ] 地區群組展開 -> verify: `uv run pytest tests/test_groups.py -k erasmus_regions`
-- [ ] 地區名額寫進類別、不拆筆（提示詞） -> verify: `uv run pytest tests/test_prompts.py`
-- [ ] 拆出來那筆的名稱比對去掉通用字 -> verify: `uv run pytest tests/test_multi_scholarship_db.py -k generic_words`
-- [ ] 漏抽偵測丟回重抽 -> verify: `uv run pytest tests/test_retry.py -k missed_date`
-- [ ] 首頁沒變但沒有日期時重挑（30 天一次） -> verify: `uv run pytest tests/test_fetch_seen_db.py -k repick_no_date`
-- [ ] 提示詞升版 -> verify: `uv run pytest tests/test_prompts.py`
-- [ ] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app`
+
+實作時改了三處設計（11-20），也記在「Claude 自行決定」：
+- `requires_admission` 先不拿掉：網頁還在用，段 9 改標示時一起拿掉
+- 「給 AI 現有名稱清單」沒做：改用程式比對前去掉通用字（A2），不用改提示詞的變數
+- 地區名額的國籍放在抽取結果的類別裡（`nationality_groups`），評分本來就從那裡讀類別，不必改 `scholarship_categories` 資料表
+
+查官方清單時發現：Erasmus+ 把台灣、日本、南韓列在「Region 5: Asia」的高所得國家與地區，不是另外一區。地區名額不一定給高所得的部分，所以評分算「待確認」並寫明原因。
+
+- [x] schema 加申請方式與沒有日期時原文怎麼說；申請方式的引用核對 -> verify: `uv run pytest tests/test_verify.py -k how_to_apply`（red d5ea324、green 4ede978）
+  ```
+  1 passed, 8 deselected in 0.04s
+  ```
+- [x] 沒有申請期的原因，10 種的順序 -> verify: `uv run pytest tests/test_no_date.py`（red 4ee9740、green 906f78d）
+  ```
+  13 passed in 0.26s
+  ```
+- [x] refresh 存下原因；抽取存下申請方式 -> verify: `uv run pytest tests/test_no_date_db.py`（red c6c2700、green e462bf0／664ab4c）
+  ```
+  2 passed in 1.21s
+  ```
+- [x] 和入學一起審、頁面有入學截止日 → 建申請期 -> verify: `uv run pytest tests/test_save_cycles_db.py -k admission_deadline`（red 9326863、green 39cf092）
+  ```
+  1 passed, 3 deselected in 0.81s
+  ```
+- [x] 遷移：加 `scholarships.how_to_apply`、`no_date_reason`、`sources.picked_at` -> verify: 手寫遷移、先套用再改資料表類別，`uv run alembic check` 沒有差異（afb9ee3、0eae026）
+- [x] 地區群組展開 -> verify: `uv run pytest tests/test_groups.py -k regions`（清單照 Erasmus+ 官方頁 2026-11-20 查證；red 7137dd0、green 3cc40e4）
+  ```
+  1 passed, 3 deselected in 0.02s
+  ```
+- [x] 地區名額類別用自己的地區評分（新加的一項） -> verify: `uv run pytest tests/test_matching_score.py -k regional`（red 7f42650、green 7d18fbb）
+  ```
+  1 passed, 1 deselected in 0.66s
+  ```
+- [x] 拆出來那筆的名稱比對去掉通用字 -> verify: `uv run pytest tests/test_multi_scholarship_db.py -k generic`（red 88c240b、green c3ed0f1）
+  ```
+  1 passed, 7 deselected in 0.82s
+  ```
+- [x] 漏抽偵測丟回重抽 -> verify: `uv run pytest tests/test_rules.py -k deadline_sentence` 與 `tests/test_retry.py -k missed`（red 6ee09d9／2f75cb4、green 34fce7d／b33086b）
+  ```
+  1 passed, 10 deselected in 0.05s
+  1 passed, 2 deselected in 0.78s
+  ```
+- [x] 首頁沒變但沒有日期時重挑（30 天一次） -> verify: `uv run pytest tests/test_picked_pages_db.py -k repicked`（red 95b4271、green d60aeea）
+  ```
+  1 passed, 2 deselected in 0.80s
+  ```
+- [x] 提示詞升版：extract-18（地區名額寫成類別、申請方式、沒有日期時原文怎麼說、地區代號）；outline、section、focus 沒改 -> verify: `uv run pytest tests/test_prompts.py`（feccec1）
+  ```
+  15 passed in 0.77s
+  ```
+- [x] 完整檢查並推上 main；CI -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app && cd ../frontend && npm run build`
+  ```
+  451 passed, 1 warning in 12.24s
+  All checks passed!
+  Success: no issues found in 126 source files
+  ✓ built in 1.42s
+  GitHub CI（feccec1）：backend success、frontend success，451 passed
+  ```
 
 ### 段 8：重抽
 - [ ] 備份資料庫 -> verify: 貼上備份檔名與大小
@@ -410,3 +456,5 @@
 8. 列表上「時間待確認」的分組保留，原因寫在卡片上（不另外加分組）
 9. 被擋的來源只加一個欄位 `retry_on`（哪天再試），原因照舊放 `manual_reason`；計畫原本寫 `blocked_at`（11-19 段 2）
 10. A6 改成只由每天的 `refresh` 封存，排除當下不另外封存（11-19 段 1，理由見第 2 節段 1 的邊界情況）
+11. 地區名額裡高所得的國家與地區（例如台灣在亞洲）評分算待確認，不算符合（11-20 段 7）
+12. 漏抽偵測只看頁面主角，不看同一頁拆出來的其他獎學金（它們的日期常是別人的）（11-20 段 7）

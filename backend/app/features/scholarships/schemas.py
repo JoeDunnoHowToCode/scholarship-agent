@@ -98,6 +98,10 @@ Funding = Literal["scholarship", "self_funded", "any"]
 # 日期的種類（ADR-105）：只有 scholarship 會變成申請期、送截止提醒
 WindowKind = Literal["scholarship", "admission_only", "document", "payment", "other"]
 Offered = Literal["yes", "no", "unclear"]
+# 申請方式（ADR-119）：取代意思不清的 requires_admission（「要先錄取」）
+HowToApply = Literal["separate", "after_offer", "with_admission", "automatic", "after_enrolment", "unclear"]
+# 沒有這個獎學金的截止日時，原文怎麼說（ADR-119）：還沒公布、隨時可申請、日期在別的網頁、完全沒提
+MissingDate = Literal["not_announced", "rolling", "elsewhere", "not_mentioned"]
 # 國家群組（D1 C，ADR-109）：原文用群組寫國籍時，AI 填群組代號，程式展開成國碼（groups.py）
 GROUPS_DESCRIPTION = (
     "原文用群組寫國籍時填群組代號：歐盟 EU、歐洲經濟區 EEA、Erasmus+ Programme countries（歐盟與參與國）"
@@ -230,6 +234,25 @@ class ScholarshipDraft(ProgramFacts):
     not_scholarship_evidence: str | None = Field(
         default=None, description="寫著沒有提供獎學金的原文句子，逐字引用；not_scholarship 是 false 時留空"
     )
+    # ADR-119；預設值讓重抽前的舊資料維持原本的行為
+    how_to_apply: HowToApply = Field(
+        default="unclear",
+        description=(
+            "怎麼申請這個獎學金：要另外申請、不用先錄取填 separate；先拿到入學許可再另外申請填 after_offer；"
+            "和入學申請一起送（同一份申請，或勾選申請獎學金）填 with_admission；不用申請、符合條件就自動給填 automatic；"
+            "入學後才申請（例如依第一年成績）填 after_enrolment；原文沒說填 unclear"
+        ),
+    )
+    how_to_apply_evidence: str | None = Field(default=None, description="寫著怎麼申請的原文句子，逐字引用")
+    missing_date: MissingDate | None = Field(
+        default=None,
+        description=(
+            "windows 裡沒有這個獎學金的截止日時，原文怎麼說：下一屆日期還沒公布填 not_announced；"
+            "隨時可以申請、額滿為止填 rolling；原文說日期寫在別的網頁或文件填 elsewhere；完全沒提填 not_mentioned；"
+            "有截止日就留空"
+        ),
+    )
+    missing_date_evidence: str | None = Field(default=None, description="支持 missing_date 的原文句子，逐字引用")
     other_scholarships: list[OtherScholarship] = Field(  # ADR-108
         default=[],
         description=(

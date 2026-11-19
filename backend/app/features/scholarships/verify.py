@@ -78,6 +78,9 @@ def claims(draft: ScholarshipDraft) -> dict[str, tuple[Any, str | None]]:
     if draft.offered in ("yes", "no"):
         # ADR-111：今年有沒有開也要核對；沒寫（unclear）就不核對
         found["offered"] = (OFFERED_CLAIMS[draft.offered], draft.offered_evidence)
+    if draft.how_to_apply != "unclear":
+        # ADR-119：申請方式也要核對；沒寫（unclear）就不核對
+        found["how_to_apply"] = (HOW_TO_APPLY_CLAIMS[draft.how_to_apply], draft.how_to_apply_evidence)
     if draft.not_scholarship:
         # A2 C（ADR-107）：判斷不是獎學金會停用來源，所以也要核對；「這一屆沒有」不算（那是 offered=no）
         found["not_scholarship"] = (NOT_SCHOLARSHIP_CLAIM, draft.not_scholarship_evidence)
@@ -87,6 +90,13 @@ def claims(draft: ScholarshipDraft) -> dict[str, tuple[Any, str | None]]:
 OFFERED_CLAIMS = {
     "yes": "這一屆或下一屆有提供這個獎學金",
     "no": "這一屆或下一屆不提供這個獎學金（不開辦、停止招生、沒有獎學金或只收自費生）",
+}
+HOW_TO_APPLY_CLAIMS = {
+    "separate": "要另外申請這個獎學金，不用先拿到入學許可",
+    "after_offer": "先拿到入學許可，再另外申請這個獎學金",
+    "with_admission": "和入學申請一起申請這個獎學金（同一份申請，或在入學申請裡勾選）",
+    "automatic": "不用申請，符合條件就自動獲得這個獎學金",
+    "after_enrolment": "入學之後才能申請這個獎學金",
 }
 NOT_SCHOLARSHIP_CLAIM = "這個學校或學程完全不提供任何獎學金或補助（不是只有這一屆、這次招生沒有，也不是只講學費）"
 
@@ -184,7 +194,7 @@ def verify(
         "categories": category_issues(draft, source),
         "issues": other_issues(draft, source),
         # 只有 AI 填了 yes／no、或判斷不是獎學金時才有這兩項
-        **{field: status[field] for field in ("offered", "not_scholarship") if field in status},
+        **{field: status[field] for field in ("offered", "not_scholarship", "how_to_apply") if field in status},
     }
 
 
@@ -194,4 +204,6 @@ def apply_verification(draft: ScholarshipDraft, verification: dict[str, Any]) ->
         draft = draft.model_copy(update={"nationality_scope": "unclear", "nationalities": []})
     if verification.get("offered", "supported") != "supported":
         draft = draft.model_copy(update={"offered": "unclear"})
+    if verification.get("how_to_apply", "supported") != "supported":
+        draft = draft.model_copy(update={"how_to_apply": "unclear"})  # ADR-119
     return draft

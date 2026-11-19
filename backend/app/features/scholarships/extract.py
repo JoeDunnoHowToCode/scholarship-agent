@@ -312,6 +312,7 @@ def save(
     row.language_requirements = draft.language_requirements
     row.other_eligibility = draft.other_eligibility
     row.requires_admission = draft.requires_admission
+    row.how_to_apply = draft.how_to_apply  # ADR-119：取代 requires_admission
     # 目錄來的學程網址是首頁：連到 AI 挑的第一個子頁（ADR-113）；agent 找到的網址本身就是獎學金頁
     row.official_url = source.picked_urls[0] if source.discovery == Discovery.CATALOGUE and source.picked_urls else source.url
     row.last_verified_at = datetime.now(UTC)

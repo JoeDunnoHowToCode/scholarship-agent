@@ -72,3 +72,36 @@ def test_a_catalogue_scholarship_links_to_the_first_picked_page(tmp_path: Path) 
     finally:
         session.rollback()
         session.close()
+
+
+def test_a_source_without_a_found_date_is_repicked_at_most_every_30_days(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 總檢查 C1 第 7 種：IMSOGLO 10-12 挑子頁時沒挑到，首頁之後沒變過，就再也不挑；13 個來源只抓過首頁（ADR-119）
+    from datetime import UTC, datetime, timedelta
+
+    from app.features.scholarships.models import Scholarship
+
+    monkeypatch.setattr(fetch, "SNAPSHOT_DIR", tmp_path)
+    calls: list[str] = []
+
+    def counting_picker(name: str, url: str, links: list[Link]) -> list[str]:
+        calls.append(url)
+        return []  # 第一次什麼都沒挑到
+
+    session = SessionLocal()
+    try:
+        source = Source(name="Test repick", url=HOME, kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        fetch.fetch_source(session, Site(), source, counting_picker)  # type: ignore[arg-type]
+        session.add(Scholarship(name="Test repick", source_id=source.id, extracted={}, no_date_reason="not_found"))
+        session.flush()
+        fetch.fetch_source(session, Site(), source, counting_picker)  # type: ignore[arg-type]  # 首頁沒變
+        assert len(calls) == 1  # 才剛挑過：30 天內不重挑
+        source.picked_at = datetime.now(UTC) - timedelta(days=31)
+        fetch.fetch_source(session, Site(), source, counting_picker)  # type: ignore[arg-type]
+        assert len(calls) == 2  # 沒找到日期、上次挑是 31 天前：首頁沒變也重挑
+    finally:
+        session.rollback()
+        session.close()

@@ -47,6 +47,10 @@ class CategoryDraft(BaseModel):
     degree_conditions: str | None = Field(
         description="哪個學位要符合什麼條件才能讀，例如「碩士限藝術學群、建築規劃與設計學群」；所有學位都沒有條件就留空"
     )
+    # ADR-112：地區名額（例如 Erasmus Mundus 的 Sub-Saharan Africa top-up）的國籍；預設值讓舊資料照舊
+    nationality_groups: list[str] = Field(
+        default=[], description="這個類別只給某些地區或國家的申請人時，填群組代號（同國籍的群組代號）；不限就留空清單"
+    )
 
 
 # 金額的期間與用途（ADR-070）
@@ -106,6 +110,8 @@ MissingDate = Literal["not_announced", "rolling", "elsewhere", "not_mentioned"]
 GROUPS_DESCRIPTION = (
     "原文用群組寫國籍時填群組代號：歐盟 EU、歐洲經濟區 EEA、Erasmus+ Programme countries（歐盟與參與國）"
     "ERASMUS_PROGRAMME、Erasmus+ Partner countries ERASMUS_PARTNER、非洲聯盟 AU、西巴爾幹 WESTERN_BALKANS；"
+    "Erasmus+ 的世界地區：NEIGHBOURHOOD_EAST、NEIGHBOURHOOD_SOUTH（South-Mediterranean）、ASIA、CENTRAL_ASIA、"
+    "MIDDLE_EAST、PACIFIC、SUB_SAHARAN_AFRICA、LATIN_AMERICA、CARIBBEAN；"
     "其他群組（例如學校自訂的 Tier 1）照原文寫群組名稱。群組裡的國家不要再列進國家清單；沒有群組就留空清單"
 )
 

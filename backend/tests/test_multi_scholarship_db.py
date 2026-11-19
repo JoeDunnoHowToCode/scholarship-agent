@@ -208,3 +208,13 @@ def test_another_scholarship_on_a_catalogue_page_does_not_take_the_catalogue_nat
     finally:
         session.rollback()
         session.close()
+
+
+def test_award_keys_match_without_generic_words() -> None:
+    # 總檢查 A2：AI 這次寫「Asia top up scholarships」、下次寫「Asia scholarships」，key 相似度 0.865 沒過門檻，
+    # 同一個獎學金存成兩筆。比對前去掉 scholarship、top up、grant、award 這類通用字
+    from app.features.scholarships.extract import same_award
+
+    assert same_award("asiatopupscholarships", "asiascholarships") is True
+    assert same_award("centralasiatopupscholarships", "asiascholarships") is False  # 中亞和亞洲是不同的名額
+    assert same_award("latinamericascholarships", "latinamericascholarship") is True

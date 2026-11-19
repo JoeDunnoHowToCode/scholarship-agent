@@ -64,7 +64,7 @@ from app.shared.db import SessionLocal
 from app.shared.settings import settings
 
 # 提示詞版本：改了提示詞就要改號碼；和快照雜湊、模型一起決定要不要重抽（ADR-013）
-PROMPT_VERSION = "extract-18"  # 11-20：地區名額寫成類別、申請方式、沒有日期時原文怎麼說（ADR-112、119）
+PROMPT_VERSION = "extract-19"  # 11-20：地區名額寫成類別、申請方式、沒有日期時原文怎麼說（ADR-112、119）；試跑後分清「自動列入評選」
 OUTLINE_VERSION = "outline-12"
 SECTION_VERSION = "section-16"
 # 只補金額的提示詞（ADR-074）；改了提示詞就要改號碼

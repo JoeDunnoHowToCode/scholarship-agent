@@ -245,7 +245,8 @@ class ScholarshipDraft(ProgramFacts):
         default="unclear",
         description=(
             "怎麼申請這個獎學金：要另外申請、不用先錄取填 separate；先拿到入學許可再另外申請填 after_offer；"
-            "和入學申請一起送（同一份申請，或勾選申請獎學金）填 with_admission；不用申請、符合條件就自動給填 automatic；"
+            "和入學申請一起送（同一份申請，或勾選申請獎學金）填 with_admission；不用申請、符合條件就自動給填 automatic"
+            "（錄取者自動列入評選、還要競爭的填 with_admission）；"
             "入學後才申請（例如依第一年成績）填 after_enrolment；原文沒說填 unclear"
         ),
     )

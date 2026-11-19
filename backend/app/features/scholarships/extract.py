@@ -218,7 +218,12 @@ def extract_long(
 
 
 def save_cycles(
-    session: Session, row: Scholarship, windows: list[WindowDraft], statuses: list[str], offered: str = "unclear"
+    session: Session,
+    row: Scholarship,
+    windows: list[WindowDraft],
+    statuses: list[str],
+    offered: str = "unclear",
+    how_to_apply: str = "unclear",
 ) -> None:
     """申請期整批重寫（ADR-047）。預估的申請期是從真的申請期算出來的，也一起刪掉，
     之後由 cycles 指令依新的資料重新產生，才不會留下依舊資料算出來的預估。"""
@@ -237,7 +242,9 @@ def save_cycles(
         if status in ("incomplete", "year_not_in_quote") and not inferred:
             continue
         # ADR-105：補件、繳費、只有入學的日期不是申請期；原文寫明這次不提供就一個都不建
-        if window.kind != "scholarship" or offered == "no":
+        # ADR-119：獎學金隨入學申請一起審（with_admission）時，入學截止日就是獎學金的截止日
+        counts = window.kind == "scholarship" or (window.kind == "admission_only" and how_to_apply == "with_admission")
+        if not counts or offered == "no":
             continue
         assert window.closes_month and window.closes_day
         closes_year = (None if ai_year else window.closes_year) or cycles.next_year(
@@ -339,7 +346,9 @@ def save(
                     snapshot_id=snapshot_id,
                 )
             )
-    save_cycles(session, row, draft.windows, extracted["verification"]["deadlines"], draft.offered)
+    save_cycles(
+        session, row, draft.windows, extracted["verification"]["deadlines"], draft.offered, draft.how_to_apply
+    )
 
     session.execute(delete(Requirement).where(Requirement.scholarship_id == row.id))
     session.execute(delete(ScholarshipCategory).where(ScholarshipCategory.scholarship_id == row.id))
@@ -664,7 +673,8 @@ def rebuild_cycles() -> None:
         for row in rows:
             windows = [WindowDraft.model_validate(w) for w in row.extracted.get("windows", [])]
             save_cycles(
-                session, row, windows, row.extracted["verification"]["deadlines"], row.extracted.get("offered", "unclear")
+                session, row, windows, row.extracted["verification"]["deadlines"], row.extracted.get("offered", "unclear"),
+                row.extracted.get("how_to_apply", "unclear"),
             )
     print(f"已重建 {len(rows)} 筆獎學金的申請期；接著執行 cycles 指令更新狀態與預估")
 
@@ -790,7 +800,7 @@ def recheck_rules(session: Session, source_ids: list[int] | None = None) -> tupl
             row.extracted = new  # JSONB 整個重新指定
             row.amount = new["amount"]
         # 申請期一律重建：建申請期的規則也可能改了（例如 ADR-110 的推算年份），抽取結果沒變也要套用
-        save_cycles(session, row, windows, deadlines, old.get("offered", "unclear"))
+        save_cycles(session, row, windows, deadlines, old.get("offered", "unclear"), old.get("how_to_apply", "unclear"))
     return checked, changed
 
 

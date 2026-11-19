@@ -7,7 +7,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from typing import Literal, cast
+from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
@@ -125,6 +125,32 @@ def is_stale(latest_close: datetime, today: date) -> bool:
 def should_archive(statuses: list[Status]) -> bool:
     """沒有任何申請期還能申請（開放中或即將開放）就封存；一個申請期都沒有時不封存。"""
     return bool(statuses) and not any(status in ("upcoming", "open") for status in statuses)
+
+
+def no_date_reason(extracted: dict[str, Any], *, has_cycles: bool, reachable: bool) -> str | None:
+    """沒有申請期時，原因是什麼（ADR-119）：依序檢查，第一個符合的就是原因；有申請期回傳 None。
+
+    reachable：來源最近還抓得到。網頁上照原因寫一句話，不用假的日期繞過（總檢查 C1）。
+    """
+    if has_cycles:
+        return None
+    if extracted.get("offered") == "no":
+        return "not_offered"  # 原文寫明這一屆不提供
+    if not reachable:
+        return "unreachable"  # 網站最近抓不到，資料停在以前
+    how = extracted.get("how_to_apply")
+    if how in ("automatic", "after_enrolment"):
+        return "no_application"  # 不用另外申請：自動給，或入學後才申請
+    if how == "with_admission":
+        return "admission_date_elsewhere"  # 跟著入學申請一起審，這幾頁沒寫入學截止日
+    windows = [w for w in extracted.get("windows") or [] if w.get("kind", "scholarship") == "scholarship"]
+    if extracted.get("missing_date") == "not_announced" or any(not w.get("closes_month") for w in windows):
+        return "not_announced"  # 只有開放日或「即將開放」，截止日還沒公布
+    if any(w.get("closes_month") and not w.get("closes_day") for w in windows):
+        return "month_only"  # 原文只寫到月份
+    if extracted.get("missing_date") in ("rolling", "elsewhere"):
+        return str(extracted["missing_date"])  # 隨時可申請；日期在別的網頁
+    return "not_found"  # 抓到的網頁都沒寫截止日
 
 
 def refresh(session: Session, now: datetime) -> Counter[str]:

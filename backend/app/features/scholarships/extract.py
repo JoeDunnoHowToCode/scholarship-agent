@@ -465,6 +465,9 @@ def check_draft(
         status["nationality"] = "catalogue"
     # 金額的核對只用程式（docs/day-09.md「Claude 自行決定」第 21 點），結果和其他欄位一起存在 verification
     status["amounts"] = [amounts.amount_status(a, raw) for a in verified.amounts]
+    # 漏抽偵測（ADR-119）：只看頁面主角；同一頁其他獎學金（focus）的日期常是別人的
+    if not focus and (missed := rules.missed_deadline(raw, verified.windows)):
+        status["missed_date"] = missed
     return draft, verified, status
 
 

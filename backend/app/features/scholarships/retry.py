@@ -19,7 +19,7 @@ REASONS = {
     "period_mismatch": "引用寫每學期，卻存成每年",
 }
 # 欄位對應標準（docs/extraction-standard.md）的哪一節
-STANDARD = {"nationality": "4", "degrees": "6", "deadline": "2", "amount": "3", "offered": "5.1"}
+STANDARD = {"nationality": "4", "degrees": "6", "deadline": "2", "amount": "3", "offered": "5.1", "missed_date": "2"}
 
 
 def amount_value(amount: AmountDraft) -> str:
@@ -38,6 +38,8 @@ def _failed(status: dict[str, Any]) -> list[tuple[str, int | None, str]]:
             found.append((field, None, status[field]))
     for name, key in (("deadline", "deadlines"), ("amount", "amounts")):
         found += [(name, index, s) for index, s in enumerate(status.get(key, [])) if s in REASONS]
+    if status.get("missed_date"):
+        found.append(("missed_date", None, "missed_date"))  # ADR-119：原文有日期，抽取一個都沒有
     return found
 
 
@@ -47,6 +49,12 @@ def problems(draft: ScholarshipDraft, status: dict[str, Any]) -> list[str]:
     labels = {"nationality": "國籍", "degrees": "學位", "offered": "今年有沒有開"}
     lines = []
     for field, index, state in _failed(status):
+        if field == "missed_date":
+            lines.append(
+                f"- 截止日：上次沒有抽出任何申請日期，但原文有「{status['missed_date']}」；"
+                f"照原文寫進 windows，年份沒寫就留空（標準 {STANDARD[field]}）"
+            )
+            continue
         if field == "amount" and index is not None:
             amount = draft.amounts[index]
             label, value, quote = f"金額 {index + 1}", amount_value(amount), amount.evidence

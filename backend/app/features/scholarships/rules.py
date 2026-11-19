@@ -2,7 +2,7 @@
 
 import re
 import unicodedata
-from typing import Literal
+from typing import Any, Literal
 
 from app.features.documents.checks import quote_in_source
 from app.features.scholarships.schemas import AmountDraft
@@ -152,3 +152,28 @@ def redundant_totals(amounts: list[AmountDraft]) -> list[AmountDraft]:
         a for a in amounts
         if not (a.period == "total" and any(p.period in TIMES and same_money(a, p) for p in amounts))
     ]
+
+
+# 漏抽偵測（ADR-119，總檢查 C1 第 6 種）：截止字樣前後 150 字內有日期，抽取卻一個日期都沒有
+_MONTH = r"(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t(ember)?)?|oct(ober)?|nov(ember)?|dec(ember)?)"
+_DATE = re.compile(
+    rf"\b\d{{1,2}}(st|nd|rd|th)?\.?\s+(of\s+)?{_MONTH}\b|\b{_MONTH}\.?\s+\d{{1,2}}(st|nd|rd|th)?\b"
+    r"|\b\d{1,2}[./]\d{1,2}[./]20\d\d\b|\b20\d\d-\d\d-\d\d\b",
+    re.IGNORECASE,
+)
+_DEADLINE = re.compile(
+    r"deadline|apply by|application period|applications? (open|close)|closing date|no later than|due date",
+    re.IGNORECASE,
+)
+NEAR = 150  # 截止字樣前後幾個字內找日期（「Claude 自行決定」：段 7）
+
+
+def missed_deadline(text: str, windows: list[Any]) -> str | None:
+    """抽取沒有任何獎學金或入學日期、原文卻有「截止字樣＋日期」時，回傳那一段原文；否則 None。"""
+    if any(getattr(w, "kind", "scholarship") in ("scholarship", "admission_only") for w in windows):
+        return None
+    for match in _DEADLINE.finditer(text):
+        nearby = text[max(0, match.start() - NEAR): match.end() + NEAR]
+        if _DATE.search(nearby):
+            return " ".join(nearby.split())
+    return None

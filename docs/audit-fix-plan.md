@@ -1,6 +1,6 @@
 # 總檢查的修正：實作計畫（2026-11-18）
 
-狀態：**你 11-19 核准；段 1–5、段 7 完成，段 6 的程式完成（11-20）；段 6 的資料步驟與段 8 等每日檢查收尾後再做**。
+狀態：**你 11-19 核准；段 1–5、段 7 完成，段 6 的程式完成；段 8 試跑完成（11-20），等你看過結果再全部重抽**。
 
 - 問題：`docs/audit-2026-11-18.md`
 - 決定：ADR-112–119（你 11-18 的選擇）
@@ -417,8 +417,25 @@
   ```
 
 ### 段 8：重抽
-- [ ] 備份資料庫 -> verify: 貼上備份檔名與大小
-- [ ] 先試 10 個來源 -> verify: `extract --force --source …（10 個） --max-cost 10`，貼上每筆的申請方式、沒有日期的原因、MULTICOM 的筆數與類別
+- [x] 備份資料庫 -> verify: 貼上備份檔名與大小
+  ```
+  backend/data/backups/scholar-2026-11-20-before-audit-trial.dump（77 MB，19 張表的資料）
+  ```
+  （11-20 你等不及每日檢查收尾，選 A：先停背景程式，手動跑 refresh 與去重：列表 392 → 244 筆，來自排除來源 117 → 0、今年不提供 34 → 0、沒有申請期 202 → 77，Europhotonics #2771 回到列表；做完再開回背景程式。被中斷的工作只有來源 116 那一件）
+- [x] 先試 10 個來源 -> verify: `extract --force --source …（10 個） --max-cost 10`，貼上每筆的申請方式、沒有日期的原因、MULTICOM 的筆數與類別（先重抓 9 個；meta4.0 被 403 擋，只用現有網頁）
+  ```
+  完成 10、沒變 0、失敗 0；約 NT$7.1（extract-18），另外重抽 MULTICOM、WOCC 約 NT$2.0（extract-19）
+  MULTICOM：使用中 7 → 1 筆；類別 9 個（一般名額 15，地區名額各附地區代號：撒哈拉以南非洲、拉丁美洲、亞洲、中亞、南地中海、中東、太平洋＋加勒比海、西巴爾幹）
+  IMSOGLO：重挑子頁抓到 2 頁，找到截止日 2027-02-28
+  Laurea：截止日 2027-01-21；WOCC：2027-03-21
+  BIOPHAM：with_admission，原因 admission_date_elsewhere
+  Coventry、Hope：自動給的獎學金 → no_application
+  Copernicus、meta4.0：not_found（日期在第二層子頁／網站擋 403）
+  Chevening：month_only
+  試跑抓到的錯：MULTICOM、WOCC 原文是「錄取者自動列入評選」，AI 標成 automatic、核對也放行 → 改成 extract-19（7be22de），重抽後兩筆都是 with_admission
+  地區名額的名額取上限（「5-6」存成 6），沒有存範圍
+  Liverpool Hope 的獎學金頁現在回 404
+  ```
 - [ ] 你看過試跑的結果，同意再全部重抽 -> verify: 你的回覆
 - [ ] 全部重抽 -> verify: `extract --force --max-cost 200`，貼上完成／失敗數與費用
 - [ ] 沒有申請期的原因各剩幾筆 -> verify: SQL 依 `no_date_reason` 分組，貼上

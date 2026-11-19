@@ -23,3 +23,13 @@ def test_statuses_the_program_handles_itself_are_not_retried() -> None:
     status = {"nationality": "empty", "degrees": "supported", "deadlines": ["incomplete", "conflict"],
               "amounts": ["supported"], "categories": {}, "issues": []}
     assert retry.problems(DRAFT, status) == [] and retry.failures(status) == 0
+
+
+def test_a_missed_deadline_is_sent_back_with_the_sentence_from_the_page() -> None:
+    # ADR-119：原文有截止字樣加日期、抽取卻沒有任何日期（status 的 missed_date 是那段原文），也拋回 AI 重抽
+    sentence = "Applications close at 11:59 pm (BST) on Thursday 30 April 2026."
+    status = {"nationality": "supported", "degrees": "supported", "deadlines": [], "amounts": [],
+              "categories": {}, "issues": [], "missed_date": sentence}
+    lines = retry.problems(DRAFT, status)
+    assert len(lines) == 1 and lines[0].startswith("- 截止日") and sentence in lines[0]
+    assert retry.failures(status) == 1 and retry.fields(status) == ["missed_date"]

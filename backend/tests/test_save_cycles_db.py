@@ -85,3 +85,20 @@ def test_a_year_the_ai_added_to_a_quote_without_a_year_is_replaced_by_the_inferr
     finally:
         session.rollback()
         session.close()
+
+
+def test_an_admission_deadline_is_the_scholarship_deadline_when_both_are_decided_together() -> None:
+    # 總檢查 C1 第 5 種：Laurea「spring first joint application 7th – 21st January 2027」，獎學金隨入學申請一起審，
+    # AI 把日期標成「只有入學」，所以沒有申請期。申請方式是 with_admission 時，入學截止日就是獎學金的截止日（ADR-119）
+    session = SessionLocal()
+    try:
+        row = Scholarship(name="Test with admission", countries=["FI"], degrees=["master"], nationality_scope="all",
+                          nationalities=[], extracted={})
+        session.add(row)
+        session.flush()
+        save_cycles(session, row, [window(21, "admission_only")], ["supported"], how_to_apply="with_admission")
+        days = [c.closes_at.day for c in session.scalars(select(Cycle).where(Cycle.scholarship_id == row.id))]
+        assert days == [21]
+    finally:
+        session.rollback()
+        session.close()

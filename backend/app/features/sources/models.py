@@ -76,6 +76,8 @@ class Source(Base):
     follow_pagination: Mapped[bool] = mapped_column(server_default=text("false"))
     # AI 從首頁挑的子頁，照挑的順序（ADR-031）；第一個當獎學金的官網連結（ADR-113）
     picked_urls: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
+    # 上次請 AI 挑子頁的時間；沒找到日期時重挑，每個來源最多 30 天一次（ADR-119）
+    picked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # 第 0 頁就是首頁：打開時 ?page=0 換成首頁網址，避免同一頁抓兩次（目前只有 EACEA）
     page_zero_is_first: Mapped[bool] = mapped_column(server_default=text("false"))
     # 上次完整抓取時成功檢查到的頁數；只記翻頁來源，用來發現翻頁失效（漏抓警示）

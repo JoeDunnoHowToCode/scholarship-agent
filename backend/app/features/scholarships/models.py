@@ -61,7 +61,11 @@ class Scholarship(Base):
     nationality_conditions: Mapped[str | None] = mapped_column(Text)
     language_requirements: Mapped[str | None] = mapped_column(Text)
     other_eligibility: Mapped[str | None] = mapped_column(Text)
-    requires_admission: Mapped[bool | None]  # 是否需先錄取；不知道就留空
+    requires_admission: Mapped[bool | None]  # 是否需先錄取；不知道就留空（ADR-119 換成 how_to_apply，網頁改完再拿掉）
+    # 申請方式（ADR-119）：separate／after_offer／with_admission／automatic／after_enrolment／unclear
+    how_to_apply: Mapped[str | None] = mapped_column(String(16))
+    # 沒有申請期時，程式判斷的原因（ADR-119，no_date.py）；有申請期是空白
+    no_date_reason: Mapped[str | None] = mapped_column(String(32))
     official_url: Mapped[str | None] = mapped_column(Text)
     # 最後驗證時間（UTC）；第 3 天由驗證者寫入
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

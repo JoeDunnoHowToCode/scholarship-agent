@@ -146,3 +146,20 @@ def test_offered_yes_or_no_is_checked_and_becomes_unclear_when_not_supported() -
     assert verify.apply_verification(said_yes, status).offered == "unclear"
     # unclear 本來就不核對
     assert "offered" not in verify.verify(Judge(), draft([], None), quote, [])  # type: ignore[arg-type]
+
+
+def test_how_to_apply_is_checked_and_becomes_unclear_when_not_supported() -> None:
+    # ADR-119：「申請方式」取代意思不清的「要先錄取」；和今年有沒有開一樣，引用撐不起就改成 unclear
+    from app.features.scholarships.verify import ClaimVerdict, Verdicts
+
+    quote = "There is no need to apply. You will automatically receive the scholarship if you enrol"
+
+    class Judge:
+        def extract(self, prompt: str, schema: type[Any]) -> Any:
+            claims = [line[2:].split("：")[0] for line in prompt.splitlines() if line.startswith("- ")]
+            return Verdicts(verdicts=[ClaimVerdict(claim=c, supported=c != "how_to_apply", reason="") for c in claims])
+
+    automatic = draft([], None).model_copy(update={"how_to_apply": "automatic", "how_to_apply_evidence": quote})
+    status = verify.verify(Judge(), automatic, f"Fees. {quote}. More.", [])  # type: ignore[arg-type]
+    assert status.get("how_to_apply") == "not_supported"
+    assert verify.apply_verification(automatic, status).how_to_apply == "unclear"

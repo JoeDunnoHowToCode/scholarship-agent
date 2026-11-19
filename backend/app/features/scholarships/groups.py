@@ -3,6 +3,8 @@
 清單放在程式裡（像 ADR-054 的 Erasmus+ 清單），每份附官方出處與查證日期；群組成員改變時要更新。
 """
 
+from typing import Literal
+
 # 歐盟 27 國；希臘用 ISO 的 GR（歐盟自己的代碼是 EL）
 # 出處：https://european-union.europa.eu/principles-countries-history/eu-countries_en（2026-11-16 查證）
 EU = (
@@ -57,6 +59,16 @@ CARIBBEAN = (  # Region 11
 )
 # 高所得的部分：地區名額不一定給它們，評分時算待確認（ADR-112）
 HIGH_INCOME = frozenset((*ASIA_HIGH_INCOME, *MIDDLE_EAST_HIGH_INCOME, *PACIFIC_HIGH_INCOME))
+# 有高所得子群組的地區
+WITH_HIGH_INCOME = frozenset(("ASIA", "MIDDLE_EAST", "PACIFIC"))
+
+# 給人看的名稱（評分理由、網頁）
+NAMES = {
+    "EU": "歐盟", "EEA": "歐洲經濟區", "ERASMUS_PROGRAMME": "Erasmus+ 計畫國", "ERASMUS_PARTNER": "Erasmus+ 夥伴國",
+    "AU": "非洲聯盟", "WESTERN_BALKANS": "西巴爾幹", "NEIGHBOURHOOD_EAST": "東部鄰近地區",
+    "NEIGHBOURHOOD_SOUTH": "南地中海地區", "ASIA": "亞洲", "CENTRAL_ASIA": "中亞", "MIDDLE_EAST": "中東",
+    "PACIFIC": "太平洋地區", "SUB_SAHARAN_AFRICA": "撒哈拉以南非洲", "LATIN_AMERICA": "拉丁美洲", "CARIBBEAN": "加勒比海地區",
+}
 
 GROUPS: dict[str, tuple[str, ...]] = {
     "EU": EU,
@@ -91,3 +103,20 @@ def expand(scope: str, nationalities: list[str], groups: list[str]) -> tuple[str
         return "unclear", nationalities
     expanded = [country for code in codes for country in GROUPS[code]]
     return scope, list(dict.fromkeys([*nationalities, *expanded]))  # 去掉重複、保持順序
+
+
+def regional_check(user: str, codes: list[str]) -> tuple[Literal["pass", "fail", "unclear"], str]:
+    """只給某些地區的名額（ADR-112），使用者的國籍符不符合：（pass／fail／unclear, 一句理由）。
+
+    使用者在地區的高所得子群組（例如台灣在亞洲）：官方列在這個地區，但地區名額不一定給，算待確認。
+    """
+    wanted = [code.strip().upper() for code in codes]
+    names = "、".join(NAMES.get(code, code) for code in wanted)
+    if any(code not in GROUPS for code in wanted):
+        return "unclear", f"這個名額只給這些地區：{names}（程式還不認得這個地區）"
+    members = {country for code in wanted for country in GROUPS[code]}
+    if user not in members:
+        return "fail", f"這個名額只給這些地區：{names}，不含你的國籍"
+    if user in HIGH_INCOME and any(code in WITH_HIGH_INCOME for code in wanted):
+        return "unclear", f"這個名額給{names}；你的國籍列在其中的高所得國家與地區，地區名額不一定包含，請看官網"
+    return "pass", f"這個名額給{names}，包含你的國籍"

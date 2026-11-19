@@ -28,7 +28,7 @@ from app.features.matching.models import Match
 from app.features.matching.scoring import CheckResult, apply_caps
 from app.features.profiles.models import Profile
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
-from app.features.scholarships import countries
+from app.features.scholarships import countries, groups
 from app.features.scholarships.cycles import EARLIEST_ZONE, cycle_status, is_stale
 from app.features.scholarships.models import Cycle, Scholarship, ScholarshipStatus
 from app.shared.db import SessionLocal
@@ -36,7 +36,8 @@ from app.shared.settings import settings
 
 PROMPT_VERSION = "score-4"  # 改提示詞就要改版本號
 
-PROMPT = prompts.load(PROMPT_VERSION)  # 文字在 backend/prompts/（ADR-088）
+PROMPT = prompts.load(PROMPT_VERSION)
+WORSE = {"pass": 0, "unclear": 1, "fail": 2}  # 判斷結果由好到壞  # 文字在 backend/prompts/（ADR-088）
 
 # 給人看的中文名稱
 STATUS_NAMES = {"open": "開放中", "upcoming": "即將開放", "closed": "已截止", "estimated": "預估"}
@@ -132,6 +133,11 @@ def hard_checks(
         scope += "（沒有列出國家）"  # 例如原文只寫「African Union 會員國」
     nationality = checks.nationality_check(profile.nationality, row.nationality_scope, list(row.nationalities))
     nationality_reason = f"國籍資格：{scope}" + ("；依據：EACEA 目錄頁" if basis == "catalogue" else "")
+    if regions := category.get("nationality_groups"):
+        # ADR-112：只給某些地區的名額類別，用類別自己的地區判斷；結果取兩者比較差的那個
+        regional, why = groups.regional_check(profile.nationality, list(regions))
+        if WORSE[regional] > WORSE[nationality]:
+            nationality, nationality_reason = regional, why
 
     degrees = [str(d) for d in category.get("degrees") or []]
     conditions = category.get("degree_conditions") or None

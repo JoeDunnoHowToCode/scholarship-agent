@@ -32,6 +32,7 @@ from app.core.fetch.text import content_hash, html_to_text, pdf_to_text
 from app.core.llm.gemini import GeminiLLM, LLMError, MissingApiKeyError
 from app.features.costs.llm import gemini
 from app.features.costs.usage import TAIPEI
+from app.features.scholarships.models import MAIN_KEY, Scholarship
 from app.features.sources.links import Link, candidate_links
 from app.features.sources.models import FetchMethod, Snapshot, Source, SourceStatus
 from app.features.sources.pagination import missing_pages_warning, pagination_urls
@@ -72,6 +73,21 @@ def retry_on(reason: str, retry_after: str | None, today: date) -> date | None:
         if asked is not None:
             days = max(1, min(days, asked))
     return today + timedelta(days=days)
+
+
+REPICK_AFTER = timedelta(days=30)  # 沒找到日期時，多久重挑一次子頁（「Claude 自行決定」第 4 點）
+# 這些原因代表日期可能在沒抓到的子頁（ADR-119）；不用申請、還沒公布、只寫月份的，重挑也找不到
+REPICK_REASONS = ("not_found", "elsewhere", "admission_date_elsewhere")
+
+
+def needs_repick(session: Session, source: Source, now: datetime) -> bool:
+    """這個來源的主角沒找到日期、而且 30 天內沒挑過子頁（ADR-119）。"""
+    if source.picked_at is not None and now - source.picked_at < REPICK_AFTER:
+        return False
+    reason = session.scalar(
+        select(Scholarship.no_date_reason).where(Scholarship.source_id == source.id, Scholarship.key == MAIN_KEY)
+    )
+    return reason in REPICK_REASONS
 
 
 def still_blocked(source: Source, today: date) -> bool:
@@ -153,6 +169,8 @@ def fetch_source(
         .having(func.max(func.coalesce(Snapshot.seen_at, Snapshot.fetched_at)) >= datetime.now(UTC) - RETIRE_AFTER)
     ).all()
     queue = [source.url, *(url for url in known if url != source.url)]
+    # 上次抽取沒找到日期、而且 30 天內沒挑過：首頁沒變也重挑子頁（ADR-119）
+    no_date = needs_repick(session, source, datetime.now(UTC))
     seen: set[str] = set()
     checked = 0  # 這次成功檢查到的頁數（200 或 304），漏抓警示用
     while queue and len(seen) < MAX_PAGES:
@@ -223,9 +241,10 @@ def fetch_source(
             report("changed" if latest else "new", digest[:12], url)
         # 首頁是新的或變了（或指定 --repick）：請 AI 挑申請頁，加進這次要抓的佇列
         # 目錄這類翻頁來源不挑；學程網站與 Chevening 這類單頁來源都挑
-        if (changed or repick) and picker and not source.follow_pagination and url == source.url and html:
+        if (changed or repick or no_date) and picker and not source.follow_pagination and url == source.url and html:
             picks = picker(source.name, result.url, candidate_links(html, result.url))
             source.picked_urls = list(picks)  # 照挑的順序存下來，第一個當官網連結（ADR-113）
+            source.picked_at = now
             for picked in picks:
                 report("picked", "AI 挑連結", picked)
                 if picked not in seen:

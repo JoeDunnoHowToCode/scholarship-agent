@@ -113,3 +113,23 @@ def test_degree_other_is_left_to_the_ai_check() -> None:
     # F1 B（ADR-107）：學位 other（進階研究所文憑、短期課程）沒有固定的關鍵字，程式不擋，交給核對的 AI；
     # 評估時 #3、#5902、#5906 因為這裡沒有 other 而 KeyError
     assert rules.degree_supported("other", ["Advanced Postgraduate Diploma in Music Performance"]) is True
+
+
+def test_a_deadline_sentence_with_a_date_is_found_when_no_date_was_extracted() -> None:
+    # 總檢查 C1 第 6 種：Edge Hill 原文寫「Applications close at 11:59 pm (BST) on Thursday 30 April 2026」，
+    # AI 一個日期都沒抽；meta4.0「Application Period: November 15 – February 15」也是。程式找出這種漏抽（ADR-119）
+    from app.features.scholarships.schemas import WindowDraft
+
+    page = "Eligibility. Applications close at 11:59 pm (BST) on Thursday 30 April 2026. Funding is limited."
+    found = rules.missed_deadline(page, [])
+    assert found is not None and "30 April 2026" in found
+    assert rules.missed_deadline("How to apply Apply on time Application Period: November 15 – February 15", []) is not None
+    # 沒有截止字樣的日期不算（例如「last update = 10/30/2025」）
+    assert rules.missed_deadline("Scholarships. [last update = 10/30/2025] Participation costs", []) is None
+    # 已經抽到獎學金或入學的日期就不檢查
+    dated = WindowDraft.model_validate({
+        "label": None, "intake": None, "opens_year": None, "opens_month": None, "opens_day": None,
+        "closes_year": 2026, "closes_month": 4, "closes_day": 30, "closes_time": None, "timezone": None,
+        "nationality_scope": "all", "nationalities": [], "funding": "any", "evidence": None, "kind": "admission_only",
+    })
+    assert rules.missed_deadline(page, [dated]) is None

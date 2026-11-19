@@ -163,10 +163,17 @@ def refresh(session: Session, now: datetime) -> Counter[str]:
         .join(Source, Source.id == Scholarship.source_id)
         .where(~((Source.status == SourceStatus.APPROVED) & Source.enabled))
     ))
+    unreachable = set(session.scalars(select(Source.id).where(Source.unreachable_since.is_not(None))))
     for row in rows:
         for cycle in row.cycles:
             cycle.status = cycle_status(cycle.opens_at, cycle.closes_at, now, estimated=cycle.estimated)
             counts[cycle.status] += 1
+        # ADR-119：沒有申請期的原因（有真的申請期就是空白），網頁照實寫出來
+        row.no_date_reason = no_date_reason(
+            row.extracted,
+            has_cycles=any(not c.estimated for c in row.cycles),
+            reachable=row.source_id not in unreachable,
+        )
         if row.id in outside:
             # 不看申請期：一律封存、不喚回、不預估下一屆；來源重新加入後，下一次 refresh 照申請期喚回
             if row.status == ScholarshipStatus.ACTIVE:

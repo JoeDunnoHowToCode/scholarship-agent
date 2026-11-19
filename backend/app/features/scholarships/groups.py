@@ -26,12 +26,53 @@ AU = (
 # 出處：同上 Erasmus+ eligible countries（2026-11-16 查證）
 WESTERN_BALKANS = ("AL", "BA", "XK", "ME")
 
+# Erasmus+ 的世界地區（不屬於計畫的第三國，Region 2–12）：Erasmus Mundus 的地區名額照這些地區分（ADR-112）
+# 出處：https://erasmus-plus.ec.europa.eu/programme-guide/part-a/eligible-countries（2026-11-20 查證）
+NEIGHBOURHOOD_EAST = ("AM", "AZ", "BY", "GE", "MD", "UA")  # Region 2
+# Region 3「South-Mediterranean countries」，Erasmus Mundus 學程常寫成 Neighbourhood South
+NEIGHBOURHOOD_SOUTH = ("DZ", "EG", "IL", "JO", "LB", "LY", "MA", "PS", "SY", "TN")
+# Region 5：官方把高所得國家與地區也列在 Asia 底下（台灣在這裡）；地區名額常只給前一群，所以分開記
+ASIA_HIGH_INCOME = ("BN", "HK", "JP", "KR", "MO", "SG", "TW")
+ASIA = (
+    "BD", "BT", "KH", "CN", "KP", "IN", "ID", "LA", "MY", "MV", "MN", "MM", "NP", "PK", "PH", "LK", "TH", "VN",
+    *ASIA_HIGH_INCOME,
+)
+CENTRAL_ASIA = ("AF", "KZ", "KG", "TJ", "TM", "UZ")  # Region 6
+MIDDLE_EAST_HIGH_INCOME = ("BH", "KW", "OM", "QA", "SA", "AE")
+MIDDLE_EAST = ("IR", "IQ", "YE", *MIDDLE_EAST_HIGH_INCOME)  # Region 7
+PACIFIC_HIGH_INCOME = ("AU", "CK", "NZ")
+PACIFIC = (  # Region 8
+    "FJ", "KI", "MH", "FM", "NR", "NU", "PW", "PG", "WS", "SB", "TL", "TO", "TV", "VU", *PACIFIC_HIGH_INCOME,
+)
+SUB_SAHARAN_AFRICA = (  # Region 9
+    "AO", "BJ", "BW", "BF", "BI", "CM", "CV", "CF", "TD", "KM", "CG", "CD", "CI", "DJ", "GQ", "ER", "ET", "SZ",
+    "GA", "GM", "GH", "GN", "GW", "KE", "LS", "LR", "MG", "MW", "ML", "MR", "MU", "MZ", "NA", "NE", "NG", "RW",
+    "ST", "SN", "SC", "SL", "SO", "ZA", "SS", "SD", "TZ", "TG", "UG", "ZM", "ZW",
+)
+LATIN_AMERICA = (  # Region 10
+    "AR", "BO", "BR", "CL", "CO", "CR", "EC", "SV", "GT", "HN", "MX", "NI", "PA", "PY", "PE", "UY", "VE",
+)
+CARIBBEAN = (  # Region 11
+    "AG", "BS", "BB", "BZ", "CU", "DM", "DO", "GD", "GY", "HT", "JM", "KN", "LC", "VC", "SR", "TT",
+)
+# 高所得的部分：地區名額不一定給它們，評分時算待確認（ADR-112）
+HIGH_INCOME = frozenset((*ASIA_HIGH_INCOME, *MIDDLE_EAST_HIGH_INCOME, *PACIFIC_HIGH_INCOME))
+
 GROUPS: dict[str, tuple[str, ...]] = {
     "EU": EU,
     "EEA": EEA,
     "ERASMUS_PROGRAMME": ERASMUS_PROGRAMME,
     "AU": AU,
     "WESTERN_BALKANS": WESTERN_BALKANS,
+    "NEIGHBOURHOOD_EAST": NEIGHBOURHOOD_EAST,
+    "NEIGHBOURHOOD_SOUTH": NEIGHBOURHOOD_SOUTH,
+    "ASIA": ASIA,
+    "CENTRAL_ASIA": CENTRAL_ASIA,
+    "MIDDLE_EAST": MIDDLE_EAST,
+    "PACIFIC": PACIFIC,
+    "SUB_SAHARAN_AFRICA": SUB_SAHARAN_AFRICA,
+    "LATIN_AMERICA": LATIN_AMERICA,
+    "CARIBBEAN": CARIBBEAN,
 }
 
 

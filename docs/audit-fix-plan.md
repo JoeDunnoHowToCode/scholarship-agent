@@ -1,6 +1,6 @@
 # 總檢查的修正：實作計畫（2026-11-18）
 
-狀態：**你 11-19 核准；段 1–5、段 7 完成，段 6 的程式完成；段 8 試跑完成（11-20），等你看過結果再全部重抽**。
+狀態：**你 11-19 核准；段 1–5、段 7 完成，段 6 的程式完成；段 8 全部重抽完成（11-20，NT$152.5），剩重新檢查 158 筆**。
 
 - 問題：`docs/audit-2026-11-18.md`
 - 決定：ADR-112–119（你 11-18 的選擇）
@@ -436,9 +436,52 @@
   地區名額的名額取上限（「5-6」存成 6），沒有存範圍
   Liverpool Hope 的獎學金頁現在回 404
   ```
-- [ ] 你看過試跑的結果，同意再全部重抽 -> verify: 你的回覆
-- [ ] 全部重抽 -> verify: `extract --force --max-cost 200`，貼上完成／失敗數與費用
-- [ ] 沒有申請期的原因各剩幾筆 -> verify: SQL 依 `no_date_reason` 分組，貼上
+- [x] 你看過試跑的結果，同意再全部重抽 -> verify: 你的回覆
+  ```
+  11-20：「全部重抽」
+  ```
+- [x] 全部重抽 -> verify: `extract --force --max-cost 200`，貼上完成／失敗數與費用（先停背景程式、再備份 `scholar-2026-11-20-before-full-reextract.dump` 77 MB；只傳 237 個已加入、啟用中的來源，不帶 `--source` 會連排除的也抽；跑完接著 refresh、去重、開回背景程式）
+  ```
+  start Fri Nov 20 22:37:16 CST 2026
+  完成 237、沒變 0、失敗 0
+  tokens：輸入 6,325,294、輸出 1,147,636，約 US$4.767（NT$152.5）
+  申請期：開放中 210、即將開放 51、已截止 115、預估 14
+  這次封存 3 筆、喚回 0 筆、新增預估申請期 22 筆；資料過舊 4 筆
+  688 筆獎學金，其中 17 筆是重複
+  local.scholarship-agent.worker：執行中；local.scholarship-agent.cron：執行中
+  end Fri Nov 20 23:46:09 CST 2026
+  ```
+  重抽寫了 31 筆變更紀錄，用通知的規則（`describe_change`）檢查，0 筆會變成通知
+- [x] 沒有申請期的原因各剩幾筆 -> verify: SQL 依 `no_date_reason` 分組，貼上（列表＝使用中、不是重複、有來源）
+  ```
+  列表 239 筆（重抽前 244）；沒有申請期 70 筆（重抽前 77，總檢查時 99）
+   (有申請期)               | 169
+   not_found                |  33   AI 在抓到的網頁裡沒找到日期
+   admission_date_elsewhere |  12   隨入學一起審，入學日期在別頁
+   not_announced            |   8   還沒公布
+   no_application           |   7   不用申請
+   unreachable              |   4   網站擋住
+   month_only               |   3   只寫月份
+   elsewhere                |   3   原文說日期在別的地方
+  地區名額拆成多筆：0（剩下 2 筆名字有 region 的是法國的地區獎學金，不是名額）；83 個類別附地區代號，分在 39 筆
+  國籍待確認 60 筆（重抽前 55）
+  ```
+- [x] 申請方式有多少筆知道（新加的一項） -> verify: SQL 依核對結果與 `how_to_apply` 分組
+  ```
+   supported       | with_admission  |  99
+   not_supported   | unclear         |  74
+   (AI 填 unclear) | unclear         |  34
+   supported       | separate        |  12
+   supported       | automatic       |   9
+   quote_not_found | unclear         |   6
+   supported       | after_offer     |   3
+   supported       | after_enrolment |   2
+  ```
+  知道的 125 筆（52%）。追查被核對擋下的 74 筆（只呼叫核對的 AI，不寫資料庫）：
+  - 約 13 筆的引用寫「自動列入評選」（automatically considered、postulent d'office），核對的 AI 對「和入學一起申請」大多說支持，所以被擋是抽取的 AI 填了別的（多半是 automatic）。extract-19 的規則 AI 沒有每次照做
+  - 其他約 60 筆的引用沒寫怎麼申請（例如「Candidates are eligible for an Erasmus Mundus scholarship」），擋下改成 unclear 是對的
+  - 核對的 AI 不穩：同一句問兩次，16 筆裡有 3 筆答案不同
+  - 抽取的 AI 原本填什麼沒有存下來（沒通過就改成 unclear），所以只能推測；之後要診斷，得先存下原本的值
 - [ ] 重新檢查 11-17 的 158 筆 -> verify: 數字寫進 `docs/eval/`，和 11-17 比較
 - [ ] 學習卡、`docs/progress.md` -> verify: 檔案已更新
 

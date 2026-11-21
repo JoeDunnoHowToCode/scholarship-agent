@@ -36,6 +36,7 @@ from app.features.scholarships.models import (
 from app.features.scholarships.schemas import Degree
 from app.features.search.find import find, next_deadline
 from app.features.search.fusion import rrf
+from app.features.sources.models import Snapshot
 from app.shared.db import get_session
 from app.shared.settings import settings
 
@@ -295,7 +296,22 @@ def semantic_ranking(session: Session, q: str) -> tuple[list[int], bool]:
         return [], False
 
 
-def to_row(row: Scholarship, match: Match | None, today: date, nationality: str | None, now: datetime) -> ScholarshipRow:
+def last_seen_by_source(session: Session, source_ids: list[int]) -> dict[int, datetime]:
+    """每個來源最後一次抓到官網的時間（快照的 seen_at）；「官網抓不到」那句話要寫資料停在哪天（段 9）。"""
+    if not source_ids:
+        return {}
+    query = (
+        select(Snapshot.source_id, func.max(Snapshot.seen_at))
+        .where(Snapshot.source_id.in_(source_ids))
+        .group_by(Snapshot.source_id)
+    )
+    return {source_id: seen for source_id, seen in session.execute(query)}
+
+
+def to_row(
+    row: Scholarship, match: Match | None, today: date, nationality: str | None, now: datetime,
+    last_seen: datetime | None = None,
+) -> ScholarshipRow:
     time_check = match.checks["time"] if match else None
     shown = card_cycle(list(row.cycles), nationality)
     return ScholarshipRow(
@@ -309,7 +325,7 @@ def to_row(row: Scholarship, match: Match | None, today: date, nationality: str 
         stale=stale_of(row, today),
         next_deadline=next_deadline(list(row.cycles)),
         deadline_line=describe_cycle(shown, now, label=False) if shown else None,
-        no_date_text=no_date_sentence(row.no_date_reason, row.extracted, last_seen=row.last_verified_at),
+        no_date_text=no_date_sentence(row.no_date_reason, row.extracted, last_seen=last_seen),
         score=match.total if match else None,
         category=match.category_name if match else None,
         group=time_check["result"] if time_check else None,
@@ -370,17 +386,19 @@ def list_scholarships(
     profile = get_profile(session, CURRENT_USER_ID)
     nationality = profile.nationality if profile else None  # 只在本機用來挑申請期，不送出去
     semantic = False
+    seen = last_seen_by_source(session, [r.source_id for r in found.values() if r.no_date_reason == "unreachable" and r.source_id])
     if q and q.strip():
         keyword = keyword_ranking(session, list(found), q.strip())
         meaning, semantic = semantic_ranking(session, q.strip())
         # 語意的結果也要符合篩選條件
         ranked = rrf([keyword, [scholarship_id for scholarship_id in meaning if scholarship_id in found]])
         rows = [
-            to_row(found[scholarship_id], best.get(scholarship_id), today, nationality, now)
+            to_row(found[scholarship_id], best.get(scholarship_id), today, nationality, now,
+                   seen.get(found[scholarship_id].source_id or 0))
             for scholarship_id in ranked
         ]
     else:
-        rows = [to_row(row, best.get(row.id), today, nationality, now) for row in found.values()]
+        rows = [to_row(row, best.get(row.id), today, nationality, now, seen.get(row.source_id or 0)) for row in found.values()]
         rows.sort(key=lambda r: list_order(r.group, r.score))
     outdated = profile is not None and bool(
         session.scalar(
@@ -501,7 +519,10 @@ def read_scholarship(scholarship_id: int, session: DbSession) -> ScholarshipDeta
         how_to_apply=row.how_to_apply or "unclear",  # 改版前抽的資料沒有
         how_to_apply_evidence=extracted.get("how_to_apply_evidence"),
         how_to_apply_check=verification.get("how_to_apply"),
-        no_date_text=no_date_sentence(row.no_date_reason, extracted, last_seen=row.last_verified_at),
+        no_date_text=no_date_sentence(
+            row.no_date_reason, extracted,
+            last_seen=last_seen_by_source(session, [row.source_id]).get(row.source_id) if row.source_id else None,
+        ),
         nationality_groups=[groups.NAMES.get(code, code) for code in extracted.get("nationality_groups", [])],
         nationality_scope=row.nationality_scope,
         nationalities=country_list(row.nationalities),

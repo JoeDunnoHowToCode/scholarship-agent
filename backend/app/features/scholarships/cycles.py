@@ -168,8 +168,9 @@ def no_date_sentence(reason: str | None, extracted: dict[str, Any], *, last_seen
     """沒有申請期的原因換成給人看的一句話；last_seen 是最後一次抓到官網的時間。沒有原因回傳 None。"""
     windows = [w for w in extracted.get("windows") or [] if w.get("kind", "scholarship") == "scholarship"]
     if reason == "unreachable":
-        day = f"{last_seen.astimezone(TAIPEI):%Y-%m-%d}" if last_seen else "以前"
-        return f"官網最近抓不到，資料停在 {day}，請直接看官網"
+        if last_seen is None:
+            return "官網最近抓不到，請直接看官網"  # 不知道最後一次抓到是哪天，不寫假的日期
+        return f"官網最近抓不到，資料停在 {last_seen.astimezone(TAIPEI):%Y-%m-%d}，請直接看官網"
     if reason == "no_application":
         if extracted.get("how_to_apply") == "after_enrolment":
             return "入學後才申請，入學前沒有截止日"

@@ -105,7 +105,8 @@ def time_reason(row: Scholarship, user: str, possible: list[Cycle]) -> str:
     """時間條件的一句原因，和 checks.time_check 的判斷一致。"""
     if not row.cycles:
         # 段 9（ADR-119）：和網頁用同一句話說明為什麼沒有申請期；還沒算過原因的舊資料照舊
-        sentence = no_date_sentence(row.no_date_reason, row.extracted, last_seen=row.last_verified_at)
+        # 評分不查快照：「官網抓不到」不寫日期（last_verified_at 是重抽的日子，不是最後抓到官網的日子）
+        sentence = no_date_sentence(row.no_date_reason, row.extracted, last_seen=None)
         return sentence or "官網這幾頁都沒寫截止日，請看官網"
     if not possible:
         funded = [c for c in row.cycles if c.funding in ("scholarship", "any")]

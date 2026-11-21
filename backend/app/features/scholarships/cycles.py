@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.features.costs.usage import TAIPEI
 from app.features.scholarships.models import Cycle, Scholarship, ScholarshipStatus
 from app.features.sources.models import Source, SourceStatus
 from app.shared.db import SessionLocal
@@ -151,6 +152,38 @@ def no_date_reason(extracted: dict[str, Any], *, has_cycles: bool, reachable: bo
     if extracted.get("missing_date") in ("rolling", "elsewhere"):
         return str(extracted["missing_date"])  # 隨時可申請；日期在別的網頁
     return "not_found"  # 抓到的網頁都沒寫截止日
+
+
+# 段 9（ADR-119）：每個原因在網頁上的一句話，說「這代表什麼、你要做什麼」
+NO_DATE_SENTENCES = {
+    "not_offered": "官網寫明這一屆不提供這個獎學金",
+    "admission_date_elsewhere": "跟著入學申請一起審，截止日就是入學申請的截止日；官網這幾頁沒寫，請看學校的入學申請頁",
+    "rolling": "隨時可以申請",
+    "elsewhere": "官網說日期寫在別的網頁，請看官網",
+    "not_found": "官網這幾頁都沒寫截止日，請看官網",
+}
+
+
+def no_date_sentence(reason: str | None, extracted: dict[str, Any], *, last_seen: datetime | None) -> str | None:
+    """沒有申請期的原因換成給人看的一句話；last_seen 是最後一次抓到官網的時間。沒有原因回傳 None。"""
+    windows = [w for w in extracted.get("windows") or [] if w.get("kind", "scholarship") == "scholarship"]
+    if reason == "unreachable":
+        day = f"{last_seen.astimezone(TAIPEI):%Y-%m-%d}" if last_seen else "以前"
+        return f"官網最近抓不到，資料停在 {day}，請直接看官網"
+    if reason == "no_application":
+        if extracted.get("how_to_apply") == "after_enrolment":
+            return "入學後才申請，入學前沒有截止日"
+        return "不用另外申請：符合條件就自動給"
+    if reason == "not_announced":
+        opens = next((w for w in windows if w.get("opens_year") and w.get("opens_month") and w.get("opens_day")), None)
+        if opens:
+            return f"下一屆的截止日還沒公布（{opens['opens_year']:04d}-{opens['opens_month']:02d}-{opens['opens_day']:02d} 開放）"
+        return "下一屆的截止日還沒公布"
+    if reason == "month_only":
+        window: dict[str, Any] = next((w for w in windows if w.get("closes_month") and not w.get("closes_day")), {})
+        year = f"{window['closes_year']} 年 " if window.get("closes_year") else ""
+        return f"官網只寫 {year}{window.get('closes_month')} 月截止，沒寫哪一天"
+    return NO_DATE_SENTENCES.get(reason) if reason else None
 
 
 def refresh(session: Session, now: datetime) -> Counter[str]:

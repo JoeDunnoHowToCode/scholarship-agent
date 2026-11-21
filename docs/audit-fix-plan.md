@@ -1,6 +1,6 @@
 # 總檢查的修正：實作計畫（2026-11-18）
 
-狀態：**你 11-19 核准；段 1–5、段 7 完成，段 6 的程式完成；段 8 全部重抽完成（11-20，NT$152.5）、重新檢查完成（11-21）；類別地區代號寫反已修（ADR-120）。下一段：段 6 的資料步驟或段 9**。
+狀態：**你 11-19 核准；段 1–5、段 7 完成，段 6 的程式完成；段 8 全部重抽完成（11-20，NT$152.5）、重新檢查完成（11-21）；類別地區代號寫反已修（ADR-120）；段 9 標示改寫完成（11-21）。剩段 6 的資料步驟、段 10（刪除要你同意）**。
 
 - 問題：`docs/audit-2026-11-18.md`
 - 決定：ADR-112–119（你 11-18 的選擇）
@@ -512,9 +512,33 @@
 - [ ] 學習卡、`docs/progress.md` -> verify: 檔案已更新
 
 ### 段 9：標示
-- [ ] 第 2 節段 9 的表全部改完 -> verify: `npm run build`；`grep` 確認畫面上不再出現「要先錄取」「引用不支持」「年份推估」「上限 80」
-- [ ] 詳細頁與列表截圖（不含評分理由與個人資料） -> verify: 截圖給你看
-- [ ] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app && cd ../frontend && npm run build`
+- [x] 沒有申請期的原因換成一句話 -> verify: `uv run pytest tests/test_no_date.py`（red cd71c09、green e0d47bb）
+- [x] 申請期那一行與評分的時間原因用白話（年份推估、截止日未核對、原文沒有截止日、資料過舊的 ADR 編號） -> verify: `uv run pytest tests/test_notification_rules.py tests/test_matching_score.py`（red e515767、green 0427965；兩個現有斷言只改了期望的文字）
+- [x] API 給申請方式、那一句話、國籍群組的中文名稱；不再給 `requires_admission`（欄位留到段 10） -> verify: `uv run pytest tests/test_scholarship_labels_db.py`（red c1e4567、green fe5a081）
+- [x] 瀏覽器檢查時發現：「官網抓不到，資料停在 2026-11-20」寫的是重抽那天，其實最後抓到是 10 月 → 改用最後一次的快照日期；評分查不到快照，就不寫日期 -> verify: 同上兩個測試檔（red 610902f、green 26262ea）；#93 現在是「資料停在 2026-10-11」
+- [x] 第 2 節段 9 的表全部改完 -> verify: `npm run build`；`grep` 確認畫面上不再出現「要先錄取」「引用不支持」「年份推估」「上限 80」（3e131ca）
+  ```
+  ✓ built in 474ms
+  labels.ts:1、ScholarshipDetail.tsx:1（都是程式碼註解）；其他頁 0
+  ```
+  網頁另外發現兩處並修正：同一期申請期把「年份是推算的」寫了兩次；核對沒通過而改成 unclear 的申請方式原本寫「官網沒寫怎麼申請」，其實官網有寫，改成「AI 讀不出確定的申請方式」並展開原文
+- [x] 重算原因與評分的文字 -> verify: `python -m app.features.scholarships.cycles`、`python -m app.features.matching.score --max-cost 5`，SQL 數使用中的獎學金還有舊文字的評分
+  ```
+  原因：admission_date_elsewhere 12 → 4、not_announced 8 → 16（11-21 修的順序）
+  評分 318 筆，NT$0.0；使用中的舊文字 0 筆（封存的 259 筆照段 1 D5 沿用上次的分數，喚回時才會換）
+  ```
+- [x] 詳細頁與列表檢查（不含評分理由與個人資料） -> verify: 用 JavaScript 只讀標示文字；詳細頁截圖（ITU 的資格頁）；console 沒有錯誤
+  ```
+  列表 240 張卡片：有日期 173；其他每張都寫原因，例如「下一屆的截止日還沒公布」16、「官網這幾頁都沒寫截止日，請看官網」32
+  #72 有申請期但沒有適合你的那一輪，原本寫「官網沒寫」，改成評分的時間原因
+  ```
+- [x] 完整檢查並推上 main -> verify: `set -o pipefail; uv run pytest && uv run ruff check . && uv run mypy app && cd ../frontend && npm run build`
+  ```
+  471 passed, 1 warning in 13.42s
+  All checks passed!
+  Success: no issues found in 126 source files
+  ✓ built in 474ms
+  ```
 
 ### 段 10：清理
 - [ ] 列出要刪的資料與數量，等你同意 -> verify: 你的回覆
@@ -544,3 +568,8 @@
 10. A6 改成只由每天的 `refresh` 封存，排除當下不另外封存（11-19 段 1，理由見第 2 節段 1 的邊界情況）
 11. 地區名額裡高所得的國家與地區（例如台灣在亞洲）評分算待確認，不算符合（11-20 段 7）
 12. 漏抽偵測只看頁面主角，不看同一頁拆出來的其他獎學金（它們的日期常是別人的）（11-20 段 7）
+13. 段 9 的白話文字（11-21）：核對沒通過一律寫「AI 讀的結果和官網原文對不上，請看下面的原文」，金額寫「AI 讀的金額和官網原文對不上，請看原文」；通過的不標
+14. 「截止日未核對」不在段 9 的表裡，但也是內部用語，一起改成「截止日要再看官網確認」
+15. 國籍寫成群組時先寫群組名稱（「除了歐盟、歐洲經濟區」），國家清單超過 5 個或有群組時收起來
+16. `requires_admission` 只是不再送到網頁；刪資料表欄位是刪資料，留到段 10 等你同意
+17. 列表卡片沒有日期也沒有原因時（有申請期但不適合你），寫評分的時間原因

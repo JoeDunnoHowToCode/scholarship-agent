@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from app.features.scholarships.extract import extract_source
 from app.features.scholarships.models import Scholarship
-from app.features.scholarships.schemas import AmountDraft, ScholarshipDraft
+from app.features.scholarships.schemas import AmountDraft, CategoryDraft, ScholarshipDraft
 from app.features.scholarships.verify import ClaimVerdict, Verdicts
 from app.features.sources.models import Snapshot, Source, SourceKind
 from app.shared.db import SessionLocal
@@ -201,6 +201,37 @@ def test_country_groups_are_saved_as_country_codes(tmp_path: Path) -> None:
         assert row.nationality_scope == "listed" and len(row.nationalities) == 55 and "NG" in row.nationalities
         cycle = session.scalars(select(Cycle).where(Cycle.scholarship_id == row.id)).one()
         assert len(cycle.nationalities) == 27 and "FR" in cycle.nationalities
+    finally:
+        session.rollback()
+        session.close()
+
+
+def test_saving_drops_category_regions_that_only_repeat_the_exclusion(tmp_path: Path) -> None:
+    # 11-21 重新檢查（ADR-120）：非歐盟學生的學費獎學金，AI 把整筆排除的 EU、EEA 抄進類別；存下來的類別不帶這些代號
+    page = tmp_path / "page.html"
+    page.write_text(PAGE.replace("Open to all nationalities.", "Only for non-EU/EEA students."), encoding="utf-8")
+    only = CategoryDraft.model_validate({
+        "name": "Test Global Scholarship", "quota": None, "degrees": ["master"], "countries": ["SE"], "amount": None,
+        "eligibility": None, "quota_evidence": None, "degrees_evidence": None, "degree_conditions": None,
+        "nationality_groups": ["EU", "EEA"],
+    })
+    draft = DRAFT.model_copy(update={
+        "nationality_scope": "excluded", "nationality_groups": ["EU", "EEA"],
+        "nationality_evidence": "Only for non-EU/EEA students.", "categories": [only],
+    })
+    session = SessionLocal()
+    try:
+        source = Source(name="Test exclusion", url="https://test-exclusion.example/", kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        now = datetime.now(UTC)
+        session.add(Snapshot(source_id=source.id, url=source.url, fetched_at=now, seen_at=now,
+                             content_hash="b" * 64, file_path=str(page), http_status=200, etag=None, last_modified=None))
+        session.flush()
+        extract_source(session, FakeLLM(draft), source)  # type: ignore[arg-type]
+        row = session.scalars(select(Scholarship).where(Scholarship.source_id == source.id)).one()
+        assert row.nationality_scope == "excluded"
+        assert row.extracted["categories"][0]["nationality_groups"] == []
     finally:
         session.rollback()
         session.close()

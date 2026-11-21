@@ -28,3 +28,26 @@ def test_detail_and_card_say_how_to_apply_and_why_there_is_no_date() -> None:
     finally:
         session.rollback()
         session.close()
+
+
+def test_an_unreachable_site_says_the_day_it_was_last_reached() -> None:
+    # 段 9：「資料停在哪天」是最後一次抓到官網的日子（快照），不是重抽的日子（last_verified_at）
+    from app.features.sources.models import Snapshot, Source, SourceKind
+
+    session = SessionLocal()
+    try:
+        source = Source(name="Test unreachable", url="https://test-unreachable.example/", kind=SourceKind.UNIVERSITY)
+        session.add(source)
+        session.flush()
+        seen = datetime(2026, 10, 11, 3, 0, tzinfo=UTC)
+        session.add(Snapshot(source_id=source.id, url=source.url, fetched_at=seen, seen_at=seen, content_hash="c" * 64,
+                             file_path="/nonexistent", http_status=200, etag=None, last_modified=None))
+        row = Scholarship(name="Test unreachable", countries=["FI"], degrees=["master"], nationality_scope="all",
+                          nationalities=[], source_id=source.id, no_date_reason="unreachable", extracted={},
+                          last_verified_at=datetime(2026, 11, 20, tzinfo=UTC))
+        session.add(row)
+        session.flush()
+        assert read_scholarship(row.id, session).no_date_text == "官網最近抓不到，資料停在 2026-10-11，請直接看官網"
+    finally:
+        session.rollback()
+        session.close()

@@ -75,3 +75,8 @@ def test_each_reason_becomes_one_plain_sentence(reason: str | None, extracted: d
 
     seen = datetime(2026, 11, 10, 3, 0, tzinfo=UTC)
     assert cycles.no_date_sentence(reason, extracted, last_seen=seen) == expected
+
+
+def test_an_unreachable_site_without_a_known_last_visit_gives_no_date() -> None:
+    # 段 9：不知道最後一次抓到官網是哪天時（例如評分的原因），不寫假的日期
+    assert cycles.no_date_sentence("unreachable", {}, last_seen=None) == "官網最近抓不到，請直接看官網"

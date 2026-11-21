@@ -11,7 +11,11 @@ from sqlalchemy import select
 
 from app.features.scholarships.extract import extract_source
 from app.features.scholarships.models import Scholarship
-from app.features.scholarships.schemas import AmountDraft, CategoryDraft, ScholarshipDraft
+from app.features.scholarships.schemas import (
+    AmountDraft,
+    CategoryDraft,
+    ScholarshipDraft,
+)
 from app.features.scholarships.verify import ClaimVerdict, Verdicts
 from app.features.sources.models import Snapshot, Source, SourceKind
 from app.shared.db import SessionLocal

@@ -29,7 +29,12 @@ from app.features.matching.scoring import CheckResult, apply_caps
 from app.features.profiles.models import Profile
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
 from app.features.scholarships import countries, groups
-from app.features.scholarships.cycles import EARLIEST_ZONE, cycle_status, is_stale
+from app.features.scholarships.cycles import (
+    EARLIEST_ZONE,
+    cycle_status,
+    is_stale,
+    no_date_sentence,
+)
 from app.features.scholarships.models import Cycle, Scholarship, ScholarshipStatus
 from app.shared.db import SessionLocal
 from app.shared.settings import settings
@@ -77,7 +82,7 @@ def nationality_fit(cycle: Cycle, user: str) -> CheckResult:
 
 
 def describe_cycle(cycle: Cycle, now: datetime | None = None, label: bool = True) -> str:
-    """例如「2026-11-01 → 2027-01-15（開放中，截止日未核對）Partner countries」（ADR-081）。
+    """例如「2026-11-01 → 2027-01-15（開放中，截止日要再看官網確認）Partner countries」（ADR-081）。
 
     日期用原文的時區（原文沒寫時區時存的是 UTC+14，就用 UTC+14 換回原本的日期）；
     狀態照 now 那一刻重算，不用資料庫裡上次更新的狀態。
@@ -90,24 +95,25 @@ def describe_cycle(cycle: Cycle, now: datetime | None = None, label: bool = True
     if cycle.estimated and cycle.evidence:
         notes.append(cycle.evidence)  # 例如「依 2022 年的日期推估」（ADR-058）
     if cycle.verification == "year_inferred":
-        notes.append("年份推估")  # 原文只寫月日，年份是程式推算的（ADR-110）
+        notes.append("官網沒寫年份，年份是推算的")  # 原文只寫月日，年份是程式推算的（ADR-110）
     elif not cycle.estimated and cycle.verification != "supported":
-        notes.append("截止日未核對")
+        notes.append("截止日要再看官網確認")  # 段 9：不用內部的「未核對」
     return f"{opens} → {cycle.closes_at.astimezone(zone):%Y-%m-%d}（{'，'.join(notes)}）{(cycle.label or '') if label else ''}".strip()
 
 
 def time_reason(row: Scholarship, user: str, possible: list[Cycle]) -> str:
     """時間條件的一句原因，和 checks.time_check 的判斷一致。"""
     if not row.cycles:
-        # 抽到了截止日，但年月日不齊全或年份是 AI 自己補的，不建申請期（docs/day-04.md「Claude 自行決定」第 4 點）
-        return "原文有截止日，但年份或日期不完整，無法確認" if row.extracted.get("windows") else "原文沒有截止日"
+        # 段 9（ADR-119）：和網頁用同一句話說明為什麼沒有申請期；還沒算過原因的舊資料照舊
+        sentence = no_date_sentence(row.no_date_reason, row.extracted, last_seen=row.last_verified_at)
+        return sentence or "官網這幾頁都沒寫截止日，請看官網"
     if not possible:
         funded = [c for c in row.cycles if c.funding in ("scholarship", "any")]
         if not funded:
             return "只找到自費生的申請期，沒有獎學金的截止日"
         latest = max((c.closes_at for c in row.cycles if not c.estimated), default=None)
         if latest is not None and row.status == ScholarshipStatus.ARCHIVED and is_stale(latest, datetime.now(UTC).date()):
-            return f"資料過舊：官網最新資訊是 {latest:%Y} 年，可能已停辦（ADR-058）"
+            return f"最近一次截止日在 {latest:%Y} 年，官網可能沒更新或已停辦"  # ADR-058
         if any(nationality_fit(c, user) != "fail" for c in funded):
             return "適用你的申請期都已截止"
         return "有截止日，但都不適用你的國籍"

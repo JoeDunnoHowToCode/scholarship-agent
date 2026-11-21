@@ -105,6 +105,18 @@ def expand(scope: str, nationalities: list[str], groups: list[str]) -> tuple[str
     return scope, list(dict.fromkeys([*nationalities, *expanded]))  # 去掉重複、保持順序
 
 
+def category_regions(scope: str, record_groups: list[str], category_groups: list[str]) -> list[str]:
+    """類別真正的地區代號（ADR-120）：類別的代號代表「只給這些地區」。
+
+    整筆排除某些群組（例如非歐盟學生的學費獎學金排除 EU、EEA）時，AI 常把同一批代號抄進類別；
+    那不是「只給」，回傳空清單，評分改照整筆的國籍判斷。
+    """
+    excluded = {code.strip().upper() for code in record_groups} if scope == "excluded" else set()
+    if category_groups and {code.strip().upper() for code in category_groups} <= excluded:
+        return []
+    return category_groups
+
+
 def regional_check(user: str, codes: list[str]) -> tuple[Literal["pass", "fail", "unclear"], str]:
     """只給某些地區的名額（ADR-112），使用者的國籍符不符合：（pass／fail／unclear, 一句理由）。
 

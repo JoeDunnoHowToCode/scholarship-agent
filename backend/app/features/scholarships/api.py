@@ -21,8 +21,8 @@ from app.features.matching.score import describe_cycle
 from app.features.notifications.rules import describe_change
 from app.features.pipeline import breaker
 from app.features.profiles.service import CURRENT_USER_ID, get_profile
-from app.features.scholarships import amounts, countries
-from app.features.scholarships.cycles import is_stale
+from app.features.scholarships import amounts, countries, groups
+from app.features.scholarships.cycles import is_stale, no_date_sentence
 from app.features.scholarships.listing import card_cycle, list_order
 from app.features.scholarships.models import (
     EMBEDDING_DIMENSIONS,
@@ -70,6 +70,7 @@ class ScholarshipRow(BaseModel):
     stale: bool  # 資料過舊（ADR-058）
     next_deadline: datetime | None  # 還能申請的申請期裡最早的截止時間
     deadline_line: str | None  # 卡片的「申請日期」：開放 → 截止（狀態），打開網頁時才算（ADR-077）
+    no_date_text: str | None  # 沒有申請期時，原因的一句話（ADR-119）
     score: float | None  # 還沒評分（例如沒有個人資料）時是 None
     category: str | None
     group: Literal["pass", "unclear", "fail"] | None  # 時間狀態：還能申請、時間待確認、已截止或不適用
@@ -189,7 +190,12 @@ class ScholarshipDetail(BaseModel):
     amount_headline: str | None
     language_requirements: str | None
     other_eligibility: str | None
-    requires_admission: bool | None
+    # 申請方式（ADR-119，取代 requires_admission）：separate、after_offer、with_admission、automatic、after_enrolment、unclear
+    how_to_apply: str
+    how_to_apply_evidence: str | None
+    how_to_apply_check: str | None
+    no_date_text: str | None  # 沒有申請期時，原因的一句話（ADR-119）
+    nationality_groups: list[str]  # 國籍寫成群組時的中文名稱，例如「歐盟」（ADR-109）
     nationality_scope: str
     nationalities: list[Country]
     nationality_conditions: str | None
@@ -303,6 +309,7 @@ def to_row(row: Scholarship, match: Match | None, today: date, nationality: str 
         stale=stale_of(row, today),
         next_deadline=next_deadline(list(row.cycles)),
         deadline_line=describe_cycle(shown, now, label=False) if shown else None,
+        no_date_text=no_date_sentence(row.no_date_reason, row.extracted, last_seen=row.last_verified_at),
         score=match.total if match else None,
         category=match.category_name if match else None,
         group=time_check["result"] if time_check else None,
@@ -491,7 +498,11 @@ def read_scholarship(scholarship_id: int, session: DbSession) -> ScholarshipDeta
         amounts=[AmountOut(**item) for item in amount_items(extracted)],
         language_requirements=row.language_requirements,
         other_eligibility=row.other_eligibility,
-        requires_admission=row.requires_admission,
+        how_to_apply=row.how_to_apply or "unclear",  # 改版前抽的資料沒有
+        how_to_apply_evidence=extracted.get("how_to_apply_evidence"),
+        how_to_apply_check=verification.get("how_to_apply"),
+        no_date_text=no_date_sentence(row.no_date_reason, extracted, last_seen=row.last_verified_at),
+        nationality_groups=[groups.NAMES.get(code, code) for code in extracted.get("nationality_groups", [])],
         nationality_scope=row.nationality_scope,
         nationalities=country_list(row.nationalities),
         nationality_conditions=row.nationality_conditions,

@@ -25,6 +25,9 @@ def window(kind: str = "scholarship", **dates: int | None) -> dict[str, Any]:
         ({"how_to_apply": "after_enrolment", "windows": []}, True, "no_application"),
         # 隨入學一起審，但這幾頁沒寫入學截止日
         ({"how_to_apply": "with_admission", "windows": []}, True, "admission_date_elsewhere"),
+        # 11-21 重新檢查：隨入學一起審，但原文說日期還沒公布（「applications open late November 2026」），
+        # 原因是「還沒公布」，不是「入學日期在別頁」
+        ({"how_to_apply": "with_admission", "missing_date": "not_announced", "windows": []}, True, "not_announced"),
         # BIOPHAM：「NEXT CALL FOR APPLICATIONS Opening: 1 November 2026」，只有開放日
         ({"windows": [window(opens_year=2026, opens_month=11, opens_day=1)]}, True, "not_announced"),
         ({"missing_date": "not_announced", "windows": []}, True, "not_announced"),

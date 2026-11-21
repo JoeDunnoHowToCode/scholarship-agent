@@ -29,3 +29,14 @@ def test_a_regional_quota_category_is_judged_by_its_own_region() -> None:
     asia = {"name": "Asia", "degrees": ["master"], "nationality_groups": ["ASIA"]}
     results = [score.hard_checks(profile, row, category, [])["nationality"][0] for category in (regular, africa, asia)]
     assert results == ["pass", "fail", "unclear"]
+
+
+def test_without_an_application_period_the_time_reason_is_the_no_date_sentence() -> None:
+    # 段 9（ADR-119）：評分頁的時間原因和網頁用同一句話，不再只寫「原文沒有截止日」
+    from app.features.scholarships.models import Scholarship
+
+    row = Scholarship(name="Test no date", nationality_scope="all", nationalities=[], extracted={},
+                      no_date_reason="admission_date_elsewhere")
+    assert score.time_reason(row, "TW", []) == (
+        "跟著入學申請一起審，截止日就是入學申請的截止日；官網這幾頁沒寫，請看學校的入學申請頁"
+    )

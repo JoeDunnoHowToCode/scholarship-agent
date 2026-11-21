@@ -188,7 +188,7 @@ def test_cycle_line_reads_opens_arrow_closes_with_the_status_at_that_moment() ->
         opens_at=None, closes_at=datetime(2027, 2, 12, 9, 59, tzinfo=UTC),
         timezone=None, timezone_assumed=True, status="open", estimated=False, verification="unsupported", label=None, evidence=None,
     )
-    assert describe_cycle(no_open, datetime(2026, 11, 4, tzinfo=UTC)) == "開放日原文沒寫 → 2027-02-12（開放中，截止日未核對）"
+    assert describe_cycle(no_open, datetime(2026, 11, 4, tzinfo=UTC)) == "開放日原文沒寫 → 2027-02-12（開放中，截止日要再看官網確認）"  # 段 9：不用內部的「未核對」
 
 
 def test_opened_notification_only_for_cycles_announced_before_they_opened() -> None:
@@ -214,7 +214,7 @@ def test_opened_notification_only_for_cycles_announced_before_they_opened() -> N
 
 def test_a_cycle_with_an_inferred_year_is_reminded_and_says_so() -> None:
     # ADR-110：程式推算年份的申請期照常提醒（estimated 是 False，generate 只跳過預估的），
-    # 提醒與通知裡的申請期文字標「年份推估」，不標「截止日未核對」
+    # 提醒與通知裡的申請期文字寫明年份是推算的（段 9 改寫），不寫「截止日要再看官網確認」
     from datetime import UTC, datetime
 
     from app.features.matching.score import describe_cycle
@@ -224,4 +224,4 @@ def test_a_cycle_with_an_inferred_year_is_reminded_and_says_so() -> None:
         opens_at=None, closes_at=datetime(2027, 3, 1, 22, 59, tzinfo=UTC), timezone="Europe/Paris",
         timezone_assumed=False, status="open", estimated=False, verification="year_inferred", label=None, evidence=None,
     )
-    assert describe_cycle(inferred, datetime(2027, 2, 20, tzinfo=UTC)) == "開放日原文沒寫 → 2027-03-01（開放中，年份推估）"
+    assert describe_cycle(inferred, datetime(2027, 2, 20, tzinfo=UTC)) == "開放日原文沒寫 → 2027-03-01（開放中，官網沒寫年份，年份是推算的）"

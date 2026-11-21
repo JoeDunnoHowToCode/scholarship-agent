@@ -11,21 +11,22 @@ import { PageSkeleton } from "@/components/page-skeleton";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import {
   AMOUNT_KIND_NAMES,
+  AMOUNT_MISMATCH,
   AMOUNT_PERIOD_NAMES,
-  AMOUNT_STATUS_NAMES,
   CHECK_NAMES,
   DEGREE_LABELS,
   DOC_NAMES,
   FUNDING_NAMES,
+  HOW_TO_APPLY_NAMES,
   OTHER_DATE_NAMES,
   RESULT_NAMES,
   SCOPE_NAMES,
   SUB_SCORE_NAMES,
-  VERIFICATION_NAMES,
   issueName,
   nameOf,
   shortUrl,
   taipeiTime,
+  verificationNote,
 } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
@@ -71,7 +72,7 @@ export default function ScholarshipDetail() {
           <p className="text-muted-foreground">{[d.name_zh, d.provider].filter(Boolean).join("｜")}</p>
           {(d.stale || d.status === "archived" || d.offered === "no") && (
             <div className="flex flex-wrap gap-2">
-              {d.stale && <Badge variant="destructive">資料過舊</Badge>}
+              {d.stale && <Badge variant="destructive">{STALE}</Badge>}
               {d.status === "archived" && <Badge variant="secondary">已封存</Badge>}
               {/* ADR-105：原文寫明這次不提供 */}
               {d.offered === "no" && <Badge variant="destructive">這次不提供</Badge>}
@@ -129,10 +130,9 @@ export default function ScholarshipDetail() {
             <>
               <Section title="申請期">
                 <CycleList cycles={d.cycles.filter((c) => c.status !== "closed")} />
+                {/* ADR-119：沒有申請期時照實寫原因（程式依抽取結果判斷），不用假的日期繞過 */}
                 {d.cycles.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    {d.offered === "no" ? "原文寫明這次不提供，沒有申請期" : "原文沒有截止日"}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{d.no_date_text ?? "官網這幾頁都沒寫截止日，請看官網"}</p>
                 )}
                 {d.cycles.length > 0 && d.cycles.every((c) => c.status === "closed") && (
                   <p className="text-sm text-muted-foreground">目前沒有開放中或即將開放的申請期</p>
@@ -158,12 +158,12 @@ export default function ScholarshipDetail() {
               </Section>
               {/* ADR-105：補件、繳費、只有入學的日期不算申請期，另外列出來；分類錯了也看得到 */}
               {d.other_dates.length > 0 && (
-                <Section title="其他時程（不是申請獎學金的日期）">
+                <Section title="學校的其他日期（入學申請、繳費等），不是獎學金的截止日">
                   <ul className="divide-y">
                     {d.other_dates.map((o, index) => (
                       <li key={index} className="space-y-1 py-3 text-sm first:pt-0 last:pb-0">
                         <p className="font-medium">
-                          {[o.closes ?? "日期不齊全", nameOf(OTHER_DATE_NAMES, o.kind), o.label].filter(Boolean).join("｜")}
+                          {[o.closes ?? "官網沒寫完整日期", nameOf(OTHER_DATE_NAMES, o.kind), o.label].filter(Boolean).join("｜")}
                         </p>
                         <Quote text={o.evidence} />
                       </li>
@@ -183,12 +183,11 @@ export default function ScholarshipDetail() {
                             {`${nameOf(AMOUNT_PERIOD_NAMES, a.period)} ${amountText(a)}`.trim()}
                           </span>
                           <span>{nameOf(AMOUNT_KIND_NAMES, a.kind)}</span>
-                          <Badge variant={a.status === "supported" ? "secondary" : "outline"}>
-                            {nameOf(AMOUNT_STATUS_NAMES, a.status)}
-                          </Badge>
                         </div>
+                        {/* 段 9：核對通過的不標；沒通過的寫一句話，原文直接展開 */}
+                        {a.status && a.status !== "supported" && <Warning>{AMOUNT_MISMATCH}</Warning>}
                         {a.applies_to && <p className="text-muted-foreground">適用：{a.applies_to}</p>}
-                        <Quote text={a.evidence} open={a.status !== "supported"} />
+                        <Quote text={a.evidence} open={Boolean(a.status) && a.status !== "supported"} />
                       </li>
                     ))}
                   </ul>
@@ -226,16 +225,16 @@ export default function ScholarshipDetail() {
             <>
               <Section title="資格">
                 <Fact label="國籍" check={d.nationality_check} quote={d.nationality_evidence}>
-                  {nameOf(SCOPE_NAMES, d.nationality_scope)}
-                  {d.nationalities.length > 0 && `：${d.nationalities.map((c) => c.name).join("、")}`}
-                  {d.nationality_conditions && `（${d.nationality_conditions}）`}
+                  <Nationality detail={d} />
                 </Fact>
                 <Fact label="可讀學位" check={d.degrees_check} quote={d.degrees_evidence}>
                   {d.degrees.map((degree) => nameOf(DEGREE_LABELS, degree)).join("、") || "原文沒寫"}
                 </Fact>
                 <Fact label="語言">{d.language_requirements ?? "—"}</Fact>
                 <Fact label="其他資格">{d.other_eligibility ?? "—"}</Fact>
-                <Fact label="要先錄取">{d.requires_admission === null ? "原文沒說" : d.requires_admission ? "要" : "不用"}</Fact>
+                <Fact label="申請方式" check={d.how_to_apply_check} quote={d.how_to_apply_evidence}>
+                  {howToApply(d, true)}
+                </Fact>
                 <Fact label="留學國家">{d.countries.map((c) => c.name).join("、") || "—"}</Fact>
                 <Fact label="領域">{d.fields.join("、") || "不限或沒寫"}</Fact>
               </Section>
@@ -321,17 +320,14 @@ function BackToList() {
 function Summary({ detail }: { detail: Detail }) {
   const best = detail.scores[0];
   const items = [
-    { label: "申請日期", value: detail.deadline_line ?? "原文沒寫" },
+    { label: "申請日期", value: detail.deadline_line ?? detail.no_date_text ?? "官網沒寫" },
     { label: "補助", value: detail.amount_headline ?? "原文沒寫" },
     { label: "你的分數", value: best ? `${Math.round(best.total)} 分` : "未評分" },
-    // 決定要先申請學校還是先申請獎學金，從「資格」頁籤提到這裡（docs/ui-review-2.md C6）
-    {
-      label: "要先錄取",
-      value: detail.requires_admission === null ? "原文沒說" : detail.requires_admission ? "要" : "不用",
-    },
+    // 決定要先申請學校還是先申請獎學金，從「資格」頁籤提到這裡（docs/ui-review-2.md C6）；段 9 改成申請方式（ADR-119）
+    { label: "申請方式", value: howToApply(detail) },
   ];
   return (
-    <dl className="grid gap-3 rounded-xl bg-muted/50 p-4 text-sm sm:grid-cols-[2fr_1fr_auto_auto]">
+    <dl className="grid gap-3 rounded-xl bg-muted/50 p-4 text-sm sm:grid-cols-[2fr_1fr_auto_1.5fr]">
       {items.map((item) => (
         <div key={item.label} className="space-y-1">
           <dt className="text-muted-foreground">{item.label}</dt>
@@ -355,7 +351,7 @@ function Scores({ detail }: { detail: Detail }) {
         <div className="flex items-center gap-2">
           <Badge>{Math.round(best.total)} 分</Badge>
           {best.category !== detail.name && <span className="text-sm">{best.category}</span>}
-          {best.cap !== null && <span className="text-xs text-muted-foreground">上限 {best.cap}</span>}
+          {best.cap !== null && <span className="text-xs text-muted-foreground">{capText(best)}</span>}
         </div>
         <ul className="max-w-prose space-y-1 text-sm">
           {Object.entries(best.checks as Record<string, Check>).map(([name, check]) => (
@@ -391,6 +387,14 @@ function Scores({ detail }: { detail: Detail }) {
   );
 }
 
+// 分數上限（ADR-059）的原因：不符合最多 20 分、待確認最多 80 分（段 9：不寫「上限 80」這種內部機制）
+function capText(score: Score): string {
+  const checks = (list: string[]) => list.map((check) => nameOf(CHECK_NAMES, check)).join("、");
+  if (score.failed.length > 0) return `因為${checks(score.failed)}不符合，分數最多算到 ${score.cap}`;
+  if (score.unclear.length > 0) return `因為${checks(score.unclear)}還不確定，分數最多算到 ${score.cap}`;
+  return `分數最多算到 ${score.cap}`;
+}
+
 function flagsOf(score: Score): string[] {
   return [
     ...score.unclear.map((check) => `${nameOf(CHECK_NAMES, check)}待確認`),
@@ -424,12 +428,13 @@ function Fact({
     <div className="max-w-prose text-sm">
       <span className="font-medium">{label}：</span>
       {children}
-      {check && (
-        <Badge variant={check === "supported" || check === "catalogue" ? "secondary" : "outline"} className="ml-2">
-          {nameOf(VERIFICATION_NAMES, check)}
-        </Badge>
+      {/* 段 9：核對通過的不標；依目錄的寫小字；沒通過的寫一句話，原文直接展開 */}
+      {check === "catalogue" ? (
+        <span className="ml-2 text-xs text-muted-foreground">（{verificationNote(check)}）</span>
+      ) : (
+        verificationNote(check) && <Warning>{verificationNote(check)}</Warning>
       )}
-      <Quote text={quote} open={Boolean(check) && check !== "supported" && check !== "catalogue"} />
+      <Quote text={quote} open={Boolean(verificationNote(check)) && check !== "catalogue"} />
     </div>
   );
 }
@@ -454,18 +459,18 @@ function CycleList({ cycles }: { cycles: Cycle[] }) {
             {[
               // 原文沒寫時區時，存的是 UTC+14 的當天結束，換成台灣時間的時刻（例如 17:59）是假的，不顯示（docs/ui-review-2.md C4）
               !c.timezone_assumed && `台灣時間 ${taipeiTime(c.closes_at)} 截止`,
-              !c.estimated && nameOf(VERIFICATION_NAMES, c.verification),
-              `${nameOf(SCOPE_NAMES, c.nationality_scope)}${c.nationalities.length > 0 ? `（${c.nationalities.length} 國）` : ""}`,
-              nameOf(FUNDING_NAMES, c.funding),
+              cycleScope(c),
+              FUNDING_NAMES[c.funding] ?? c.funding,
             ]
               .filter(Boolean)
               .join("｜")}
           </p>
           {/* 預估的申請期，evidence 是推估的說明（例如「依 2022 年的日期推估」），不是原文引用 */}
+          {!c.estimated && verificationNote(c.verification) && <Warning>{verificationNote(c.verification)}</Warning>}
           {c.estimated ? (
             c.evidence && <p className="text-muted-foreground">{c.evidence}</p>
           ) : (
-            <Quote text={c.evidence} open={c.verification !== "supported"} />
+            <Quote text={c.evidence} open={Boolean(verificationNote(c.verification))} />
           )}
         </li>
       ))}
@@ -485,5 +490,54 @@ function Quote({ text, open = false }: { text: string | null | undefined; open?:
       </summary>
       <p className="mt-1">「{text}」</p>
     </details>
+  );
+}
+
+// 申請方式：AI 有答、但和原文對不上（被改成 unclear）時，不是「官網沒寫」，要你看原文
+function howToApply(detail: Detail, onEligibilityTab = false): string {
+  if (detail.how_to_apply === "unclear" && verificationNote(detail.how_to_apply_check))
+    return onEligibilityTab ? "AI 讀不出確定的申請方式" : "AI 讀不出確定的申請方式，請看「資格」頁的原文";
+  return nameOf(HOW_TO_APPLY_NAMES, detail.how_to_apply);
+}
+
+// 段 9：「資料過舊」看不出多舊；ADR-058 的判斷是最近一次截止日超過兩年
+const STALE = "最近一次截止日在兩年前，官網可能沒更新";
+
+// 核對沒通過、要你看原文的一句話
+function Warning({ children }: { children: ReactNode }) {
+  return <p className="text-xs text-amber-700 dark:text-amber-400">⚠ {children}</p>;
+}
+
+// 申請期適用的國籍：不用自己數「列出的國家以外（27 國）」是哪些國家
+function cycleScope(c: Cycle): string {
+  const count = c.nationalities.length;
+  if (c.nationality_scope === "excluded" && count > 0) return `除了 ${count} 個國家，其他國籍都可以`;
+  if (c.nationality_scope === "listed" && count > 0) return `只限 ${count} 個國家`;
+  return nameOf(SCOPE_NAMES, c.nationality_scope);
+}
+
+// 獎學金的國籍：寫成群組時先寫群組名稱（例如「除了歐盟、歐洲經濟區」），國家清單點開才看（段 9）
+function Nationality({ detail }: { detail: Detail }) {
+  const names = detail.nationalities.map((c) => c.name);
+  const groups = detail.nationality_groups.join("、");
+  const scope = detail.nationality_scope;
+  let text = nameOf(SCOPE_NAMES, scope);
+  if (scope === "excluded" && groups) text = `除了${groups}，其他國籍都可以`;
+  if (scope === "listed" && groups) text = `只限${groups}`;
+  const list = names.join("、");
+  return (
+    <>
+      {text}
+      {detail.nationality_conditions && `（${detail.nationality_conditions}）`}
+      {names.length > 0 &&
+        (names.length <= 5 && !groups ? (
+          `：${list}`
+        ) : (
+          <details className="mt-1 text-muted-foreground">
+            <summary className="w-fit cursor-pointer text-xs hover:text-foreground">看 {names.length} 個國家</summary>
+            <p className="mt-1">{list}</p>
+          </details>
+        ))}
+    </>
   );
 }

@@ -10,9 +10,19 @@ export const SUB_SCORE_NAMES: Record<string, string> = { field: "領域契合", 
 
 export const SCOPE_NAMES: Record<string, string> = {
   all: "不限國籍",
-  listed: "只限列出的國家",
-  excluded: "列出的國家以外都可以",
-  unclear: "原文沒寫",
+  listed: "只限下列國家",
+  excluded: "除了下列國家，其他國籍都可以",
+  unclear: "官網沒寫",
+};
+
+// 申請方式（ADR-119，取代「要先錄取」）：寫「你要怎麼做」
+export const HOW_TO_APPLY_NAMES: Record<string, string> = {
+  separate: "另外申請獎學金，不用先錄取",
+  after_offer: "先拿到入學許可，再另外申請獎學金",
+  with_admission: "和入學申請一起送，不用另外申請獎學金",
+  automatic: "不用申請，符合條件就自動給",
+  after_enrolment: "入學後才申請（例如依第一年成績）",
+  unclear: "官網沒寫怎麼申請",
 };
 
 export const CYCLE_STATUS_NAMES: Record<string, string> = {
@@ -24,29 +34,35 @@ export const CYCLE_STATUS_NAMES: Record<string, string> = {
 
 // 不是申請獎學金的日期（ADR-105）
 export const OTHER_DATE_NAMES: Record<string, string> = {
-  admission_only: "只有入學申請",
+  admission_only: "入學申請",
   document: "補件與文件",
   payment: "繳費",
-  other: "其他時程",
+  other: "其他",
 };
 
-export const FUNDING_NAMES: Record<string, string> = { scholarship: "申請獎學金", self_funded: "自費", any: "不限" };
+// 申請期給誰（段 9）：「不限」是正常狀態，不顯示
+export const FUNDING_NAMES: Record<string, string> = { scholarship: "給申請獎學金的人", self_funded: "給自費生", any: "" };
 
-// 驗證者的結果（ADR-008、045、053）
+// 核對結果（ADR-008、045、053）換成「這代表什麼、你要做什麼」（段 9）；
+// 核對通過（supported）與沒有值（empty）是正常狀態，不顯示
+export const MISMATCH = "AI 讀的結果和官網原文對不上，請看下面的原文";
 export const VERIFICATION_NAMES: Record<string, string> = {
-  supported: "已核對",
-  catalogue: "依 EACEA 目錄頁",
-  empty: "沒抽到",
-  no_evidence: "沒附引用",
-  quote_not_found: "引用不在原文",
-  not_supported: "引用不支持",
-  conflict: "各節說法不同",
-  year_not_in_quote: "年份不在引用裡",
-  degree_not_in_quote: "學位不在引用裡",
-  incomplete: "日期不齊全",
-  closes_before_opens: "截止早於開放",
-  year_inferred: "年份推估", // 原文只寫月日，年份是程式推算的（ADR-110）
+  catalogue: "依歐盟 Erasmus Mundus 目錄",
+  no_evidence: MISMATCH,
+  quote_not_found: MISMATCH,
+  not_supported: MISMATCH,
+  year_not_in_quote: MISMATCH,
+  conflict: "官網不同段落的說法不一樣，請看原文",
+  degree_not_in_quote: "官網原文沒寫到這個學位，可能不能讀",
+  incomplete: "官網沒寫完整日期",
+  closes_before_opens: "截止日比開放日早，請看官網確認",
 };
+
+// 要不要顯示核對結果：通過、沒有值、年份是推算的（另外寫成一句）都不顯示
+export function verificationNote(check: string | null | undefined): string | null {
+  if (!check || ["supported", "empty", "year_inferred"].includes(check)) return null;
+  return VERIFICATION_NAMES[check] ?? MISMATCH;
+}
 
 export const DOC_NAMES: Record<string, string> = {
   cv: "履歷",
@@ -79,14 +95,8 @@ export const AMOUNT_PERIOD_NAMES: Record<string, string> = {
   first_year: "第一年", // 只有第一年才有的減免或折扣（ADR-107 C4 C）
   unclear: "",
 };
-export const AMOUNT_STATUS_NAMES: Record<string, string> = {
-  supported: "已核對",
-  no_evidence: "沒附引用",
-  invalid_currency: "幣別代碼不對",
-  quote_not_found: "引用不在原文",
-  number_not_in_quote: "數字不在引用裡",
-  period_mismatch: "期間和引用不合",
-};
+// 金額的核對沒通過時只有一句話（段 9）；通過的不顯示
+export const AMOUNT_MISMATCH = "AI 讀的金額和官網原文對不上，請看原文";
 
 export const EVENT_KIND_NAMES: Record<string, string> = {
   new_scholarship: "新獎學金",
@@ -100,13 +110,13 @@ export const EVENT_STATUS_NAMES: Record<string, string> = { pending: "待送", s
 
 // 類別的程式檢查發現的問題（ADR-045），例如 degree_not_in_quote:bachelor
 const ISSUE_NAMES: Record<string, string> = {
-  name_not_in_source: "類別名稱不在原文",
-  quota_not_in_source: "名額不在原文",
+  name_not_in_source: "官網原文找不到這個類別名稱",
+  quota_not_in_source: "官網沒寫這個名額數字",
 };
 
 export function issueName(issue: string): string {
   const [code, detail] = issue.split(":");
-  if (code === "degree_not_in_quote" && detail) return `${nameOf(DEGREE_LABELS, detail)}不在學位引用裡`;
+  if (code === "degree_not_in_quote" && detail) return `官網原文沒寫到「${nameOf(DEGREE_LABELS, detail)}」，可能不能讀`;
   return nameOf(ISSUE_NAMES, code);
 }
 

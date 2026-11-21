@@ -319,7 +319,7 @@ function ScholarshipCard({ row, showGroup }: { row: Row; showGroup: boolean }) {
       <CardContent className="space-y-2 text-sm">
         <div className="flex flex-wrap gap-2">
           {showGroup && <Badge variant="secondary">{SHOWN_GROUPS[shownGroup(row)]}</Badge>}
-          {row.stale && <Badge variant="destructive">資料過舊</Badge>}
+          {row.stale && <Badge variant="destructive">最近一次截止日在兩年前，官網可能沒更新</Badge>}
           {row.status === "archived" && <Badge variant="secondary">已封存</Badge>}
           {flags.map((flag) => (
             <Badge key={flag} variant="outline">
@@ -332,7 +332,9 @@ function ScholarshipCard({ row, showGroup }: { row: Row; showGroup: boolean }) {
           </span>
         </div>
         {/* 一律寫「申請日期」，不分有沒有填個人資料；後端已先挑適合你的那一輪（ADR-077，11-04 修改） */}
-        <p className="tabular-nums">申請日期：{row.deadline_line ?? "原文沒寫"}</p>
+        {/* 沒有申請期時寫原因（ADR-119），例如「不用另外申請：符合條件就自動給」；
+            有申請期但沒有適合你的那一輪時，寫評分的時間原因（例如「適用你的申請期都已截止」） */}
+        <p className="tabular-nums">申請日期：{row.deadline_line ?? row.no_date_text ?? row.time_reason ?? "官網沒寫"}</p>
         {row.amount_headline && <p>補助：{row.amount_headline}</p>}
         {row.category && row.category !== row.name && (
           <p className="text-muted-foreground">分數來自類別：{row.category}</p>

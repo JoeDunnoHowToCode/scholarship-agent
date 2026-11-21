@@ -821,8 +821,16 @@ export interface components {
             language_requirements: string | null;
             /** Other Eligibility */
             other_eligibility: string | null;
-            /** Requires Admission */
-            requires_admission: boolean | null;
+            /** How To Apply */
+            how_to_apply: string;
+            /** How To Apply Evidence */
+            how_to_apply_evidence: string | null;
+            /** How To Apply Check */
+            how_to_apply_check: string | null;
+            /** No Date Text */
+            no_date_text: string | null;
+            /** Nationality Groups */
+            nationality_groups: string[];
             /** Nationality Scope */
             nationality_scope: string;
             /** Nationalities */
@@ -902,6 +910,8 @@ export interface components {
             next_deadline: string | null;
             /** Deadline Line */
             deadline_line: string | null;
+            /** No Date Text */
+            no_date_text: string | null;
             /** Score */
             score: number | null;
             /** Category */

@@ -37,3 +37,15 @@ def test_erasmus_world_regions_expand_to_their_countries() -> None:
     assert set(south) == {"DZ", "EG", "IL", "JO", "LB", "LY", "MA", "PS", "SY", "TN"}
     _, latin = groups.expand("listed", [], ["LATIN_AMERICA"])
     assert len(latin) == 17 and "TW" not in latin
+
+
+def test_a_category_that_repeats_the_scholarships_exclusion_is_not_limited_to_those_groups() -> None:
+    # 11-21 重新檢查（ADR-120）：ITU 整筆「排除歐盟、歐洲經濟區」，AI 把 EU、EEA 也抄進唯一的類別；
+    # 類別的代號代表「只給這些地區」，評分因此把非歐盟的人判成不符合。抄來的代號不算類別的地區
+    assert groups.category_regions("excluded", ["EU", "EEA"], ["EU", "EEA"]) == []
+    assert groups.category_regions("excluded", ["EU", "EEA"], ["eea"]) == []
+    # 真的地區名額照留：整筆不限國籍，類別只給亞洲；整筆排除歐盟，類別只給非洲
+    assert groups.category_regions("all", [], ["ASIA"]) == ["ASIA"]
+    assert groups.category_regions("excluded", ["EU"], ["SUB_SAHARAN_AFRICA"]) == ["SUB_SAHARAN_AFRICA"]
+    # 整筆不是排除時，類別寫 Programme countries 是真的「只給」（Erasmus Mundus 的計畫國名額）
+    assert groups.category_regions("all", [], ["ERASMUS_PROGRAMME"]) == ["ERASMUS_PROGRAMME"]

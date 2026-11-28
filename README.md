@@ -122,6 +122,7 @@ cd frontend && npm run build
 
 - [docs/spec.md](docs/spec.md)：規格摘要
 - [docs/adr.md](docs/adr.md)：架構決策紀錄
+- [docs/architecture/](docs/architecture/README.md)：架構文件的入口（大地圖、API 端點、資料表、模組依賴；多數由工具自動產生）
 - `docs/day-NN.md`：每一天的計畫與完成標準（附每一項的驗證結果）
 - [docs/learning/](docs/learning/)：每一天的學習卡（做了什麼、為什麼、背後的概念）
 

@@ -303,8 +303,19 @@ scripts/gen-docs.sh c4         # 只做 c4.md（需要 Docker）
   docs/architecture-docs-plan.md、docs/architecture/**、docs/learning/day-11.md、docs/progress.md、
   frontend/{.dependency-cruiser.cjs,package.json,package-lock.json}、scripts/{gen-docs.sh,check-docs.sh}
   ```
-- [ ] CI 全綠 -> verify: 推上分支後 `gh run watch`
-- [ ] 每張圖在 GitHub 上能顯示（大地圖顯示不好就改成連結） -> verify: 在瀏覽器開 PR 分支的 `docs/architecture/` 各頁
+- [x] CI 全綠（3773a4c） -> verify: 推上分支後 `gh run watch --exit-status`
+  ```
+  ✓ frontend      ✓ 前端依賴規則（dependency-cruiser）  ✓ 架構文件沒有過期（前端依賴圖）
+  ✓ architecture  ✓ 架構文件沒有過期（大地圖）
+  ✓ backend       ✓ 後端分層規則（import-linter）  ✓ 架構文件沒有過期（API 端點、資料表）
+  watch exit=0
+  ```
+  backend 通過也代表本機資料庫的結構和 CI 跑完遷移的結構相同。
+- [x] 每張圖在 GitHub 上能顯示 -> verify: 在瀏覽器開 PR 分支的 `c4.md`、`db/README.md`、`frontend-deps.md`
+  ```
+  三頁都沒有「Unable to render」，Mermaid 圖都有畫出來；大地圖直接內嵌，不需要改成連結
+  ```
+  第一次推上去時 `c4.md` 顯示失敗：匯出的檔案最後沒有換行，結尾的 ``` 黏在 `end` 後面。已修（3773a4c）。
 - [x] 學習卡與進度 -> verify: `git diff --stat -- docs/progress.md docs/learning/day-11.md`
   ```
    docs/learning/day-11.md | 41 +++++

@@ -740,3 +740,44 @@
 1. 為什麼不能等每天的重抽自己把連結改好？
 2. 補連結前先「只數不改」有什麼好處？
 3. 斷網和首頁 404 都是失敗，為什麼處理方式不同？
+
+## 20. 架構文件：讓文件跟著程式碼更新，過期就讓 CI 失敗（11-28）
+
+**問題**：專案有 12 個功能、18 張資料表、17 個 API 端點，全貌只存在程式碼裡。手寫的架構圖過幾週就和程式碼不一樣，而且沒有人會發現。例如加了一張資料表，ER 圖還是舊的。
+
+**設計**
+- 六種視圖，一個入口頁 `docs/architecture/README.md`：
+  - 由工具產生的四種（API 端點、資料表、前端依賴圖、大地圖的圖）都提交進 repo，在 GitHub 上直接看。
+  - 一個腳本 `scripts/gen-docs.sh` 重新產生；`scripts/check-docs.sh` 重新產生後看有沒有變動，CI 跑的就是它。
+- 後端的規則用 import-linter 寫成兩個合約：分層（`features → core → shared`）與功能互相獨立。現有的 53 條依賴寫進豁免清單，只防止變更糟。
+- 大地圖用 Structurizr DSL：寫一份模型，匯出兩張圖。
+- 放棄的做法：
+  - 照理想規則、不豁免：CI 會一直紅，紅燈變成常態就沒有人看。
+  - CI 自動開 PR 更新文件：CI 要拿到寫入權限，風險變大。
+  - SVG 圖：diff 是一堆座標，看不出改了什麼；還要多裝 Graphviz。
+
+**概念**
+- **文件即程式碼（docs as code）**：文件由工具從程式碼或資料庫產生，和程式碼一起提交、一起被 CI 檢查。這次的例子：`db/README.md` 由 tbls 讀資料庫產生。
+- **新鮮度檢查（freshness check）**：CI 重新產生一次，和提交的內容比對；不一樣就失敗。例子：`scripts/check-docs.sh backend`。
+- **輸出要穩定（deterministic）**：同樣的輸入每次產生完全相同的檔案，比對才有意義。例子：tbls 要開 `sort`；pgvector 的函式清單會隨版本變，所以從輸出拿掉。
+- **基準線（baseline）**：規則太嚴、現況過不了時，把現有的違規記下來當起點，只擋新增的。例子：`.importlinter` 的 53 行 `ignore_imports`。
+- **架構適應度函數（architecture fitness function）**：用自動檢查守住架構規則，像測試守住行為。例子：`uv run lint-imports`。
+- **C4 模型**：畫架構圖的四層縮放；這次只畫第 1 層（系統情境）和第 2 層（容器）。
+- **固定版本到雜湊**：action 固定到 commit SHA、Docker 映像固定到 digest，別人改了標籤也不會換掉你用的內容。
+
+**程式碼導讀**
+- `docs/architecture/README.md`：入口頁
+- `scripts/gen-docs.sh`：四個函式 `gen_openapi`、`gen_db`、`gen_frontend`、`gen_c4`
+- `scripts/check-docs.sh`：重新產生，再用 `git status --porcelain` 看有沒有變動
+- `backend/.importlinter`：兩個合約與豁免清單
+- `backend/.tbls.yml`、`frontend/.dependency-cruiser.cjs`、`docs/architecture/workspace.dsl`
+- `.github/workflows/ci.yml`：backend、frontend 各加檢查，多一個 `architecture` job
+
+**你可以怎麼講**：「我讓架構文件由工具從程式碼和資料庫產生，CI 每次重新產生並比對，過期就失敗。後端用 import-linter 守分層；功能之間現有的 53 條依賴記成基準線，只擋新增的。每個檢查我都先證明它抓得到問題，再讓它通過。」
+
+講的時候分清楚：規則的嚴格程度（記錄現況）、用 Structurizr、過期就讓 CI 失敗、用 Mermaid，是你的四個決定。腳本怎麼寫、tbls 輸出怎麼弄穩定、拿掉 pgvector 函式清單、把 Structurizr 匯出的 HTML 標籤改成純文字，是 AI 的實作，寫在計畫的「Claude 自行決定」。
+
+**自我檢查**
+1. 大地圖的 CI 檢查通過，代表大地圖和程式碼一致嗎？為什麼？
+2. 為什麼要先確認「連跑兩次輸出相同」，才能做新鮮度檢查？
+3. 53 行豁免清單裡的某一條依賴被重構拿掉後，如果忘了刪那一行，會發生什麼事？這樣設計的好處是什麼？

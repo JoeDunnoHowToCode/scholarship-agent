@@ -1,6 +1,6 @@
 # 會自動更新的架構文件：實作計畫（2026-11-28）
 
-狀態：**等使用者核准**。核准前不動任何程式碼、設定檔或 CI。
+狀態：**實作完成，PR 待審（11-28）**。使用者 11-28 核准計畫。
 
 - 軌道：Everything else → Gates 1–3
 - 分支：`feat/architecture-docs`（從 `main` 開；這次照任務說明開分支與 PR，不照專案 `CLAUDE.md` 的「直接在 main 提交」）
@@ -159,37 +159,158 @@ scripts/gen-docs.sh c4         # 只做 c4.md（需要 Docker）
 4. 大地圖除了「能匯出」也檢查「重新匯出後沒有變動」，避免 `workspace.dsl` 改了但 `c4.md` 沒更新。
 5. 根目錄 `README.md` 加一行連到入口頁。
 6. 不跑 `graphify update .`（graphify 不在這次範圍）。
+7. tbls 產生的「Stored procedures and functions」一段從輸出拿掉：114 列全是 pgvector 擴充功能自帶的函式；pgvector 升級時清單會變，CI 會誤判成過期。
+8. tbls 開 `format.sort`（照名稱排序）、關掉 `schema.json`；執行時明確指定 `-c .tbls.yml`（不指定時 tbls 沒讀到設定檔）。
+9. 前端依賴圖按 `src/` 底下第一層資料夾合併，`components/ui` 併進 `components`（分開畫時 Mermaid 會出現資料夾指向自己子資料夾的箭頭）。另外多附一張按檔案的圖。
+10. dependency-cruiser 預設規則在現況全部通過；`no-circular`、`no-orphans` 從 warn 升成 error，新增循環依賴或孤兒檔案時 CI 會失敗。
+11. Structurizr 匯出的 Mermaid 標籤是 HTML，GitHub 不允許；腳本把它改成純文字加換行。
+12. 多一個 `scripts/check-docs.sh`（重新產生再比對），CI 三個 job 共用，本機也能跑。
+13. 大地圖多畫了 Tavily 與 Telegram 兩個外部服務（程式裡有用到，任務說明沒列）。
+14. 學習卡接在 `docs/learning/day-11.md` 第 20 張。
 
 ## 驗收清單
 
-- [ ] 從 `main` 開分支，未提交的檔案沒被動到 -> verify: `git status --short`（`CLAUDE.md`、`docs/adr.md`、graphify 相關檔案與開始時相同）
-- [ ] import-linter 寫進 lockfile -> verify: `cd backend && uv sync --frozen && uv run lint-imports --version`
-- [ ] 後端分層規則：不豁免時列出 53 條（紅） -> verify: `cd backend && uv run lint-imports`
-- [ ] 後端分層規則通過（綠） -> verify: `cd backend && uv run lint-imports`
-- [ ] 新增一條 feature 間的 import 會被抓到（變異驗證） -> verify: `cd backend && uv run lint-imports`
-- [ ] OpenAPI 檔過期時檢查失敗（紅） -> verify: `scripts/gen-docs.sh backend && git status --porcelain -- docs/architecture`
-- [ ] OpenAPI 檔和程式一致（綠） -> verify: `scripts/gen-docs.sh backend && git status --porcelain -- docs/architecture/openapi.json`
-- [ ] tbls 能讀 `vector` 欄位 -> verify: `grep -rn "vector" docs/architecture/db/`
-- [ ] ER 圖過期時檢查失敗（紅） -> verify: `scripts/gen-docs.sh backend && git status --porcelain -- docs/architecture/db`
-- [ ] ER 圖和資料庫一致（綠） -> verify: `scripts/gen-docs.sh backend && git status --porcelain -- docs/architecture/db`
-- [ ] `db/` 裡沒有資料列內容、沒有 `alembic_version` -> verify: `ls docs/architecture/db && grep -rn "alembic_version" docs/architecture/db`
-- [ ] dependency-cruiser 寫進 lockfile -> verify: `cd frontend && npm ci && npx depcruise --version`
-- [ ] 前端依賴圖連跑兩次輸出相同 -> verify: `scripts/gen-docs.sh frontend && git status --porcelain -- docs/architecture/frontend-deps.md`（跑兩次）
-- [ ] 前端依賴圖過期時檢查失敗（紅） -> verify: `scripts/gen-docs.sh frontend && git status --porcelain -- docs/architecture/frontend-deps.md`
-- [ ] 前端依賴規則通過（綠） -> verify: `cd frontend && npx depcruise src`
-- [ ] 前端依賴圖和程式一致（綠） -> verify: `scripts/gen-docs.sh frontend && git status --porcelain -- docs/architecture/frontend-deps.md`
-- [ ] 大地圖 DSL 寫錯時檢查失敗（紅） -> verify: `scripts/gen-docs.sh c4`
-- [ ] 大地圖 DSL 通過驗證並匯出（綠） -> verify: `scripts/gen-docs.sh c4 && git status --porcelain -- docs/architecture/c4.md`
-- [ ] 大地圖連跑兩次輸出相同 -> verify: `scripts/gen-docs.sh c4 && git status --porcelain -- docs/architecture/c4.md`（跑兩次）
-- [ ] 一個指令重新產生全部 -> verify: `scripts/gen-docs.sh && git status --porcelain -- docs/architecture`
-- [ ] 入口頁說明六種視圖、重新產生的指令、CI 怎麼檢查，連結都有效 -> verify: `grep -o "](\([^)]*\))" docs/architecture/README.md` 逐一 `ls`
-- [ ] 設定檔與腳本裡沒有金鑰 -> verify: `git diff main --stat` 加 `git diff main | grep -inE "api[_-]?key|token|secret"`
-- [ ] 完整測試通過 -> verify: `cd backend && uv run pytest -q && uv run ruff check . && uv run mypy app && uv run lint-imports`
-- [ ] 前端建置通過 -> verify: `cd frontend && npm run build && npx depcruise src`
-- [ ] 只提交自己的檔案 -> verify: `git diff main --name-only`
+每一項底下是實際跑出來的輸出（節錄）。
+
+- [x] 從 `main` 開分支，未提交的檔案沒被動到 -> verify: `git status --short`
+  ```
+   M CLAUDE.md
+   M docs/adr.md
+  ?? .claude/CLAUDE.md  ?? .claude/settings.json  ?? .claude/skills/
+  ?? .graphifyignore  ?? docs/rag-decisions.md  ?? graphify-out/
+  ```
+  和開始時相同；這些檔案都沒有進任何一個提交。
+- [x] import-linter 寫進 lockfile -> verify: `uv add --dev import-linter`
+  ```
+   + grimp==3.20
+   + import-linter==2.17
+  ```
+- [x] 後端分層規則：不豁免時列出 53 條（紅，fae96ac） -> verify: `cd backend && uv run lint-imports`
+  ```
+  分層：features -> core -> shared KEPT
+  功能之間互相獨立 BROKEN
+  Contracts: 1 kept, 1 broken.
+  ```
+  「is not allowed to import」共 53 行。
+- [x] 後端分層規則通過（綠，8cb795a） -> verify: `cd backend && uv run lint-imports`
+  ```
+  分層：features -> core -> shared KEPT
+  功能之間互相獨立 KEPT (151 ignored imports)
+  Contracts: 2 kept, 0 broken.
+  ```
+- [x] 新增一條 feature 間的 import 會被抓到（變異驗證，未提交） -> verify: `cd backend && uv run lint-imports`
+  ```
+  app.features.documents is not allowed to import app.features.profiles:
+  - app.features.documents._mutation_probe -> app.features.profiles (l.1)
+  ```
+  還原後 exit=0。
+- [x] OpenAPI 檔過期時檢查失敗（紅，少了 `/api/costs`） -> verify: `scripts/gen-docs.sh backend && git status --porcelain -- docs/architecture`
+  ```
+   M docs/architecture/openapi.json
+   docs/architecture/openapi.json | 21 +++++++++++++++++++++
+  check: FAIL (docs out of date)
+  ```
+- [x] OpenAPI 檔和程式一致（綠，e5a1913；17 個路徑；連跑兩次相同） -> verify: 同上
+  ```
+  check: PASS
+  ```
+- [x] tbls 能讀 `vector` 欄位 -> verify: `grep -n "vector" docs/architecture/db/public.chunks.md`
+  ```
+  | embedding | vector(1536) |  | true |  |  |  |
+  ```
+- [x] ER 圖過期時檢查失敗（紅，911ae60） -> verify: `scripts/gen-docs.sh backend && git status --porcelain -- docs/architecture`
+  ```
+   M docs/architecture/db/README.md
+  ?? docs/architecture/db/public.agent_runs.md
+  ...       19 changed/new files
+  check: FAIL (docs out of date)
+  ```
+- [x] ER 圖和資料庫一致（綠，17103df；18 張表；連跑兩次相同） -> verify: 同上
+  ```
+  check: PASS
+  ```
+- [x] `db/` 裡沒有資料列內容、沒有 `alembic_version` -> verify: `ls docs/architecture/db | grep -c alembic`
+  ```
+  0
+  ```
+  內容只有欄位、型別、限制、索引與 ER 圖。
+- [x] dependency-cruiser 寫進 lockfile -> verify: `npx depcruise --version`
+  ```
+  18.9.0
+  ```
+  `package-lock.json` 這次沒有新增任何帶安裝腳本的套件。
+- [x] 前端依賴圖連跑兩次輸出相同 -> verify: 連跑兩次後 `cmp`
+  ```
+  STABLE
+  ```
+- [x] 前端依賴圖過期時檢查失敗（紅） -> verify: `scripts/gen-docs.sh frontend && git status --porcelain -- docs/architecture`
+  ```
+   M docs/architecture/frontend-deps.md
+  check: FAIL (docs out of date)
+  ```
+- [x] 前端依賴規則通過（綠） -> verify: `cd frontend && npx depcruise src`
+  ```
+  ✔ no dependency violations found (48 modules, 138 dependencies cruised)
+  ```
+  變異驗證（加一個沒人用的檔案，未提交）：`error no-orphans: src/lib/_probe.ts`，exit=1；還原後 exit=0。
+- [x] 前端依賴圖和程式一致（綠） -> verify: `scripts/gen-docs.sh frontend && git status --porcelain -- docs/architecture`
+  ```
+  check: PASS
+  ```
+- [x] 大地圖 DSL 寫錯時檢查失敗（紅，133d794） -> verify: `scripts/gen-docs.sh c4`
+  ```
+  ERROR com.structurizr.command.ValidateCommand -- The destination element "line" does not exist at line 46 of /usr/local/structurizr/workspace.dsl
+  gen exit=1
+  ```
+- [x] 大地圖 DSL 通過驗證並匯出（綠，0e4489f） -> verify: `scripts/gen-docs.sh c4 && git status --porcelain -- docs/architecture/c4.md`
+  ```
+  gen exit=0
+  check: PASS
+  ```
+- [x] 大地圖連跑兩次輸出相同 -> verify: 連跑兩次後 `cmp`
+  ```
+  STABLE
+  ```
+- [x] 一個指令重新產生全部並檢查 -> verify: `scripts/check-docs.sh`
+  ```
+  架構文件是最新的。
+  ```
+- [x] 入口頁的連結都有效 -> verify: 逐一 `test -e`
+  ```
+  ok  ../../backend/.importlinter   ok  ../../frontend/.dependency-cruiser.cjs   ok  ../adr.md
+  ok  c4.md   ok  db/README.md   ok  frontend-deps.md   ok  openapi.json   ok  workspace.dsl
+  ```
+- [x] 設定檔與腳本裡沒有金鑰 -> verify: `git diff main | grep -inE "^\+.*(api[_-]?key|token|secret|password)"`
+  ```
+  只對到 input_tokens、output_tokens（資料表欄位名稱）與文件裡的說明文字
+  ```
+  `scripts/gen-docs.sh` 裡的預設連線是 `docker-compose.yml` 已公開的本機開發帳密。
+- [x] 完整測試通過 -> verify: `cd backend && uv run pytest -q && uv run ruff check . && uv run mypy app && uv run lint-imports`
+  ```
+  471 passed, 1 warning in 12.30s
+  All checks passed!
+  Success: no issues found in 126 source files
+  Contracts: 2 kept, 0 broken.
+  ```
+- [x] 前端建置通過 -> verify: `cd frontend && npm run build && npx depcruise src`
+  ```
+  ✓ built in 841ms
+  ✔ no dependency violations found (48 modules, 138 dependencies cruised)
+  ```
+- [x] 只提交自己的檔案 -> verify: `git diff main...HEAD --name-only`
+  ```
+  .github/workflows/ci.yml、README.md、backend/{.importlinter,.tbls.yml,pyproject.toml,uv.lock}、
+  docs/architecture-docs-plan.md、docs/architecture/**、docs/learning/day-11.md、docs/progress.md、
+  frontend/{.dependency-cruiser.cjs,package.json,package-lock.json}、scripts/{gen-docs.sh,check-docs.sh}
+  ```
 - [ ] CI 全綠 -> verify: 推上分支後 `gh run watch`
 - [ ] 每張圖在 GitHub 上能顯示（大地圖顯示不好就改成連結） -> verify: 在瀏覽器開 PR 分支的 `docs/architecture/` 各頁
-- [ ] 學習卡與進度 -> verify: `ls docs/learning/ && git diff main -- docs/progress.md`
+- [x] 學習卡與進度 -> verify: `git diff --stat -- docs/progress.md docs/learning/day-11.md`
+  ```
+   docs/learning/day-11.md | 41 +++++
+   docs/progress.md        |  2 ++
+  ```
+  學習卡第 20 張。
 
 ## 完成時回報
 

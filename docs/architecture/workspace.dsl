@@ -43,7 +43,6 @@ workspace "留學獎學金 Agent" "自動收集歐洲留學獎學金，依使用
         worker -> gemini "抽取、評分、產生向量" "HTTPS"
         worker -> tavily "搜尋新來源" "HTTPS"
         worker -> telegram "送通知" "HTTPS"
-        worker -> line "送通知" "HTTPS"
     }
 
     views {

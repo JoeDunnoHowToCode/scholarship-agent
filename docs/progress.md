@@ -68,4 +68,6 @@
 
 - 總檢查段 6 資料步驟（2026-11-21 到 11-23，已推上 main）：目錄來源重挑子頁，196 個有 172 個挑到（中途斷網，沒挑到的再跑一次；Gemini NT$2.3）；現有獎學金的「前往官方網站」補成第一個子頁（323 筆），使用中的連到學程首頁 140 → 17 筆；段 10 要刪的資料與數量已列在計畫，還沒刪。學習卡第 19 張
 
+- 架構文件（2026-11-28，分支 `feat/architecture-docs`，PR 待你審）：入口頁 `docs/architecture/README.md` 連到六種視圖：大地圖（Structurizr DSL）、API 端點（OpenAPI）、資料表 ER 圖（tbls，18 張表）、前端依賴圖（dependency-cruiser）、後端分層規則（import-linter）、設計決策；`scripts/gen-docs.sh` 重新產生，CI 用 `scripts/check-docs.sh` 檢查沒過期。12 個功能之間現有 53 條互相 import、13 對循環，記成基準線，只列不修。計畫 `docs/architecture-docs-plan.md`。四個決定的 ADR 待你加進 `docs/adr.md`。學習卡第 20 張
+
 下一步：段 10 清理（刪除要你同意）；ADR-118 每日檢查要搬到哪台機器待你決定；offered 要再降，要換更獨立的檢查者（決策簡報的 C 或 D）；標準 v2 的 9 題（`docs/definitions-decisions-v2.md`）待你決定；第 11 天段 4（README 的評估一節）。

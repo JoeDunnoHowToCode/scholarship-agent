@@ -1,0 +1,87 @@
+# 後端的 import 規則（架構文件視圖 5）。檢查：uv run lint-imports
+# 說明在 docs/architecture/README.md。
+[importlinter]
+root_package = app
+
+# 規則一：分層。上面的可以 import 下面的，反過來不行。
+[importlinter:contract:layers]
+name = 分層：features -> core -> shared
+type = layers
+layers =
+    app.features
+    app.core
+    app.shared
+
+# 規則二：12 個功能彼此不能 import。
+[importlinter:contract:features-independent]
+name = 功能之間互相獨立
+type = independence
+modules =
+    app.features.costs
+    app.features.discovery
+    app.features.documents
+    app.features.evaluation
+    app.features.matching
+    app.features.notifications
+    app.features.pipeline
+    app.features.profiles
+    app.features.scholarships
+    app.features.search
+    app.features.settings
+    app.features.sources
+# 現有的 53 條依賴（2026-11-28 的現況，技術債清單）。重構拿掉某一條後，把那一行刪掉；
+# 沒對上任何 import 的豁免會讓檢查失敗，所以清單不會留下過期的項目。
+ignore_imports =
+    app.features.costs.** -> app.features.discovery.**
+    app.features.costs.** -> app.features.pipeline.**
+    app.features.costs.** -> app.features.profiles.**
+    app.features.costs.** -> app.features.settings.**
+    app.features.costs.** -> app.features.sources.**
+    app.features.discovery.** -> app.features.costs.**
+    app.features.discovery.** -> app.features.matching.**
+    app.features.discovery.** -> app.features.notifications.**
+    app.features.discovery.** -> app.features.pipeline.**
+    app.features.discovery.** -> app.features.profiles.**
+    app.features.discovery.** -> app.features.scholarships.**
+    app.features.discovery.** -> app.features.sources.**
+    app.features.documents.** -> app.features.costs.**
+    app.features.evaluation.** -> app.features.costs.**
+    app.features.evaluation.** -> app.features.scholarships.**
+    app.features.evaluation.** -> app.features.sources.**
+    app.features.matching.** -> app.features.costs.**
+    app.features.matching.** -> app.features.profiles.**
+    app.features.matching.** -> app.features.scholarships.**
+    app.features.notifications.** -> app.features.matching.**
+    app.features.notifications.** -> app.features.profiles.**
+    app.features.notifications.** -> app.features.scholarships.**
+    app.features.notifications.** -> app.features.settings.**
+    app.features.pipeline.** -> app.features.costs.**
+    app.features.pipeline.** -> app.features.discovery.**
+    app.features.pipeline.** -> app.features.matching.**
+    app.features.pipeline.** -> app.features.notifications.**
+    app.features.pipeline.** -> app.features.profiles.**
+    app.features.pipeline.** -> app.features.scholarships.**
+    app.features.pipeline.** -> app.features.search.**
+    app.features.pipeline.** -> app.features.sources.**
+    app.features.profiles.** -> app.features.pipeline.**
+    app.features.profiles.** -> app.features.scholarships.**
+    app.features.scholarships.** -> app.features.costs.**
+    app.features.scholarships.** -> app.features.documents.**
+    app.features.scholarships.** -> app.features.matching.**
+    app.features.scholarships.** -> app.features.notifications.**
+    app.features.scholarships.** -> app.features.pipeline.**
+    app.features.scholarships.** -> app.features.profiles.**
+    app.features.scholarships.** -> app.features.search.**
+    app.features.scholarships.** -> app.features.sources.**
+    app.features.search.** -> app.features.costs.**
+    app.features.search.** -> app.features.documents.**
+    app.features.search.** -> app.features.pipeline.**
+    app.features.search.** -> app.features.scholarships.**
+    app.features.search.** -> app.features.sources.**
+    app.features.settings.** -> app.features.pipeline.**
+    app.features.settings.** -> app.features.profiles.**
+    app.features.settings.** -> app.features.scholarships.**
+    app.features.settings.** -> app.features.sources.**
+    app.features.sources.** -> app.features.costs.**
+    app.features.sources.** -> app.features.discovery.**
+    app.features.sources.** -> app.features.scholarships.**

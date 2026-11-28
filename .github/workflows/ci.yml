@@ -55,6 +55,16 @@ jobs:
         run: uv run ruff check .
       - name: mypy
         run: uv run mypy app
+      # 以下三步是架構文件的檢查（說明在 docs/architecture/README.md）
+      - name: 後端分層規則（import-linter）
+        run: uv run lint-imports
+      - uses: k1LoW/setup-tbls@5e8e69748c0bb15fdb5e51a0ecdb84f1ecd0e3a1  # v1.4.1
+        with:
+          version: v1.97.0  # tbls 本身的版本也寫死，輸出格式才不會自己變
+      - name: 架構文件沒有過期（API 端點、資料表）
+        working-directory: .
+        # 重新產生後和提交的內容比對；資料庫是上面跑完 alembic upgrade head 的那一個
+        run: scripts/check-docs.sh backend
 
   frontend:
     runs-on: ubuntu-latest
@@ -73,3 +83,18 @@ jobs:
         run: npm ci
       - name: 型別檢查與建置
         run: npm run build
+      - name: 前端依賴規則（dependency-cruiser）
+        run: npx depcruise src
+      - name: 架構文件沒有過期（前端依賴圖）
+        working-directory: .
+        run: scripts/check-docs.sh frontend
+
+  # 整體大地圖：驗證 docs/architecture/workspace.dsl，並確認匯出的 c4.md 沒有過期。
+  # Structurizr 沒有官方的 action，用 Docker 映像；版本用 digest 寫死在 scripts/gen-docs.sh。
+  architecture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: 架構文件沒有過期（大地圖）
+        run: scripts/check-docs.sh c4

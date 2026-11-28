@@ -1,0 +1,11 @@
+# tbls 的設定（架構文件視圖 3：資料表與關係）。重新產生：scripts/gen-docs.sh backend
+# 資料庫連線不寫在這裡，由環境變數 TBLS_DSN 提供（見 scripts/gen-docs.sh 與 .github/workflows/ci.yml）。
+# tbls 只讀資料庫的結構（表、欄位、索引、外鍵），不讀任何一列資料。
+docPath: ../docs/architecture/db
+er:
+  format: mermaid  # GitHub 直接顯示，git diff 看得懂
+format:
+  sort: true  # 表與欄位照名稱排序，輸出才不會因為建立順序不同而變動
+disableOutputSchema: true  # 不另外輸出 schema.json（內容和 Markdown 重複）
+exclude:
+  - alembic_version  # Alembic 自己記遷移版本用的表，不是應用程式的資料

@@ -72,15 +72,15 @@ scripts/gen-docs.sh c4         # 只做大地圖
 
 ## CI 怎麼檢查
 
-每次推送，`.github/workflows/ci.yml` 會跑同一個 `scripts/gen-docs.sh`，再看 `docs/architecture/` 有沒有變動。有變動就代表提交的文件比程式碼舊，CI 失敗；在本機重新產生、提交就會通過。
+每次推送，`.github/workflows/ci.yml` 會跑 `scripts/check-docs.sh`：它先跑同一個 `scripts/gen-docs.sh`，再看 `docs/architecture/` 有沒有變動。有變動就代表提交的文件比程式碼舊，CI 失敗；在本機重新產生、提交就會通過。
 
 | 視圖 | CI 的檢查 | 本機自己檢查 |
 | --- | --- | --- |
-| 1 大地圖 | DSL 通過驗證；重新匯出後沒有變動 | `scripts/gen-docs.sh c4 && git status --porcelain -- docs/architecture` |
-| 2 API 端點 | 重新匯出後沒有變動 | `scripts/gen-docs.sh backend && git status --porcelain -- docs/architecture` |
-| 3 資料表 | 重新產生後沒有變動 | 同上 |
-| 4 前端依賴 | 規則通過；重新產生後沒有變動 | `cd frontend && npx depcruise src` |
+| 1 大地圖 | DSL 通過驗證；重新匯出後沒有變動 | `scripts/check-docs.sh c4` |
+| 2 API 端點 | 重新匯出後沒有變動 | `scripts/check-docs.sh backend` |
+| 3 資料表 | 重新產生後沒有變動 | `scripts/check-docs.sh backend` |
+| 4 前端依賴 | 規則通過；重新產生後沒有變動 | `cd frontend && npx depcruise src`、`scripts/check-docs.sh frontend` |
 | 5 後端分層 | 規則通過 | `cd backend && uv run lint-imports` |
 | 6 設計決策 | 不檢查 | |
 
-`git status --porcelain` 沒有印出任何東西，就是沒有變動。
+`scripts/check-docs.sh` 不加參數就是全部檢查。

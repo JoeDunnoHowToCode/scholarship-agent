@@ -1,0 +1,31 @@
+# 後端的 import 規則（架構文件視圖 5）。檢查：uv run lint-imports
+# 說明在 docs/architecture/README.md。
+[importlinter]
+root_package = app
+
+# 規則一：分層。上面的可以 import 下面的，反過來不行。
+[importlinter:contract:layers]
+name = 分層：features -> core -> shared
+type = layers
+layers =
+    app.features
+    app.core
+    app.shared
+
+# 規則二：12 個功能彼此不能 import。
+[importlinter:contract:features-independent]
+name = 功能之間互相獨立
+type = independence
+modules =
+    app.features.costs
+    app.features.discovery
+    app.features.documents
+    app.features.evaluation
+    app.features.matching
+    app.features.notifications
+    app.features.pipeline
+    app.features.profiles
+    app.features.scholarships
+    app.features.search
+    app.features.settings
+    app.features.sources

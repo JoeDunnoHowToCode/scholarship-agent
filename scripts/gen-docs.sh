@@ -20,8 +20,21 @@ gen_openapi() {
     > "$OUT/openapi.json"
 }
 
+# 視圖 3：資料表與關係。tbls 連到已經跑完 alembic upgrade head 的 PostgreSQL，只讀結構。
+# 預設連線是 docker-compose.yml 裡本機開發用的資料庫；CI 用 TBLS_DSN 指到它自己的資料庫。
+gen_db() {
+  (cd "$ROOT/backend" \
+    && TBLS_DSN="${TBLS_DSN:-postgres://scholar:scholar@localhost:5432/scholar?sslmode=disable}" \
+       tbls doc -c .tbls.yml --rm-dist)  # --rm-dist：資料表被刪掉時，連它的文件一起刪
+  # 拿掉「Stored procedures and functions」那一段：裡面全是 pgvector 擴充功能自帶的函式，
+  # 不是這個專案寫的；pgvector 一升級清單就變，會讓 CI 誤判成文件過期。
+  awk '/^## Stored procedures and functions/{skip=1; next} /^## /{skip=0} !skip' \
+    "$OUT/db/README.md" > "$OUT/db/README.md.tmp"
+  mv "$OUT/db/README.md.tmp" "$OUT/db/README.md"
+}
+
 case "${1:-all}" in
-  backend) gen_openapi ;;
-  all) gen_openapi ;;
+  backend) gen_openapi; gen_db ;;
+  all) gen_openapi; gen_db ;;
   *) echo "用法：scripts/gen-docs.sh [backend]" >&2; exit 2 ;;
 esac

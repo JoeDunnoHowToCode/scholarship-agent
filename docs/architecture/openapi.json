@@ -2311,6 +2311,27 @@
                 ]
             }
         },
+        "/api/costs": {
+            "get": {
+                "operationId": "read_costs_api_costs_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CostsOut"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Read Costs",
+                "tags": [
+                    "紀錄"
+                ]
+            }
+        },
         "/api/discovery/sources": {
             "get": {
                 "description": "agent 加的來源（ADR-078），以及被停用、有寫原因的來源（例如被取代，ADR-095）。新的在前。",

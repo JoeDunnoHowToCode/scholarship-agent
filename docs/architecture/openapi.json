@@ -1,0 +1,2947 @@
+{
+    "components": {
+        "schemas": {
+            "AgentRunOut": {
+                "properties": {
+                    "final_text": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Final Text"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "integer"
+                    },
+                    "ntd": {
+                        "title": "Ntd",
+                        "type": "number"
+                    },
+                    "result": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Result"
+                    },
+                    "started_at": {
+                        "format": "date-time",
+                        "title": "Started At",
+                        "type": "string"
+                    },
+                    "steps": {
+                        "title": "Steps",
+                        "type": "integer"
+                    },
+                    "target": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Target"
+                    },
+                    "task": {
+                        "title": "Task",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "task",
+                    "target",
+                    "started_at",
+                    "result",
+                    "steps",
+                    "ntd",
+                    "final_text"
+                ],
+                "title": "AgentRunOut",
+                "type": "object"
+            },
+            "AgentSourceOut": {
+                "properties": {
+                    "created_at": {
+                        "format": "date-time",
+                        "title": "Created At",
+                        "type": "string"
+                    },
+                    "decided_at": {
+                        "anyOf": [
+                            {
+                                "format": "date-time",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Decided At"
+                    },
+                    "enabled": {
+                        "title": "Enabled",
+                        "type": "boolean"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "integer"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "review_note": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Review Note"
+                    },
+                    "scholarships": {
+                        "title": "Scholarships",
+                        "type": "integer"
+                    },
+                    "status": {
+                        "title": "Status",
+                        "type": "string"
+                    },
+                    "url": {
+                        "title": "Url",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "url",
+                    "status",
+                    "enabled",
+                    "review_note",
+                    "created_at",
+                    "decided_at",
+                    "scholarships"
+                ],
+                "title": "AgentSourceOut",
+                "type": "object"
+            },
+            "AgentStepOut": {
+                "properties": {
+                    "args": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Args"
+                    },
+                    "full_text": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Full Text"
+                    },
+                    "input_tokens": {
+                        "title": "Input Tokens",
+                        "type": "integer"
+                    },
+                    "kind": {
+                        "title": "Kind",
+                        "type": "string"
+                    },
+                    "number": {
+                        "title": "Number",
+                        "type": "integer"
+                    },
+                    "output_tokens": {
+                        "title": "Output Tokens",
+                        "type": "integer"
+                    },
+                    "summary": {
+                        "title": "Summary",
+                        "type": "string"
+                    },
+                    "tool": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Tool"
+                    }
+                },
+                "required": [
+                    "number",
+                    "kind",
+                    "tool",
+                    "args",
+                    "summary",
+                    "full_text",
+                    "input_tokens",
+                    "output_tokens"
+                ],
+                "title": "AgentStepOut",
+                "type": "object"
+            },
+            "AmountOut": {
+                "description": "獎學金給你的一筆錢與核對結果（ADR-070）。",
+                "properties": {
+                    "applies_to": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Applies To"
+                    },
+                    "currency": {
+                        "title": "Currency",
+                        "type": "string"
+                    },
+                    "evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Evidence"
+                    },
+                    "kind": {
+                        "title": "Kind",
+                        "type": "string"
+                    },
+                    "percent": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Percent"
+                    },
+                    "period": {
+                        "title": "Period",
+                        "type": "string"
+                    },
+                    "status": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Status"
+                    },
+                    "value": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Value"
+                    }
+                },
+                "required": [
+                    "value",
+                    "currency",
+                    "period",
+                    "kind",
+                    "applies_to",
+                    "evidence",
+                    "status"
+                ],
+                "title": "AmountOut",
+                "type": "object"
+            },
+            "AskIn": {
+                "properties": {
+                    "question": {
+                        "description": "要問的問題",
+                        "maxLength": 500,
+                        "minLength": 1,
+                        "title": "Question",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "question"
+                ],
+                "title": "AskIn",
+                "type": "object"
+            },
+            "AskOut": {
+                "properties": {
+                    "answer": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Answer"
+                    },
+                    "candidates": {
+                        "items": {
+                            "$ref": "#/components/schemas/CandidateOut"
+                        },
+                        "title": "Candidates",
+                        "type": "array"
+                    },
+                    "citations": {
+                        "items": {
+                            "$ref": "#/components/schemas/CitationOut"
+                        },
+                        "title": "Citations",
+                        "type": "array"
+                    },
+                    "invalid": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Invalid",
+                        "type": "array"
+                    },
+                    "listed": {
+                        "items": {
+                            "$ref": "#/components/schemas/ListedOut"
+                        },
+                        "title": "Listed",
+                        "type": "array"
+                    },
+                    "notes": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Notes",
+                        "type": "array"
+                    },
+                    "route": {
+                        "title": "Route",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "route",
+                    "notes",
+                    "answer",
+                    "citations",
+                    "invalid",
+                    "listed",
+                    "candidates"
+                ],
+                "title": "AskOut",
+                "type": "object"
+            },
+            "BreakerOut": {
+                "properties": {
+                    "open": {
+                        "title": "Open",
+                        "type": "boolean"
+                    },
+                    "opened_at": {
+                        "anyOf": [
+                            {
+                                "format": "date-time",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Opened At"
+                    },
+                    "reason": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Reason"
+                    }
+                },
+                "required": [
+                    "open",
+                    "reason",
+                    "opened_at"
+                ],
+                "title": "BreakerOut",
+                "type": "object"
+            },
+            "CandidateOut": {
+                "properties": {
+                    "id": {
+                        "title": "Id",
+                        "type": "integer"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "similarity": {
+                        "title": "Similarity",
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "similarity"
+                ],
+                "title": "CandidateOut",
+                "type": "object"
+            },
+            "CategoryOut": {
+                "properties": {
+                    "countries": {
+                        "items": {
+                            "$ref": "#/components/schemas/Country"
+                        },
+                        "title": "Countries",
+                        "type": "array"
+                    },
+                    "degree_conditions": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Degree Conditions"
+                    },
+                    "degrees": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Degrees",
+                        "type": "array"
+                    },
+                    "degrees_evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Degrees Evidence"
+                    },
+                    "eligibility": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Eligibility"
+                    },
+                    "issues": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Issues",
+                        "type": "array"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "quota": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Quota"
+                    },
+                    "quota_evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Quota Evidence"
+                    }
+                },
+                "required": [
+                    "name",
+                    "quota",
+                    "degrees",
+                    "countries",
+                    "eligibility",
+                    "degree_conditions",
+                    "quota_evidence",
+                    "degrees_evidence",
+                    "issues"
+                ],
+                "title": "CategoryOut",
+                "type": "object"
+            },
+            "ChangeOut": {
+                "properties": {
+                    "changed_at": {
+                        "format": "date-time",
+                        "title": "Changed At",
+                        "type": "string"
+                    },
+                    "text": {
+                        "title": "Text",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "changed_at",
+                    "text"
+                ],
+                "title": "ChangeOut",
+                "type": "object"
+            },
+            "CitationOut": {
+                "properties": {
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "where": {
+                        "title": "Where",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "where"
+                ],
+                "title": "CitationOut",
+                "type": "object"
+            },
+            "CostsOut": {
+                "properties": {
+                    "by_day": {
+                        "items": {
+                            "$ref": "#/components/schemas/DayCost"
+                        },
+                        "title": "By Day",
+                        "type": "array"
+                    },
+                    "by_feature": {
+                        "items": {
+                            "$ref": "#/components/schemas/FeatureCost"
+                        },
+                        "title": "By Feature",
+                        "type": "array"
+                    },
+                    "cap_ntd": {
+                        "title": "Cap Ntd",
+                        "type": "number"
+                    },
+                    "month_ntd": {
+                        "title": "Month Ntd",
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "month_ntd",
+                    "cap_ntd",
+                    "by_feature",
+                    "by_day"
+                ],
+                "title": "CostsOut",
+                "type": "object"
+            },
+            "Country": {
+                "description": "國碼與中文國名（ADR-054：台灣顯示為「台灣」）。",
+                "properties": {
+                    "code": {
+                        "title": "Code",
+                        "type": "string"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "code",
+                    "name"
+                ],
+                "title": "Country",
+                "type": "object"
+            },
+            "CountryOption": {
+                "properties": {
+                    "code": {
+                        "title": "Code",
+                        "type": "string"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "code",
+                    "name"
+                ],
+                "title": "CountryOption",
+                "type": "object"
+            },
+            "CycleOut": {
+                "description": "一個申請期；description 和通知用同一種寫法，日期用原文的時區。",
+                "properties": {
+                    "closes_at": {
+                        "format": "date-time",
+                        "title": "Closes At",
+                        "type": "string"
+                    },
+                    "description": {
+                        "title": "Description",
+                        "type": "string"
+                    },
+                    "estimated": {
+                        "title": "Estimated",
+                        "type": "boolean"
+                    },
+                    "evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Evidence"
+                    },
+                    "funding": {
+                        "title": "Funding",
+                        "type": "string"
+                    },
+                    "intake": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Intake"
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Label"
+                    },
+                    "nationalities": {
+                        "items": {
+                            "$ref": "#/components/schemas/Country"
+                        },
+                        "title": "Nationalities",
+                        "type": "array"
+                    },
+                    "nationality_scope": {
+                        "title": "Nationality Scope",
+                        "type": "string"
+                    },
+                    "opens_at": {
+                        "anyOf": [
+                            {
+                                "format": "date-time",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Opens At"
+                    },
+                    "status": {
+                        "title": "Status",
+                        "type": "string"
+                    },
+                    "timezone": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Timezone"
+                    },
+                    "timezone_assumed": {
+                        "title": "Timezone Assumed",
+                        "type": "boolean"
+                    },
+                    "verification": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Verification"
+                    }
+                },
+                "required": [
+                    "description",
+                    "intake",
+                    "label",
+                    "opens_at",
+                    "closes_at",
+                    "timezone",
+                    "timezone_assumed",
+                    "status",
+                    "estimated",
+                    "nationality_scope",
+                    "nationalities",
+                    "funding",
+                    "evidence",
+                    "verification"
+                ],
+                "title": "CycleOut",
+                "type": "object"
+            },
+            "DayCost": {
+                "properties": {
+                    "day": {
+                        "format": "date",
+                        "title": "Day",
+                        "type": "string"
+                    },
+                    "ntd": {
+                        "title": "Ntd",
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "day",
+                    "ntd"
+                ],
+                "title": "DayCost",
+                "type": "object"
+            },
+            "EventOut": {
+                "properties": {
+                    "created_at": {
+                        "format": "date-time",
+                        "title": "Created At",
+                        "type": "string"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "integer"
+                    },
+                    "kind": {
+                        "title": "Kind",
+                        "type": "string"
+                    },
+                    "lines": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Lines",
+                        "type": "array"
+                    },
+                    "scholarship_id": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Scholarship Id"
+                    },
+                    "sent_at": {
+                        "anyOf": [
+                            {
+                                "format": "date-time",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Sent At"
+                    },
+                    "status": {
+                        "title": "Status",
+                        "type": "string"
+                    },
+                    "title": {
+                        "title": "Title",
+                        "type": "string"
+                    },
+                    "url": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Url"
+                    }
+                },
+                "required": [
+                    "id",
+                    "kind",
+                    "title",
+                    "scholarship_id",
+                    "lines",
+                    "url",
+                    "status",
+                    "created_at",
+                    "sent_at"
+                ],
+                "title": "EventOut",
+                "type": "object"
+            },
+            "FeatureCost": {
+                "properties": {
+                    "calls": {
+                        "title": "Calls",
+                        "type": "integer"
+                    },
+                    "feature": {
+                        "title": "Feature",
+                        "type": "string"
+                    },
+                    "ntd": {
+                        "title": "Ntd",
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "feature",
+                    "calls",
+                    "ntd"
+                ],
+                "title": "FeatureCost",
+                "type": "object"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "title": "Detail",
+                        "type": "array"
+                    }
+                },
+                "title": "HTTPValidationError",
+                "type": "object"
+            },
+            "ListedOut": {
+                "description": "filter 路線篩到的一個申請期。",
+                "properties": {
+                    "closes_at": {
+                        "format": "date-time",
+                        "title": "Closes At",
+                        "type": "string"
+                    },
+                    "deadline_unverified": {
+                        "title": "Deadline Unverified",
+                        "type": "boolean"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "integer"
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Label"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "nationality_unclear": {
+                        "title": "Nationality Unclear",
+                        "type": "boolean"
+                    },
+                    "official_url": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Official Url"
+                    },
+                    "status": {
+                        "title": "Status",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "closes_at",
+                    "status",
+                    "label",
+                    "nationality_unclear",
+                    "deadline_unverified",
+                    "official_url"
+                ],
+                "title": "ListedOut",
+                "type": "object"
+            },
+            "MatchOut": {
+                "description": "一筆評分；資料表物件不直接回傳（CLAUDE.md）。",
+                "properties": {
+                    "cap": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Cap"
+                    },
+                    "category": {
+                        "title": "Category",
+                        "type": "string"
+                    },
+                    "checks": {
+                        "additionalProperties": true,
+                        "title": "Checks",
+                        "type": "object"
+                    },
+                    "failed": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Failed",
+                        "type": "array"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "official_url": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Official Url"
+                    },
+                    "scholarship_id": {
+                        "title": "Scholarship Id",
+                        "type": "integer"
+                    },
+                    "sub_scores": {
+                        "additionalProperties": true,
+                        "title": "Sub Scores",
+                        "type": "object"
+                    },
+                    "total": {
+                        "title": "Total",
+                        "type": "number"
+                    },
+                    "unclear": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Unclear",
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "scholarship_id",
+                    "name",
+                    "category",
+                    "total",
+                    "cap",
+                    "unclear",
+                    "failed",
+                    "checks",
+                    "sub_scores",
+                    "official_url"
+                ],
+                "title": "MatchOut",
+                "type": "object"
+            },
+            "OtherDateOut": {
+                "description": "不是申請這個獎學金的日期（ADR-105），例如補件、繳費；分類錯了也看得到。",
+                "properties": {
+                    "closes": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Closes"
+                    },
+                    "evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Evidence"
+                    },
+                    "kind": {
+                        "title": "Kind",
+                        "type": "string"
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Label"
+                    }
+                },
+                "required": [
+                    "kind",
+                    "label",
+                    "closes",
+                    "evidence"
+                ],
+                "title": "OtherDateOut",
+                "type": "object"
+            },
+            "ProfileIn": {
+                "description": "API 與指令收到的個人資料；國籍、想讀的學位必填，其他選填（ADR-055）。",
+                "properties": {
+                    "current_major": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "目前科系（選填）",
+                        "title": "Current Major"
+                    },
+                    "nationality": {
+                        "description": "國籍，ISO 3166-1 兩碼國碼，例如 TW",
+                        "title": "Nationality",
+                        "type": "string"
+                    },
+                    "target_countries": {
+                        "description": "想去的國家國碼（選填）",
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Target Countries",
+                        "type": "array"
+                    },
+                    "target_degree": {
+                        "description": "想讀的學位",
+                        "enum": [
+                            "bachelor",
+                            "master",
+                            "phd",
+                            "other"
+                        ],
+                        "title": "Target Degree",
+                        "type": "string"
+                    },
+                    "target_fields": {
+                        "description": "想讀的領域（選填）",
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Target Fields",
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "nationality",
+                    "target_degree"
+                ],
+                "title": "ProfileIn",
+                "type": "object"
+            },
+            "ProfileOut": {
+                "description": "API 回傳的個人資料：多了版本號與更新時間。資料表物件不直接回傳（CLAUDE.md）。",
+                "properties": {
+                    "current_major": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "目前科系（選填）",
+                        "title": "Current Major"
+                    },
+                    "nationality": {
+                        "description": "國籍，ISO 3166-1 兩碼國碼，例如 TW",
+                        "title": "Nationality",
+                        "type": "string"
+                    },
+                    "target_countries": {
+                        "description": "想去的國家國碼（選填）",
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Target Countries",
+                        "type": "array"
+                    },
+                    "target_degree": {
+                        "description": "想讀的學位",
+                        "enum": [
+                            "bachelor",
+                            "master",
+                            "phd",
+                            "other"
+                        ],
+                        "title": "Target Degree",
+                        "type": "string"
+                    },
+                    "target_fields": {
+                        "description": "想讀的領域（選填）",
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Target Fields",
+                        "type": "array"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "title": "Updated At",
+                        "type": "string"
+                    },
+                    "version": {
+                        "title": "Version",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "nationality",
+                    "target_degree",
+                    "version",
+                    "updated_at"
+                ],
+                "title": "ProfileOut",
+                "type": "object"
+            },
+            "RequirementOut": {
+                "properties": {
+                    "category": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Category"
+                    },
+                    "count": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Count"
+                    },
+                    "details": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Details"
+                    },
+                    "doc_type": {
+                        "title": "Doc Type",
+                        "type": "string"
+                    },
+                    "evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Evidence"
+                    },
+                    "required": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Required"
+                    }
+                },
+                "required": [
+                    "doc_type",
+                    "details",
+                    "required",
+                    "count",
+                    "category",
+                    "evidence"
+                ],
+                "title": "RequirementOut",
+                "type": "object"
+            },
+            "ReviewAction": {
+                "properties": {
+                    "action": {
+                        "enum": [
+                            "disable",
+                            "keep"
+                        ],
+                        "title": "Action",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "action"
+                ],
+                "title": "ReviewAction",
+                "type": "object"
+            },
+            "ReviewOut": {
+                "description": "AI 判斷「這頁不是獎學金」、但引用沒核對過的來源（ADR-115），等你決定停用或保留。",
+                "properties": {
+                    "check": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Check"
+                    },
+                    "evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Evidence"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "source_id": {
+                        "title": "Source Id",
+                        "type": "integer"
+                    },
+                    "url": {
+                        "title": "Url",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "source_id",
+                    "name",
+                    "url",
+                    "evidence",
+                    "check"
+                ],
+                "title": "ReviewOut",
+                "type": "object"
+            },
+            "ScholarshipDetail": {
+                "properties": {
+                    "amount": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Amount"
+                    },
+                    "amount_headline": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Amount Headline"
+                    },
+                    "amounts": {
+                        "items": {
+                            "$ref": "#/components/schemas/AmountOut"
+                        },
+                        "title": "Amounts",
+                        "type": "array"
+                    },
+                    "categories": {
+                        "items": {
+                            "$ref": "#/components/schemas/CategoryOut"
+                        },
+                        "title": "Categories",
+                        "type": "array"
+                    },
+                    "changes": {
+                        "items": {
+                            "$ref": "#/components/schemas/ChangeOut"
+                        },
+                        "title": "Changes",
+                        "type": "array"
+                    },
+                    "countries": {
+                        "items": {
+                            "$ref": "#/components/schemas/Country"
+                        },
+                        "title": "Countries",
+                        "type": "array"
+                    },
+                    "coverage": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Coverage"
+                    },
+                    "cycles": {
+                        "items": {
+                            "$ref": "#/components/schemas/CycleOut"
+                        },
+                        "title": "Cycles",
+                        "type": "array"
+                    },
+                    "deadline_line": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Deadline Line"
+                    },
+                    "degrees": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Degrees",
+                        "type": "array"
+                    },
+                    "degrees_check": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Degrees Check"
+                    },
+                    "degrees_evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Degrees Evidence"
+                    },
+                    "fields": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Fields",
+                        "type": "array"
+                    },
+                    "how_to_apply": {
+                        "title": "How To Apply",
+                        "type": "string"
+                    },
+                    "how_to_apply_check": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "How To Apply Check"
+                    },
+                    "how_to_apply_evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "How To Apply Evidence"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "integer"
+                    },
+                    "language_requirements": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Language Requirements"
+                    },
+                    "last_verified_at": {
+                        "anyOf": [
+                            {
+                                "format": "date-time",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Last Verified At"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "name_zh": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name Zh"
+                    },
+                    "nationalities": {
+                        "items": {
+                            "$ref": "#/components/schemas/Country"
+                        },
+                        "title": "Nationalities",
+                        "type": "array"
+                    },
+                    "nationality_check": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Nationality Check"
+                    },
+                    "nationality_conditions": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Nationality Conditions"
+                    },
+                    "nationality_evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Nationality Evidence"
+                    },
+                    "nationality_groups": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Nationality Groups",
+                        "type": "array"
+                    },
+                    "nationality_scope": {
+                        "title": "Nationality Scope",
+                        "type": "string"
+                    },
+                    "next_cycle_evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Next Cycle Evidence"
+                    },
+                    "next_cycle_note": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Next Cycle Note"
+                    },
+                    "no_date_text": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "No Date Text"
+                    },
+                    "offered": {
+                        "title": "Offered",
+                        "type": "string"
+                    },
+                    "offered_evidence": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Offered Evidence"
+                    },
+                    "official_url": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Official Url"
+                    },
+                    "other_dates": {
+                        "items": {
+                            "$ref": "#/components/schemas/OtherDateOut"
+                        },
+                        "title": "Other Dates",
+                        "type": "array"
+                    },
+                    "other_eligibility": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Other Eligibility"
+                    },
+                    "provider": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Provider"
+                    },
+                    "requirements": {
+                        "items": {
+                            "$ref": "#/components/schemas/RequirementOut"
+                        },
+                        "title": "Requirements",
+                        "type": "array"
+                    },
+                    "scores": {
+                        "items": {
+                            "$ref": "#/components/schemas/ScoreOut"
+                        },
+                        "title": "Scores",
+                        "type": "array"
+                    },
+                    "stale": {
+                        "title": "Stale",
+                        "type": "boolean"
+                    },
+                    "status": {
+                        "title": "Status",
+                        "type": "string"
+                    },
+                    "summary": {
+                        "items": {
+                            "$ref": "#/components/schemas/SummaryOut"
+                        },
+                        "title": "Summary",
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "name_zh",
+                    "provider",
+                    "countries",
+                    "degrees",
+                    "fields",
+                    "coverage",
+                    "amount",
+                    "amounts",
+                    "deadline_line",
+                    "amount_headline",
+                    "language_requirements",
+                    "other_eligibility",
+                    "how_to_apply",
+                    "how_to_apply_evidence",
+                    "how_to_apply_check",
+                    "no_date_text",
+                    "nationality_groups",
+                    "nationality_scope",
+                    "nationalities",
+                    "nationality_conditions",
+                    "nationality_evidence",
+                    "nationality_check",
+                    "degrees_evidence",
+                    "degrees_check",
+                    "official_url",
+                    "status",
+                    "stale",
+                    "last_verified_at",
+                    "categories",
+                    "cycles",
+                    "summary",
+                    "offered",
+                    "offered_evidence",
+                    "next_cycle_note",
+                    "next_cycle_evidence",
+                    "other_dates",
+                    "requirements",
+                    "scores",
+                    "changes"
+                ],
+                "title": "ScholarshipDetail",
+                "type": "object"
+            },
+            "ScholarshipList": {
+                "properties": {
+                    "rows": {
+                        "items": {
+                            "$ref": "#/components/schemas/ScholarshipRow"
+                        },
+                        "title": "Rows",
+                        "type": "array"
+                    },
+                    "scores_outdated": {
+                        "title": "Scores Outdated",
+                        "type": "boolean"
+                    },
+                    "semantic": {
+                        "title": "Semantic",
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "rows",
+                    "scores_outdated",
+                    "semantic"
+                ],
+                "title": "ScholarshipList",
+                "type": "object"
+            },
+            "ScholarshipRow": {
+                "description": "列表的一列：一筆獎學金，分數用分數最高的類別。",
+                "properties": {
+                    "amount_headline": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Amount Headline"
+                    },
+                    "category": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Category"
+                    },
+                    "countries": {
+                        "items": {
+                            "$ref": "#/components/schemas/Country"
+                        },
+                        "title": "Countries",
+                        "type": "array"
+                    },
+                    "deadline_line": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Deadline Line"
+                    },
+                    "degrees": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Degrees",
+                        "type": "array"
+                    },
+                    "failed": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Failed",
+                        "type": "array"
+                    },
+                    "group": {
+                        "anyOf": [
+                            {
+                                "enum": [
+                                    "pass",
+                                    "unclear",
+                                    "fail"
+                                ],
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Group"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "integer"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "name_zh": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name Zh"
+                    },
+                    "next_deadline": {
+                        "anyOf": [
+                            {
+                                "format": "date-time",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Next Deadline"
+                    },
+                    "no_date_text": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "No Date Text"
+                    },
+                    "official_url": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Official Url"
+                    },
+                    "provider": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Provider"
+                    },
+                    "score": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Score"
+                    },
+                    "stale": {
+                        "title": "Stale",
+                        "type": "boolean"
+                    },
+                    "status": {
+                        "title": "Status",
+                        "type": "string"
+                    },
+                    "time_reason": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Time Reason"
+                    },
+                    "unclear": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Unclear",
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "name_zh",
+                    "provider",
+                    "countries",
+                    "degrees",
+                    "status",
+                    "stale",
+                    "next_deadline",
+                    "deadline_line",
+                    "no_date_text",
+                    "score",
+                    "category",
+                    "group",
+                    "time_reason",
+                    "unclear",
+                    "failed",
+                    "amount_headline",
+                    "official_url"
+                ],
+                "title": "ScholarshipRow",
+                "type": "object"
+            },
+            "ScoreOut": {
+                "description": "一個類別的評分；理由可能提到你的科系，只在本機的網頁顯示（ADR-063 只限制通知）。",
+                "properties": {
+                    "cap": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Cap"
+                    },
+                    "category": {
+                        "title": "Category",
+                        "type": "string"
+                    },
+                    "checks": {
+                        "additionalProperties": true,
+                        "title": "Checks",
+                        "type": "object"
+                    },
+                    "computed_at": {
+                        "format": "date-time",
+                        "title": "Computed At",
+                        "type": "string"
+                    },
+                    "failed": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Failed",
+                        "type": "array"
+                    },
+                    "sub_scores": {
+                        "additionalProperties": true,
+                        "title": "Sub Scores",
+                        "type": "object"
+                    },
+                    "total": {
+                        "title": "Total",
+                        "type": "number"
+                    },
+                    "unclear": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "Unclear",
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "category",
+                    "total",
+                    "cap",
+                    "checks",
+                    "sub_scores",
+                    "unclear",
+                    "failed",
+                    "computed_at"
+                ],
+                "title": "ScoreOut",
+                "type": "object"
+            },
+            "SettingsIn": {
+                "properties": {
+                    "monthly_cap_ntd": {
+                        "maximum": 7000.0,
+                        "minimum": 1.0,
+                        "title": "Monthly Cap Ntd",
+                        "type": "number"
+                    },
+                    "notify_threshold": {
+                        "maximum": 100.0,
+                        "minimum": 0.0,
+                        "title": "Notify Threshold",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "notify_threshold",
+                    "monthly_cap_ntd"
+                ],
+                "title": "SettingsIn",
+                "type": "object"
+            },
+            "SettingsOut": {
+                "properties": {
+                    "breaker": {
+                        "$ref": "#/components/schemas/BreakerOut"
+                    },
+                    "cap_limit_ntd": {
+                        "title": "Cap Limit Ntd",
+                        "type": "number"
+                    },
+                    "monthly_cap_ntd": {
+                        "title": "Monthly Cap Ntd",
+                        "type": "number"
+                    },
+                    "notify_threshold": {
+                        "title": "Notify Threshold",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "notify_threshold",
+                    "monthly_cap_ntd",
+                    "cap_limit_ntd",
+                    "breaker"
+                ],
+                "title": "SettingsOut",
+                "type": "object"
+            },
+            "SourceToggle": {
+                "properties": {
+                    "enabled": {
+                        "title": "Enabled",
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "enabled"
+                ],
+                "title": "SourceToggle",
+                "type": "object"
+            },
+            "SummaryOut": {
+                "description": "獎學金說明的一句與它的原文引用（docs/summary-plan.md）；只回傳通過核對的。",
+                "properties": {
+                    "evidence": {
+                        "title": "Evidence",
+                        "type": "string"
+                    },
+                    "text": {
+                        "title": "Text",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "text",
+                    "evidence"
+                ],
+                "title": "SummaryOut",
+                "type": "object"
+            },
+            "ValidationError": {
+                "properties": {
+                    "ctx": {
+                        "title": "Context",
+                        "type": "object"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "title": "Location",
+                        "type": "array"
+                    },
+                    "msg": {
+                        "title": "Message",
+                        "type": "string"
+                    },
+                    "type": {
+                        "title": "Error Type",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError",
+                "type": "object"
+            }
+        }
+    },
+    "info": {
+        "title": "留學獎學金 Agent",
+        "version": "0.1.0"
+    },
+    "openapi": "3.1.0",
+    "paths": {
+        "/api/agent-runs": {
+            "get": {
+                "description": "最近的 agent 執行，新的在前。",
+                "operationId": "list_agent_runs_api_agent_runs_get",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "required": false,
+                        "schema": {
+                            "default": 30,
+                            "maximum": 100,
+                            "minimum": 1,
+                            "title": "Limit",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/AgentRunOut"
+                                    },
+                                    "title": "Response List Agent Runs Api Agent Runs Get",
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "List Agent Runs",
+                "tags": [
+                    "紀錄"
+                ]
+            }
+        },
+        "/api/agent-runs/{run_id}/steps": {
+            "get": {
+                "description": "某次執行的每一步，照順序；超過 30 天的沒有全文，只有摘要（ADR-089）。",
+                "operationId": "list_agent_steps_api_agent_runs__run_id__steps_get",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "run_id",
+                        "required": true,
+                        "schema": {
+                            "title": "Run Id",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/AgentStepOut"
+                                    },
+                                    "title": "Response List Agent Steps Api Agent Runs  Run Id  Steps Get",
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "List Agent Steps",
+                "tags": [
+                    "紀錄"
+                ]
+            }
+        },
+        "/api/ask": {
+            "post": {
+                "operationId": "ask_question_api_ask_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AskIn"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AskOut"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Ask Question",
+                "tags": [
+                    "問答"
+                ]
+            }
+        },
+        "/api/discovery/sources": {
+            "get": {
+                "description": "agent 加的來源（ADR-078），以及被停用、有寫原因的來源（例如被取代，ADR-095）。新的在前。",
+                "operationId": "list_agent_sources_api_discovery_sources_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/AgentSourceOut"
+                                    },
+                                    "title": "Response List Agent Sources Api Discovery Sources Get",
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "List Agent Sources",
+                "tags": [
+                    "設定"
+                ]
+            }
+        },
+        "/api/discovery/sources/{source_id}": {
+            "patch": {
+                "description": "停用或恢復一個來源。恢復時清掉停用原因與「連續抽不到」的次數，從頭算。",
+                "operationId": "toggle_source_api_discovery_sources__source_id__patch",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "source_id",
+                        "required": true,
+                        "schema": {
+                            "title": "Source Id",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SourceToggle"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AgentSourceOut"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Toggle Source",
+                "tags": [
+                    "設定"
+                ]
+            }
+        },
+        "/api/events": {
+            "get": {
+                "operationId": "list_events_api_events_get",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "required": false,
+                        "schema": {
+                            "default": 50,
+                            "maximum": 200,
+                            "minimum": 1,
+                            "title": "Limit",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/EventOut"
+                                    },
+                                    "title": "Response List Events Api Events Get",
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "List Events",
+                "tags": [
+                    "通知"
+                ]
+            }
+        },
+        "/api/matches": {
+            "get": {
+                "operationId": "list_matches_api_matches_get",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "required": false,
+                        "schema": {
+                            "default": 50,
+                            "title": "Limit",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/MatchOut"
+                                    },
+                                    "title": "Response List Matches Api Matches Get",
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "List Matches",
+                "tags": [
+                    "評分"
+                ]
+            }
+        },
+        "/api/profile": {
+            "get": {
+                "operationId": "read_profile_api_profile_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProfileOut"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Read Profile",
+                "tags": [
+                    "個人資料"
+                ]
+            },
+            "put": {
+                "operationId": "write_profile_api_profile_put",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ProfileIn"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProfileOut"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Write Profile",
+                "tags": [
+                    "個人資料"
+                ]
+            }
+        },
+        "/api/profile/countries": {
+            "get": {
+                "description": "個人資料頁的國家選單（ADR-091）：完整清單，依國碼排序；中文名稱的排序交給瀏覽器。",
+                "operationId": "list_countries_api_profile_countries_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/CountryOption"
+                                    },
+                                    "title": "Response List Countries Api Profile Countries Get",
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "List Countries",
+                "tags": [
+                    "個人資料"
+                ]
+            }
+        },
+        "/api/scholarships": {
+            "get": {
+                "description": "archived：預設不列已封存的，True 才列（ADR-106）。\n篩選：留學國家、學位看獎學金本身；只看開放中的、截止日範圍看真的（不是預估的）申請期。\nq：搜尋字，關鍵字與語意的結果用 RRF 合併（ADR-069）。",
+                "operationId": "list_scholarships_api_scholarships_get",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "q",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Q"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "country",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Country"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "degree",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "enum": [
+                                        "bachelor",
+                                        "master",
+                                        "phd",
+                                        "other"
+                                    ],
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Degree"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "open_only",
+                        "required": false,
+                        "schema": {
+                            "default": false,
+                            "title": "Open Only",
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "deadline_after",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "format": "date",
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Deadline After"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "deadline_before",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "format": "date",
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Deadline Before"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "archived",
+                        "required": false,
+                        "schema": {
+                            "default": false,
+                            "title": "Archived",
+                            "type": "boolean"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ScholarshipList"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "List Scholarships",
+                "tags": [
+                    "獎學金"
+                ]
+            }
+        },
+        "/api/scholarships/{scholarship_id}": {
+            "get": {
+                "operationId": "read_scholarship_api_scholarships__scholarship_id__get",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "scholarship_id",
+                        "required": true,
+                        "schema": {
+                            "title": "Scholarship Id",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ScholarshipDetail"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Read Scholarship",
+                "tags": [
+                    "獎學金"
+                ]
+            }
+        },
+        "/api/settings": {
+            "get": {
+                "operationId": "read_settings_api_settings_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SettingsOut"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Read Settings",
+                "tags": [
+                    "設定"
+                ]
+            },
+            "put": {
+                "operationId": "update_settings_api_settings_put",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SettingsIn"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SettingsOut"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Update Settings",
+                "tags": [
+                    "設定"
+                ]
+            }
+        },
+        "/api/settings/breaker/reset": {
+            "post": {
+                "description": "處理好之後恢復 AI 步驟（和指令 breaker --reset 一樣，ADR-056）。",
+                "operationId": "reset_breaker_api_settings_breaker_reset_post",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SettingsOut"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Reset Breaker",
+                "tags": [
+                    "設定"
+                ]
+            }
+        },
+        "/api/settings/review": {
+            "get": {
+                "description": "判斷不是獎學金、但引用沒核對過的來源（ADR-115）：核對過的已經自動停用（ADR-107 A2），不列。",
+                "operationId": "list_review_api_settings_review_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ReviewOut"
+                                    },
+                                    "title": "Response List Review Api Settings Review Get",
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "List Review",
+                "tags": [
+                    "設定"
+                ]
+            }
+        },
+        "/api/settings/review/{source_id}": {
+            "post": {
+                "description": "你對一個「判斷不是獎學金」的來源做決定（ADR-115）；回傳更新後的清單。\n停用後，它的獎學金在當天收尾的 refresh 封存（總檢查 A6）。",
+                "operationId": "decide_review_api_settings_review__source_id__post",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "source_id",
+                        "required": true,
+                        "schema": {
+                            "title": "Source Id",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReviewAction"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ReviewOut"
+                                    },
+                                    "title": "Response Decide Review Api Settings Review  Source Id  Post",
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Decide Review",
+                "tags": [
+                    "設定"
+                ]
+            }
+        },
+        "/health": {
+            "get": {
+                "operationId": "health_health_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    },
+                                    "title": "Response Health Health Get",
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Health"
+            }
+        }
+    }
+}

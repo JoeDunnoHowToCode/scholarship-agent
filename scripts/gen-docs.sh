@@ -4,6 +4,7 @@
 # 用法：
 #   scripts/gen-docs.sh            全部
 #   scripts/gen-docs.sh backend    API 端點（openapi.json）與資料表（db/）
+#   scripts/gen-docs.sh frontend   前端模組依賴圖（frontend-deps.md）
 #
 # CI 跑完後檢查 docs/architecture/ 有沒有變動；有變動代表提交的文件過期。
 # 說明在 docs/architecture/README.md。
@@ -33,8 +34,36 @@ gen_db() {
   mv "$OUT/db/README.md.tmp" "$OUT/db/README.md"
 }
 
+# 視圖 4：前端模組依賴圖。dependency-cruiser 讀 frontend/src 的 import，輸出 Mermaid。
+# 兩張：按資料夾合併的總覽，和每個檔案的細節。node_modules（外部套件）不畫。
+gen_frontend() {
+  local f="$OUT/frontend-deps.md"
+  cd "$ROOT/frontend"
+  {
+    echo "# 前端模組依賴圖"
+    echo
+    echo "由 dependency-cruiser 從 \`frontend/src\` 的 import 產生，不要手動修改。重新產生：\`scripts/gen-docs.sh frontend\`"
+    echo
+    echo "箭頭 A --> B 的意思是「A import 了 B」。"
+    echo
+    echo "## 按資料夾"
+    echo
+    echo '```mermaid'
+    npx depcruise src --output-type mermaid --exclude "^node_modules" --collapse "^src/[^/]+"
+    echo '```'
+    echo
+    echo "## 按檔案"
+    echo
+    echo '```mermaid'
+    npx depcruise src --output-type mermaid --exclude "^node_modules"
+    echo '```'
+  } > "$f"
+  cd "$ROOT"
+}
+
 case "${1:-all}" in
   backend) gen_openapi; gen_db ;;
-  all) gen_openapi; gen_db ;;
-  *) echo "用法：scripts/gen-docs.sh [backend]" >&2; exit 2 ;;
+  frontend) gen_frontend ;;
+  all) gen_openapi; gen_db; gen_frontend ;;
+  *) echo "用法：scripts/gen-docs.sh [backend|frontend]" >&2; exit 2 ;;
 esac

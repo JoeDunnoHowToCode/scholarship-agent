@@ -75,7 +75,8 @@ structurizr() {
 # 所以改成純文字：每一段之間換行（<br/>），其餘標籤拿掉。
 c4_view() {
   sed -E -e "s#<div[^>]*></div>##g" -e "s#</div><div[^>]*>#<br/>#g" \
-         -e "s#<div[^>]*>##g" -e "s#</div>##g" -e "s#<br />#<br/>#g" "$1"
+         -e "s#<div[^>]*>##g" -e "s#</div>##g" -e "s#<br />#<br/>#g" "$1" \
+    | awk 1  # 匯出的檔案最後一行沒有換行；補上，結尾的 ``` 才會自己一行
 }
 gen_c4() {
   local tmp="$OUT/.c4-export" f="$OUT/c4.md"
